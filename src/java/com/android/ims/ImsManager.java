@@ -1421,6 +1421,12 @@ public class ImsManager {
 
         if (!mConfigUpdated || force) {
             try {
+                PersistableBundle imsCarrierConfigs =
+                        mConfigManager.getConfigByComponentForSubId(
+                                CarrierConfigManager.Ims.KEY_PREFIX, getSubId());
+
+                updateImsCarrierConfigs(imsCarrierConfigs);
+
                 // Note: currently the order of updates is set to produce different order of
                 // changeEnabledCapabilities() function calls from setAdvanced4GMode(). This is done
                 // to differentiate this code path from vendor code perspective.
@@ -2793,5 +2799,21 @@ public class ImsManager {
     private boolean isSubIdValid(int subId) {
         return SubscriptionManager.isValidSubscriptionId(subId) &&
                 subId != SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+    }
+
+    private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
+        checkAndThrowExceptionIfServiceUnavailable();
+
+        IImsConfig config = mMmTelFeatureConnection.getConfigInterface();
+        if (config == null) {
+            throw new ImsException("getConfigInterface()",
+                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
+        }
+        try {
+            config.updateImsCarrierConfigs(configs);
+        } catch (RemoteException e) {
+            throw new ImsException("updateImsCarrierConfigs()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
     }
 }
