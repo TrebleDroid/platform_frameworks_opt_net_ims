@@ -1358,11 +1358,14 @@ public class ImsManager implements IFeatureConnector {
         boolean available = isVolteEnabledByPlatform();
         boolean enabled = isEnhanced4gLteModeSettingEnabledByUser();
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
-        boolean isFeatureOn = available && enabled && isNonTty;
+        boolean isProvisioned = isVolteProvisionedOnDevice();
+        boolean isFeatureOn = available && enabled && isNonTty && isProvisioned;
 
         log("updateVolteFeatureValue: available = " + available
                 + ", enabled = " + enabled
-                + ", nonTTY = " + isNonTty);
+                + ", nonTTY = " + isNonTty
+                + ", provisioned = " + isProvisioned
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1385,14 +1388,16 @@ public class ImsManager implements IFeatureConnector {
         boolean isDataEnabled = isDataEnabled();
         boolean ignoreDataEnabledChanged = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_DATA_ENABLED_CHANGED_FOR_VIDEO_CALLS);
-
-        boolean isFeatureOn = available && enabled && isNonTty
+        boolean isProvisioned = isVtProvisionedOnDevice();
+        boolean isFeatureOn = available && enabled && isNonTty && isProvisioned
                 && (ignoreDataEnabledChanged || isDataEnabled);
 
         log("updateVideoCallFeatureValue: available = " + available
                 + ", enabled = " + enabled
                 + ", nonTTY = " + isNonTty
-                + ", data enabled = " + isDataEnabled);
+                + ", data enabled = " + isDataEnabled
+                + ", provisioned = " + isProvisioned
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1413,14 +1418,17 @@ public class ImsManager implements IFeatureConnector {
         boolean isNetworkRoaming = tm.isNetworkRoaming();
         boolean available = isWfcEnabledByPlatform();
         boolean enabled = isWfcEnabledByUser();
+        boolean isProvisioned = isWfcProvisionedOnDevice();
         int mode = getWfcMode(isNetworkRoaming);
         boolean roaming = isWfcRoamingEnabledByUser();
-        boolean isFeatureOn = available && enabled;
+        boolean isFeatureOn = available && enabled && isProvisioned;
 
         log("updateWfcFeatureAndProvisionedValues: available = " + available
                 + ", enabled = " + enabled
                 + ", mode = " + mode
-                + ", roaming = " + roaming);
+                + ", provisioned = " + isProvisioned
+                + ", roaming = " + roaming
+                + ", isFeatureOn = " + isFeatureOn);
 
         if (isFeatureOn) {
             request.addCapabilitiesToEnableForTech(
