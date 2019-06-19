@@ -3486,10 +3486,11 @@ public class ImsCall implements ICall {
         sb.append(isOnHold() ? "Y" : "N");
         sb.append(" mute:");
         sb.append(isMuted() ? "Y" : "N");
-        if (mCallProfile != null) {
-            sb.append(" mCallProfile:" + mCallProfile);
+        ImsCallProfile imsCallProfile = mCallProfile;
+        if (imsCallProfile != null) {
+            sb.append(" mCallProfile:" + imsCallProfile);
             sb.append(" tech:");
-            sb.append(mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE));
+            sb.append(imsCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE));
         }
         sb.append(" updateRequest:");
         sb.append(updateRequestToString(mUpdateRequest));
