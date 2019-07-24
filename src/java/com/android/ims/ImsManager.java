@@ -274,6 +274,7 @@ public class ImsManager {
         private final Listener mListener;
         private final Executor mExecutor;
         private final Object mLock = new Object();
+        private final String mLogPrefix;
 
         private int mRetryCount = 0;
         private ImsManager mImsManager;
@@ -294,14 +295,25 @@ public class ImsManager {
             mPhoneId = phoneId;
             mListener = listener;
             mExecutor = new HandlerExecutor(this);
+            mLogPrefix = "?";
+        }
+
+        public Connector(Context context, int phoneId, Listener listener, String logPrefix) {
+            mContext = context;
+            mPhoneId = phoneId;
+            mListener = listener;
+            mExecutor = new HandlerExecutor(this);
+            mLogPrefix = logPrefix;
         }
 
         @VisibleForTesting
-        public Connector(Context context, int phoneId, Listener listener, Executor executor) {
+        public Connector(Context context, int phoneId, Listener listener, Executor executor,
+                String logPrefix) {
             mContext = context;
             mPhoneId = phoneId;
             mListener= listener;
             mExecutor = executor;
+            mLogPrefix = logPrefix;
         }
 
 
@@ -349,7 +361,10 @@ public class ImsManager {
 
                 // Exponential backoff during retry, limited to 32 seconds.
                 removeCallbacks(mGetServiceRunnable);
-                postDelayed(mGetServiceRunnable, mRetryTimeout.get());
+                int timeout = mRetryTimeout.get();
+                postDelayed(mGetServiceRunnable, timeout);
+                Log.i(TAG, getLogMessage("retryGetImsService: unavailable, retrying in " + timeout
+                        + " seconds"));
             }
         }
 
@@ -375,7 +390,7 @@ public class ImsManager {
                 mListener.connectionReady(manager);
             }
             catch (ImsException e) {
-                Log.w(TAG, "Connector: notifyReady exception: " + e.getMessage());
+                Log.w(TAG, getLogMessage("notifyReady exception: " + e.getMessage()));
                 throw e;
             }
             // Only reset retry count if connectionReady does not generate an ImsException/
@@ -386,6 +401,10 @@ public class ImsManager {
 
         private void notifyNotReady() {
             mListener.connectionUnavailable();
+        }
+
+        private String getLogMessage(String message) {
+            return "Connector-[" + mLogPrefix + "] " + message;
         }
     }
 
