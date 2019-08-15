@@ -423,7 +423,8 @@ public class MmTelFeatureConnection {
     private Context mContext;
     private Executor mExecutor;
 
-    private volatile boolean mIsAvailable = false;
+    // We are assuming the feature is available when started.
+    private volatile boolean mIsAvailable = true;
     // ImsFeature Status from the ImsService. Cached.
     private Integer mFeatureStateCached = null;
     private IFeatureUpdate mStatusCallback;
