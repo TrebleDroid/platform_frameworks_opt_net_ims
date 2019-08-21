@@ -2174,13 +2174,20 @@ public class ImsManager {
     public boolean updateRttConfigValue() {
         boolean isCarrierSupported =
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL);
-        boolean isRttEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
+        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
                 Settings.Secure.RTT_CALLING_MODE, 0) != 0;
-        Log.i(ImsManager.class.getSimpleName(), "update RTT value " + isRttEnabled);
-        if (isCarrierSupported == true) {
-            setRttConfig(isRttEnabled);
+        boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
+                CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
+
+        boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
+        Log.i(ImsManager.class.getSimpleName(), "update RTT: settings value: "
+                + isRttUiSettingEnabled + " always-on carrierconfig: "
+                + isRttAlwaysOnCarrierConfig);
+
+        if (isCarrierSupported) {
+            setRttConfig(shouldImsRttBeOn);
         }
-        return isCarrierSupported && isRttEnabled;
+        return isCarrierSupported && shouldImsRttBeOn;
     }
 
     private void setRttConfig(boolean enabled) {
