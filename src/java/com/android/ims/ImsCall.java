@@ -1751,6 +1751,14 @@ public class ImsCall implements ICall {
         return mImsCallSessionListenerProxy;
     }
 
+    /**
+     * @return the current Listener.  NOTE: ONLY FOR USE WITH TESTING.
+     */
+    @VisibleForTesting
+    public Listener getListener() {
+        return mListener;
+    }
+
     private ImsCall createNewCall(ImsCallSession session, ImsCallProfile profile) {
         ImsCall call = new ImsCall(mContext, profile);
 
