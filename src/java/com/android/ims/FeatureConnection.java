@@ -1,0 +1,210 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *            http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License
+ */
+
+package com.android.ims;
+
+import android.content.Context;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.RemoteException;
+import android.telephony.TelephonyManager;
+import android.telephony.ims.aidl.IImsMmTelFeature;
+import android.telephony.ims.aidl.IImsRcsFeature;
+import android.telephony.ims.feature.ImsFeature;
+import android.telephony.Rlog;
+import android.telephony.SubscriptionManager;
+import android.util.Log;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.ims.internal.IImsServiceFeatureCallback;
+import com.android.ims.MmTelFeatureConnection.IFeatureUpdate;
+
+import java.util.concurrent.Executor;
+
+/**
+ * Base class of MmTelFeatureConnection and RcsFeatureConnection.
+ */
+public abstract class FeatureConnection {
+    protected static final String TAG = "FeatureConnection";
+
+    protected static boolean sImsSupportedOnDevice = true;
+
+    protected final int mSlotId;
+    protected final int mFeatureType;
+    protected Context mContext;
+    protected IBinder mBinder;
+    @VisibleForTesting
+    public Executor mExecutor;
+
+    // We are assuming the feature is available when started.
+    protected volatile boolean mIsAvailable = true;
+    // ImsFeature Status from the ImsService. Cached.
+    protected Integer mFeatureStateCached = null;
+    protected IFeatureUpdate mStatusCallback;
+    protected final Object mLock = new Object();
+
+    public FeatureConnection(Context context, int slotId, int featureType) {
+        mSlotId = slotId;
+        mContext = context;
+        mFeatureType = featureType;
+
+        // Callbacks should be scheduled on the main thread.
+        if (context.getMainLooper() != null) {
+            mExecutor = context.getMainExecutor();
+        } else {
+            // Fallback to the current thread.
+            if (Looper.myLooper() == null) {
+                Looper.prepare();
+            }
+            mExecutor = new HandlerExecutor(new Handler(Looper.myLooper()));
+        }
+    }
+
+    protected TelephonyManager getTelephonyManager() {
+        return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+    }
+
+    public void setBinder(IBinder binder) {
+        synchronized (mLock) {
+            mBinder = binder;
+            try {
+                if (mBinder != null) {
+                    mBinder.linkToDeath(mDeathRecipient, 0);
+                }
+            } catch (RemoteException e) {
+                // No need to do anything if the binder is already dead.
+            }
+        }
+    }
+
+    protected final IBinder.DeathRecipient mDeathRecipient = () -> {
+        Log.w(TAG, "DeathRecipient triggered, binder died.");
+        if (mContext != null && Looper.getMainLooper() != null) {
+            // Move this signal to the main thread, notifying ImsManager of the Binder
+            // death on another thread may lead to deadlocks.
+            mContext.getMainExecutor().execute(this::onRemovedOrDied);
+            return;
+        }
+        // No choice - execute on the current Binder thread.
+        onRemovedOrDied();
+    };
+
+    /**
+     * Called when the MmTelFeature/RcsFeature has either been removed by Telephony or crashed.
+     */
+    protected void onRemovedOrDied() {
+        synchronized (mLock) {
+            if (mIsAvailable) {
+                mIsAvailable = false;
+                if (mBinder != null) {
+                    mBinder.unlinkToDeath(mDeathRecipient, 0);
+                }
+                if (mStatusCallback != null) {
+                    mStatusCallback.notifyUnavailable();
+                }
+            }
+        }
+    }
+
+    @VisibleForTesting
+    public IImsServiceFeatureCallback getListener() {
+        return mListenerBinder;
+    }
+
+    private final IImsServiceFeatureCallback mListenerBinder =
+        new IImsServiceFeatureCallback.Stub() {
+            @Override
+            public void imsFeatureCreated(int slotId, int feature) {
+                mExecutor.execute(() -> {
+                    handleImsFeatureCreatedCallback(slotId, feature);
+                });
+            }
+            @Override
+            public void imsFeatureRemoved(int slotId, int feature) {
+                mExecutor.execute(() -> {
+                    handleImsFeatureRemovedCallback(slotId, feature);
+                });
+            }
+            @Override
+            public void imsStatusChanged(int slotId, int feature, int status) {
+                mExecutor.execute(() -> {
+                    handleImsStatusChangedCallback(slotId, feature, status);
+                });
+            }
+        };
+
+    protected abstract void handleImsFeatureCreatedCallback(int slotId, int feature);
+    protected abstract void handleImsFeatureRemovedCallback(int slotId, int feature);
+    protected abstract void handleImsStatusChangedCallback(int slotId, int feature, int status);
+
+    protected void checkServiceIsReady() throws RemoteException {
+        if (!sImsSupportedOnDevice) {
+            throw new RemoteException("IMS is not supported on this device.");
+        }
+        if (!isBinderReady()) {
+            throw new RemoteException("ImsServiceProxy is not ready to accept commands.");
+        }
+    }
+
+    /**
+     * @return Returns true if the ImsService is ready to take commands, false otherwise. If this
+     * method returns false, it doesn't mean that the Binder connection is not available (use
+     * {@link #isBinderReady()} to check that), but that the ImsService is not accepting commands
+     * at this time.
+     *
+     * For example, for DSDS devices, only one slot can be {@link ImsFeature#STATE_READY} to take
+     * commands at a time, so the other slot must stay at {@link ImsFeature#STATE_UNAVAILABLE}.
+     */
+    public boolean isBinderReady() {
+        return isBinderAlive() && getFeatureState() == ImsFeature.STATE_READY;
+    }
+
+    /**
+     * @return false if the binder connection is no longer alive.
+     */
+    public boolean isBinderAlive() {
+        return mIsAvailable && mBinder != null && mBinder.isBinderAlive();
+    }
+
+    /**
+     * @return an integer describing the current Feature Status, defined in
+     * {@link ImsFeature.ImsState}.
+     */
+    public int getFeatureState() {
+        synchronized (mLock) {
+            if (isBinderAlive() && mFeatureStateCached != null) {
+                return mFeatureStateCached;
+            }
+        }
+        // Don't synchronize on Binder call.
+        Integer state = retrieveFeatureState();
+        synchronized (mLock) {
+            if (state == null) {
+                return ImsFeature.STATE_UNAVAILABLE;
+            }
+            // Cache only non-null value for feature status.
+            mFeatureStateCached = state;
+        }
+        Log.i(TAG, "getFeatureState - returning " + ImsFeature.STATE_LOG_MAP.get(state));
+        return state;
+    }
+
+    /**
+     * Internal method used to retrieve the feature status from the corresponding ImsService.
+     */
+    protected abstract Integer retrieveFeatureState();
+}
