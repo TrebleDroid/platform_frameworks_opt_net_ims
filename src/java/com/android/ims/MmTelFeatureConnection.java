@@ -19,7 +19,6 @@ package com.android.ims;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.IInterface;
 import android.os.Looper;
@@ -58,16 +57,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
  * A container of the IImsServiceController binder, which implements all of the ImsFeatures that
- * the platform currently supports: MMTel and RCS.
- * @hide
+ * the platform currently supports: MMTel
  */
 
-public class MmTelFeatureConnection {
+public class MmTelFeatureConnection extends FeatureConnection {
     protected static final String TAG = "MmTelFeatureConnection";
 
     // Manages callbacks to the associated MmTelFeature in mMmTelFeatureConnection.
@@ -417,38 +414,14 @@ public class MmTelFeatureConnection {
         }
     }
 
-    protected final int mSlotId;
-    protected IBinder mBinder;
-    private Context mContext;
-    private Executor mExecutor;
-
-    // We are assuming the feature is available when started.
-    private volatile boolean mIsAvailable = true;
-    // ImsFeature Status from the ImsService. Cached.
-    private Integer mFeatureStateCached = null;
     private IFeatureUpdate mStatusCallback;
-    private final Object mLock = new Object();
     // Updated by IImsServiceFeatureCallback when FEATURE_EMERGENCY_MMTEL is sent.
     private boolean mSupportsEmergencyCalling = false;
-    private static boolean sImsSupportedOnDevice = true;
 
     // Cache the Registration and Config interfaces as long as the MmTel feature is connected. If
     // it becomes disconnected, invalidate.
     private IImsRegistration mRegistrationBinder;
     private IImsConfig mConfigBinder;
-
-    private final IBinder.DeathRecipient mDeathRecipient = () -> {
-        Log.w(TAG, "DeathRecipient triggered, binder died.");
-        if (mContext != null && Looper.getMainLooper() != null) {
-            // Move this signal to the main thread, notifying ImsManager of the Binder
-            // death on another thread may lead to deadlocks.
-            mContext.getMainExecutor().execute(this::onRemovedOrDied);
-            return;
-        }
-        // No choice - execute on the current Binder thread.
-        onRemovedOrDied();
-    };
-
     private final ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
     private final CapabilityCallbackManager mCapabilityCallbackManager;
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
@@ -461,7 +434,7 @@ public class MmTelFeatureConnection {
             return serviceProxy;
         }
 
-        TelephonyManager tm  = getTelephonyManager(context);
+        TelephonyManager tm = serviceProxy.getTelephonyManager();
         if (tm == null) {
             Rlog.w(TAG, "create: TelephonyManager is null!");
             // Binder can be unset in this case because it will be torn down/recreated as part of
@@ -481,10 +454,6 @@ public class MmTelFeatureConnection {
         return serviceProxy;
     }
 
-    public static TelephonyManager getTelephonyManager(Context context) {
-        return (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-    }
-
     public interface IFeatureUpdate {
         /**
          * Called when the ImsFeature has changed its state. Use
@@ -499,99 +468,16 @@ public class MmTelFeatureConnection {
         void notifyUnavailable();
     }
 
-    private final IImsServiceFeatureCallback mListenerBinder =
-            new IImsServiceFeatureCallback.Stub() {
-
-        @Override
-        public void imsFeatureCreated(int slotId, int feature) {
-                mExecutor.execute(() -> {
-                // The feature has been enabled. This happens when the feature is first created and
-                // may happen when the feature is re-enabled.
-                synchronized (mLock) {
-                    if(mSlotId != slotId) {
-                        return;
-                    }
-                    switch (feature) {
-                        case ImsFeature.FEATURE_MMTEL: {
-                            if (!mIsAvailable) {
-                                Log.i(TAG, "MmTel enabled on slotId: " + slotId);
-                                mIsAvailable = true;
-                            }
-                            break;
-                        }
-                        case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
-                            mSupportsEmergencyCalling = true;
-                            Log.i(TAG, "Emergency calling enabled on slotId: " + slotId);
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-
-        @Override
-        public void imsFeatureRemoved(int slotId, int feature) {
-            mExecutor.execute(() -> {
-                synchronized (mLock) {
-                    if (mSlotId != slotId) {
-                        return;
-                    }
-                    switch (feature) {
-                        case ImsFeature.FEATURE_MMTEL: {
-                            Log.i(TAG, "MmTel removed on slotId: " + slotId);
-                            onRemovedOrDied();
-                            break;
-                        }
-                        case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
-                            mSupportsEmergencyCalling = false;
-                            Log.i(TAG, "Emergency calling disabled on slotId: " + slotId);
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-
-        @Override
-        public void imsStatusChanged(int slotId, int feature, int status) {
-            mExecutor.execute(() -> {
-                synchronized (mLock) {
-                    Log.i(TAG, "imsStatusChanged: slot: " + slotId + " feature: "
-                            + ImsFeature.FEATURE_LOG_MAP.get(feature) +
-                            " status: " + ImsFeature.STATE_LOG_MAP.get(status));
-                    if (mSlotId == slotId && feature == ImsFeature.FEATURE_MMTEL) {
-                        mFeatureStateCached = status;
-                        if (mStatusCallback != null) {
-                            mStatusCallback.notifyStateChanged();
-                        }
-                    }
-                }
-            });
-        }
-    };
-
     public MmTelFeatureConnection(Context context, int slotId) {
-        mSlotId = slotId;
-        mContext = context;
-        // Callbacks should be scheduled on the main thread.
-        if (context.getMainLooper() != null) {
-            mExecutor = context.getMainExecutor();
-        } else {
-            // Fallback to the current thread.
-            if (Looper.myLooper() == null) {
-                Looper.prepare();
-            }
-            mExecutor = new HandlerExecutor(new Handler(Looper.myLooper()));
-        }
+        super(context, slotId, ImsFeature.FEATURE_MMTEL);
+
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);
         mCapabilityCallbackManager = new CapabilityCallbackManager(context, mLock);
         mProvisioningCallbackManager = new ProvisioningCallbackManager(context, mLock);
     }
 
-    /**
-     * Called when the MmTelFeature has either been removed by Telephony or crashed.
-     */
-    private void onRemovedOrDied() {
+    @Override
+    protected void onRemovedOrDied() {
         synchronized (mLock) {
             mRegistrationCallbackManager.close();
             mCapabilityCallbackManager.close();
@@ -618,7 +504,7 @@ public class MmTelFeatureConnection {
                 return mRegistrationBinder;
             }
         }
-        TelephonyManager tm = getTelephonyManager(mContext);
+        TelephonyManager tm = getTelephonyManager();
         // We don't want to synchronize on a binder call to another process.
         IImsRegistration regBinder = tm != null
                 ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
@@ -639,7 +525,7 @@ public class MmTelFeatureConnection {
                 return mConfigBinder;
             }
         }
-        TelephonyManager tm = getTelephonyManager(mContext);
+        TelephonyManager tm = getTelephonyManager();
         IImsConfig configBinder = tm != null
                 ? tm.getImsConfig(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
         synchronized (mLock) {
@@ -651,25 +537,69 @@ public class MmTelFeatureConnection {
         return mConfigBinder;
     }
 
-    public boolean isEmergencyMmTelAvailable() {
-        return mSupportsEmergencyCalling;
-    }
-
-    public IImsServiceFeatureCallback getListener() {
-        return mListenerBinder;
-    }
-
-    public void setBinder(IBinder binder) {
+    @Override
+    protected void handleImsFeatureCreatedCallback(int slotId, int feature) {
+        // The feature has been enabled. This happens when the feature is first created and
+        // may happen when the feature is re-enabled.
         synchronized (mLock) {
-            mBinder = binder;
-            try {
-                if (mBinder != null) {
-                    mBinder.linkToDeath(mDeathRecipient, 0);
+            if(mSlotId != slotId) {
+                return;
+            }
+            switch (feature) {
+                case ImsFeature.FEATURE_MMTEL: {
+                    if (!mIsAvailable) {
+                        Log.i(TAG, "MmTel enabled on slotId: " + slotId);
+                        mIsAvailable = true;
+                    }
+                    break;
                 }
-            } catch (RemoteException e) {
-                // No need to do anything if the binder is already dead.
+                case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
+                    mSupportsEmergencyCalling = true;
+                    Log.i(TAG, "Emergency calling enabled on slotId: " + slotId);
+                    break;
+                }
             }
         }
+    }
+
+    @Override
+    protected void handleImsFeatureRemovedCallback(int slotId, int feature) {
+        synchronized (mLock) {
+            if (mSlotId != slotId) {
+                return;
+            }
+            switch (feature) {
+                case ImsFeature.FEATURE_MMTEL: {
+                    Log.i(TAG, "MmTel removed on slotId: " + slotId);
+                    onRemovedOrDied();
+                    break;
+                }
+                case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
+                    mSupportsEmergencyCalling = false;
+                    Log.i(TAG, "Emergency calling disabled on slotId: " + slotId);
+                    break;
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void handleImsStatusChangedCallback(int slotId, int feature, int status) {
+        synchronized (mLock) {
+            Log.i(TAG, "imsStatusChanged: slot: " + slotId + " feature: "
+                + ImsFeature.FEATURE_LOG_MAP.get(feature) +
+                " status: " + ImsFeature.STATE_LOG_MAP.get(status));
+            if (mSlotId == slotId && feature == ImsFeature.FEATURE_MMTEL) {
+                mFeatureStateCached = status;
+                if (mStatusCallback != null) {
+                    mStatusCallback.notifyStateChanged();
+                }
+            }
+        }
+    }
+
+    public boolean isEmergencyMmTelAvailable() {
+        return mSupportsEmergencyCalling;
     }
 
     /**
@@ -891,32 +821,14 @@ public class MmTelFeatureConnection {
     }
 
     /**
-     * @return an integer describing the current Feature Status, defined in
-     * {@link ImsFeature.ImsState}.
+     * @param c Callback that will fire when the feature status has changed.
      */
-    public int getFeatureState() {
-        synchronized (mLock) {
-            if (isBinderAlive() && mFeatureStateCached != null) {
-                return mFeatureStateCached;
-            }
-        }
-        // Don't synchronize on Binder call.
-        Integer state = retrieveFeatureState();
-        synchronized (mLock) {
-            if (state == null) {
-                return ImsFeature.STATE_UNAVAILABLE;
-            }
-            // Cache only non-null value for feature status.
-            mFeatureStateCached = state;
-        }
-        Log.i(TAG, "getFeatureState - returning " + ImsFeature.STATE_LOG_MAP.get(state));
-        return state;
+    public void setStatusCallback(IFeatureUpdate c) {
+        mStatusCallback = c;
     }
 
-    /**
-     * Internal method used to retrieve the feature status from the corresponding ImsService.
-     */
-    private Integer retrieveFeatureState() {
+    @Override
+    protected Integer retrieveFeatureState() {
         if (mBinder != null) {
             try {
                 return getServiceInterface(mBinder).getFeatureState();
@@ -925,42 +837,6 @@ public class MmTelFeatureConnection {
             }
         }
         return null;
-    }
-
-    /**
-     * @param c Callback that will fire when the feature status has changed.
-     */
-    public void setStatusCallback(IFeatureUpdate c) {
-        mStatusCallback = c;
-    }
-
-    /**
-     * @return Returns true if the ImsService is ready to take commands, false otherwise. If this
-     * method returns false, it doesn't mean that the Binder connection is not available (use
-     * {@link #isBinderReady()} to check that), but that the ImsService is not accepting commands
-     * at this time.
-     *
-     * For example, for DSDS devices, only one slot can be {@link ImsFeature#STATE_READY} to take
-     * commands at a time, so the other slot must stay at {@link ImsFeature#STATE_UNAVAILABLE}.
-     */
-    public boolean isBinderReady() {
-        return isBinderAlive() && getFeatureState() == ImsFeature.STATE_READY;
-    }
-
-    /**
-     * @return false if the binder connection is no longer alive.
-     */
-    public boolean isBinderAlive() {
-        return mIsAvailable && mBinder != null && mBinder.isBinderAlive();
-    }
-
-    private void checkServiceIsReady() throws RemoteException {
-        if (!sImsSupportedOnDevice) {
-            throw new RemoteException("IMS is not supported on this device.");
-        }
-        if (!isBinderReady()) {
-            throw new RemoteException("ImsServiceProxy is not ready to accept commands.");
-        }
     }
 
     private IImsMmTelFeature getServiceInterface(IBinder b) {
