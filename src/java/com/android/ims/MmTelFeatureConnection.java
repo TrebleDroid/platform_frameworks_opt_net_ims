@@ -414,13 +414,11 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    private IFeatureUpdate mStatusCallback;
     // Updated by IImsServiceFeatureCallback when FEATURE_EMERGENCY_MMTEL is sent.
     private boolean mSupportsEmergencyCalling = false;
 
     // Cache the Registration and Config interfaces as long as the MmTel feature is connected. If
     // it becomes disconnected, invalidate.
-    private IImsRegistration mRegistrationBinder;
     private IImsConfig mConfigBinder;
     private final ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
     private final CapabilityCallbackManager mCapabilityCallbackManager;
@@ -454,20 +452,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
         return serviceProxy;
     }
 
-    public interface IFeatureUpdate {
-        /**
-         * Called when the ImsFeature has changed its state. Use
-         * {@link ImsFeature#getFeatureState()} to get the new state.
-         */
-        void notifyStateChanged();
-
-        /**
-         * Called when the ImsFeature has become unavailable due to the binder switching or app
-         * crashing. A new ImsServiceProxy should be requested for that feature.
-         */
-        void notifyUnavailable();
-    }
-
     public MmTelFeatureConnection(Context context, int slotId) {
         super(context, slotId, ImsFeature.FEATURE_MMTEL);
 
@@ -495,27 +479,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
                 }
             }
         }
-    }
-
-    private @Nullable IImsRegistration getRegistration() {
-        synchronized (mLock) {
-            // null if cache is invalid;
-            if (mRegistrationBinder != null) {
-                return mRegistrationBinder;
-            }
-        }
-        TelephonyManager tm = getTelephonyManager();
-        // We don't want to synchronize on a binder call to another process.
-        IImsRegistration regBinder = tm != null
-                ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
-        synchronized (mLock) {
-            // mRegistrationBinder may have changed while we tried to get the registration
-            // interface.
-            if (mRegistrationBinder == null) {
-                mRegistrationBinder = regBinder;
-            }
-        }
-        return mRegistrationBinder;
     }
 
     private IImsConfig getConfig() {
@@ -729,16 +692,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
         return getConfig();
     }
 
-    public @ImsRegistrationImplBase.ImsRegistrationTech int getRegistrationTech()
-            throws RemoteException {
-        IImsRegistration registration = getRegistration();
-        if (registration != null) {
-                return registration.getRegistrationTechnology();
-        } else {
-            return ImsRegistrationImplBase.REGISTRATION_TECH_NONE;
-        }
-    }
-
     public IImsEcbm getEcbmInterface() throws RemoteException {
         synchronized (mLock) {
             checkServiceIsReady();
@@ -818,13 +771,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
             checkServiceIsReady();
             return getServiceInterface(mBinder).shouldProcessCall(numbers);
         }
-    }
-
-    /**
-     * @param c Callback that will fire when the feature status has changed.
-     */
-    public void setStatusCallback(IFeatureUpdate c) {
-        mStatusCallback = c;
     }
 
     @Override

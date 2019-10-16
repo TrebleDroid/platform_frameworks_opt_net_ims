@@ -79,7 +79,7 @@ import java.util.concurrent.TimeUnit;
  * For internal use ONLY! Use {@link ImsMmTelManager} instead.
  * @hide
  */
-public class ImsManager {
+public class ImsManager implements IFeatureConnector {
 
     /*
      * Debug flag to override configuration flag
@@ -186,228 +186,6 @@ public class ImsManager {
 
     private static final int RESPONSE_WAIT_TIME_MS = 3000;
 
-    /**
-     * Helper class for managing a connection to the ImsManager when the ImsService is unavailable
-     * or switches to another service.
-     */
-    public static class Connector extends Handler {
-        // Initial condition for ims connection retry.
-        private static final int IMS_RETRY_STARTING_TIMEOUT_MS = 500; // ms
-        // Ceiling bitshift amount for service query timeout, calculated as:
-        // 2^mImsServiceRetryCount * IMS_RETRY_STARTING_TIMEOUT_MS, where
-        // mImsServiceRetryCount ∊ [0, CEILING_SERVICE_RETRY_COUNT].
-        private static final int CEILING_SERVICE_RETRY_COUNT = 6;
-
-        private final Runnable mGetServiceRunnable = () -> {
-            try {
-                getImsService();
-            } catch (ImsException e) {
-                retryGetImsService();
-            }
-        };
-
-        public interface Listener {
-            /**
-             * ImsManager is connected to the underlying IMS implementation.
-             */
-            void connectionReady(ImsManager manager) throws ImsException;
-
-            /**
-             * The underlying IMS implementation is unavailable and can not be used to communicate.
-             */
-            void connectionUnavailable();
-        }
-
-        @VisibleForTesting
-        public interface RetryTimeout {
-            int get();
-        }
-
-        // Callback fires when ImsManager MMTel Feature changes state
-        private MmTelFeatureConnection.IFeatureUpdate mNotifyStatusChangedCallback =
-                new MmTelFeatureConnection.IFeatureUpdate() {
-                    @Override
-                    public void notifyStateChanged() {
-                        mExecutor.execute(() -> {
-                            try {
-                                int status = ImsFeature.STATE_UNAVAILABLE;
-                                synchronized (mLock) {
-                                    if (mImsManager != null) {
-                                        status = mImsManager.getImsServiceState();
-                                    }
-                                }
-                                switch (status) {
-                                    case ImsFeature.STATE_READY: {
-                                        notifyReady();
-                                        break;
-                                    }
-                                    case ImsFeature.STATE_INITIALIZING:
-                                        // fall through
-                                    case ImsFeature.STATE_UNAVAILABLE: {
-                                        notifyNotReady();
-                                        break;
-                                    }
-                                    default: {
-                                        Log.w(TAG, "Unexpected State!");
-                                    }
-                                }
-                            } catch (ImsException e) {
-                                // Could not get the ImsService, retry!
-                                notifyNotReady();
-                                retryGetImsService();
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void notifyUnavailable() {
-                        mExecutor.execute(() -> {
-                            notifyNotReady();
-                            retryGetImsService();
-                        });
-                    }
-                };
-
-        private final Context mContext;
-        private final int mPhoneId;
-        private final Listener mListener;
-        private final Executor mExecutor;
-        private final Object mLock = new Object();
-        private final String mLogPrefix;
-
-        private int mRetryCount = 0;
-        private ImsManager mImsManager;
-
-        @VisibleForTesting
-        public RetryTimeout mRetryTimeout = () -> {
-            synchronized (mLock) {
-                int timeout = (1 << mRetryCount) * IMS_RETRY_STARTING_TIMEOUT_MS;
-                if (mRetryCount <= CEILING_SERVICE_RETRY_COUNT) {
-                    mRetryCount++;
-                }
-                return timeout;
-            }
-        };
-
-        public Connector(Context context, int phoneId, Listener listener) {
-            mContext = context;
-            mPhoneId = phoneId;
-            mListener = listener;
-            mExecutor = new HandlerExecutor(this);
-            mLogPrefix = "?";
-        }
-
-        public Connector(Context context, int phoneId, Listener listener, String logPrefix) {
-            mContext = context;
-            mPhoneId = phoneId;
-            mListener = listener;
-            mExecutor = new HandlerExecutor(this);
-            mLogPrefix = logPrefix;
-        }
-
-        @VisibleForTesting
-        public Connector(Context context, int phoneId, Listener listener, Executor executor,
-                String logPrefix) {
-            mContext = context;
-            mPhoneId = phoneId;
-            mListener= listener;
-            mExecutor = executor;
-            mLogPrefix = logPrefix;
-        }
-
-
-        /**
-         * Start the creation of a connection to the underlying ImsService implementation. When the
-         * service is connected, {@link Listener#connectionReady(ImsManager)} will be called with
-         * an active ImsManager instance.
-         *
-         * If this device does not support an ImsStack (i.e. doesn't support
-         * {@link PackageManager#FEATURE_TELEPHONY_IMS} feature), this method will do nothing.
-         */
-        public void connect() {
-            if (!ImsManager.isImsSupportedOnDevice(mContext)) {
-                return;
-            }
-            mRetryCount = 0;
-            // Send a message to connect to the Ims Service and open a connection through
-            // getImsService().
-            post(mGetServiceRunnable);
-        }
-
-        /**
-         * Disconnect from the ImsService Implementation and clean up. When this is complete,
-         * {@link Listener#connectionUnavailable()} will be called one last time.
-         */
-        public void disconnect() {
-            removeCallbacks(mGetServiceRunnable);
-            synchronized (mLock) {
-                if (mImsManager != null) {
-                    mImsManager.removeNotifyStatusChangedCallback(mNotifyStatusChangedCallback);
-                }
-            }
-            notifyNotReady();
-        }
-
-        private void retryGetImsService() {
-            synchronized (mLock) {
-                if (mImsManager != null) {
-                    // remove callback so we do not receive updates from old ImsServiceProxy when
-                    // switching between ImsServices.
-                    mImsManager.removeNotifyStatusChangedCallback(mNotifyStatusChangedCallback);
-                    //Leave mImsManager as null, then CallStateException will be thrown when dialing
-                    mImsManager = null;
-                }
-
-                // Exponential backoff during retry, limited to 32 seconds.
-                removeCallbacks(mGetServiceRunnable);
-                int timeout = mRetryTimeout.get();
-                postDelayed(mGetServiceRunnable, timeout);
-                Log.i(TAG, getLogMessage("retryGetImsService: unavailable, retrying in " + timeout
-                        + " seconds"));
-            }
-        }
-
-        private void getImsService() throws ImsException {
-            synchronized (mLock) {
-                mImsManager = ImsManager.getInstance(mContext, mPhoneId);
-                // Adding to set, will be safe adding multiple times. If the ImsService is not
-                // active yet, this method will throw an ImsException.
-                mImsManager.addNotifyStatusChangedCallbackIfAvailable(mNotifyStatusChangedCallback);
-            }
-            // Wait for ImsService.STATE_READY to start listening for calls.
-            // Call the callback right away for compatibility with older devices that do not use
-            // states.
-            mNotifyStatusChangedCallback.notifyStateChanged();
-        }
-
-        private void notifyReady() throws ImsException {
-            ImsManager manager;
-            synchronized (mLock) {
-                manager = mImsManager;
-            }
-            try {
-                mListener.connectionReady(manager);
-            }
-            catch (ImsException e) {
-                Log.w(TAG, getLogMessage("notifyReady exception: " + e.getMessage()));
-                throw e;
-            }
-            // Only reset retry count if connectionReady does not generate an ImsException/
-            synchronized (mLock) {
-                mRetryCount = 0;
-            }
-        }
-
-        private void notifyNotReady() {
-            mListener.connectionUnavailable();
-        }
-
-        private String getLogMessage(String message) {
-            return "Connector-[" + mLogPrefix + "] " + message;
-        }
-    }
-
-
     @VisibleForTesting
     public interface ExecutorFactory {
         void executeRunnable(Runnable runnable);
@@ -437,8 +215,7 @@ public class ImsManager {
     private ImsEcbm mEcbm = null;
     private ImsMultiEndpoint mMultiEndpoint = null;
 
-    private Set<MmTelFeatureConnection.IFeatureUpdate> mStatusCallbacks =
-            new CopyOnWriteArraySet<>();
+    private Set<FeatureConnection.IFeatureUpdate> mStatusCallbacks = new CopyOnWriteArraySet<>();
 
     public static final String TRUE = "true";
     public static final String FALSE = "false";
@@ -1674,8 +1451,9 @@ public class ImsManager {
      * Adds a callback for status changed events if the binder is already available. If it is not,
      * this method will throw an ImsException.
      */
+    @Override
     @VisibleForTesting
-    public void addNotifyStatusChangedCallbackIfAvailable(MmTelFeatureConnection.IFeatureUpdate c)
+    public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
             throws ImsException {
         if (!mMmTelFeatureConnection.isBinderAlive()) {
             throw new ImsException("Binder is not active!",
@@ -1686,7 +1464,8 @@ public class ImsManager {
         }
     }
 
-    void removeNotifyStatusChangedCallback(MmTelFeatureConnection.IFeatureUpdate c) {
+    @Override
+    public void removeNotifyStatusChangedCallback(FeatureConnection.IFeatureUpdate c) {
         if (c != null) {
             mStatusCallbacks.remove(c);
         } else {
@@ -2322,6 +2101,7 @@ public class ImsManager {
         return disconnectReasons;
     }
 
+    @Override
     public int getImsServiceState() throws ImsException {
         return mMmTelFeatureConnection.getFeatureState();
     }
@@ -2417,15 +2197,15 @@ public class ImsManager {
         mMmTelFeatureConnection = MmTelFeatureConnection.create(mContext, mPhoneId);
 
         // Forwarding interface to tell mStatusCallbacks that the Proxy is unavailable.
-        mMmTelFeatureConnection.setStatusCallback(new MmTelFeatureConnection.IFeatureUpdate() {
+        mMmTelFeatureConnection.setStatusCallback(new FeatureConnection.IFeatureUpdate() {
             @Override
             public void notifyStateChanged() {
-                mStatusCallbacks.forEach(MmTelFeatureConnection.IFeatureUpdate::notifyStateChanged);
+                mStatusCallbacks.forEach(FeatureConnection.IFeatureUpdate::notifyStateChanged);
             }
 
             @Override
             public void notifyUnavailable() {
-                mStatusCallbacks.forEach(MmTelFeatureConnection.IFeatureUpdate::notifyUnavailable);
+                mStatusCallbacks.forEach(FeatureConnection.IFeatureUpdate::notifyUnavailable);
             }
         });
     }
