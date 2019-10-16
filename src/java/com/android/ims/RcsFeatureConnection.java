@@ -20,7 +20,9 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
+import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.Rlog;
 import android.telephony.TelephonyManager;
@@ -36,8 +38,16 @@ import com.android.internal.annotations.VisibleForTesting;
 public class RcsFeatureConnection extends FeatureConnection {
     private static final String TAG = "RcsFeatureConnection";
 
-    public static @NonNull RcsFeatureConnection create(Context context , int slotId) {
-        RcsFeatureConnection serviceProxy = new RcsFeatureConnection(context, slotId);
+    public interface IRcsFeatureUpdate extends IFeatureUpdate {
+      /**
+       * Called when the ImsFeature has been created.
+       */
+       void notifyFeatureCreated();
+    }
+
+    public static @NonNull RcsFeatureConnection create(Context context , int slotId,
+            IFeatureUpdate callback) {
+        RcsFeatureConnection serviceProxy = new RcsFeatureConnection(context, slotId, callback);
         if (!ImsManager.isImsSupportedOnDevice(context)) {
             // Return empty service proxy in the case that IMS is not supported.
             sImsSupportedOnDevice = false;
@@ -70,8 +80,18 @@ public class RcsFeatureConnection extends FeatureConnection {
         return serviceProxy;
     }
 
-    private RcsFeatureConnection(Context context, int slotId) {
+    @VisibleForTesting
+    public IRcsFeatureUpdate mRcsFeatureStatusCallback;
+
+    private RcsFeatureConnection(Context context, int slotId, IFeatureUpdate callback) {
         super(context, slotId, ImsFeature.FEATURE_RCS);
+        setStatusCallback(callback);
+    }
+
+    @Override
+    public void setStatusCallback(IFeatureUpdate callback) {
+        super.setStatusCallback(callback);
+        mRcsFeatureStatusCallback = (IRcsFeatureUpdate) mStatusCallback;
     }
 
     /**
@@ -104,42 +124,51 @@ public class RcsFeatureConnection extends FeatureConnection {
     }
 
     @Override
-    protected void handleImsFeatureCreatedCallback(int slotId, int feature) {
+    @VisibleForTesting
+    public void handleImsFeatureCreatedCallback(int slotId, int feature) {
         Log.i(TAG, "IMS feature created: slotId= " + slotId + ", feature=" + feature);
         if (!isUpdateForThisFeatureAndSlot(slotId, feature)) {
             return;
         }
-
         synchronized(mLock) {
             if (!mIsAvailable) {
                 Log.i(TAG, "RCS enabled on slotId: " + slotId);
                 mIsAvailable = true;
             }
+            // Notify RcsFeatureManager that RCS feature has already been created
+            if (mRcsFeatureStatusCallback != null) {
+              mRcsFeatureStatusCallback.notifyFeatureCreated();
+            }
         }
     }
 
     @Override
-    protected void handleImsFeatureRemovedCallback(int slotId, int feature) {
+    @VisibleForTesting
+    public void handleImsFeatureRemovedCallback(int slotId, int feature) {
         Log.i(TAG, "IMS feature removed: slotId= " + slotId + ", feature=" + feature);
         if (!isUpdateForThisFeatureAndSlot(slotId, feature)) {
             return;
         }
-
         synchronized(mLock) {
-            mIsAvailable = false;
+            Log.i(TAG, "Rcs UCE removed on slotId: " + slotId);
+            onRemovedOrDied();
         }
     }
 
     @Override
-    protected void handleImsStatusChangedCallback(int slotId, int feature, int status) {
+    @VisibleForTesting
+    public void handleImsStatusChangedCallback(int slotId, int feature, int status) {
         Log.i(TAG, "IMS status changed: slotId=" + slotId
                 + ", feature=" + feature + ", status=" + status);
         if (!isUpdateForThisFeatureAndSlot(slotId, feature)) {
             return;
         }
-
         synchronized(mLock) {
             mFeatureStateCached = status;
+            // notify RCS feature status changed
+            if (mRcsFeatureStatusCallback != null) {
+                mRcsFeatureStatusCallback.notifyStateChanged();
+            }
         }
     }
 
@@ -153,6 +182,14 @@ public class RcsFeatureConnection extends FeatureConnection {
     public void setRcsFeatureListener(IRcsFeatureListener listener) throws RemoteException {
         checkServiceIsReady();
         getServiceInterface(mBinder).setListener(listener);
+    }
+
+    public void changeEnabledCapabilities(CapabilityChangeRequest request,
+        IImsCapabilityCallback callback) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
+        }
     }
 
     @Override
