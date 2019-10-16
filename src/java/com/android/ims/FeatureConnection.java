@@ -5,17 +5,18 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *            http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
 package com.android.ims;
 
+import android.annotation.Nullable;
 import android.content.Context;
 import android.os.Handler;
 import android.os.IBinder;
@@ -24,14 +25,14 @@ import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRcsFeature;
+import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.feature.ImsFeature;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.Rlog;
-import android.telephony.SubscriptionManager;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.ims.internal.IImsServiceFeatureCallback;
-import com.android.ims.MmTelFeatureConnection.IFeatureUpdate;
 
 import java.util.concurrent.Executor;
 
@@ -40,6 +41,20 @@ import java.util.concurrent.Executor;
  */
 public abstract class FeatureConnection {
     protected static final String TAG = "FeatureConnection";
+
+    public interface IFeatureUpdate {
+        /**
+         * Called when the ImsFeature has changed its state. Use
+         * {@link ImsFeature#getFeatureState()} to get the new state.
+         */
+        void notifyStateChanged();
+
+        /**
+         * Called when the ImsFeature has become unavailable due to the binder switching or app
+         * crashing. A new ImsServiceProxy should be requested for that feature.
+         */
+        void notifyUnavailable();
+    }
 
     protected static boolean sImsSupportedOnDevice = true;
 
@@ -55,6 +70,7 @@ public abstract class FeatureConnection {
     // ImsFeature Status from the ImsService. Cached.
     protected Integer mFeatureStateCached = null;
     protected IFeatureUpdate mStatusCallback;
+    protected IImsRegistration mRegistrationBinder;
     protected final Object mLock = new Object();
 
     public FeatureConnection(Context context, int slotId, int featureType) {
@@ -78,6 +94,10 @@ public abstract class FeatureConnection {
         return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
     }
 
+    /**
+     * Set the binder which type is IImsMmTelFeature or IImsRcsFeature to connect to MmTelFeature
+     * or RcsFeature.
+     */
     public void setBinder(IBinder binder) {
         synchronized (mLock) {
             mBinder = binder;
@@ -110,6 +130,7 @@ public abstract class FeatureConnection {
         synchronized (mLock) {
             if (mIsAvailable) {
                 mIsAvailable = false;
+                mRegistrationBinder = null;
                 if (mBinder != null) {
                     mBinder.unlinkToDeath(mDeathRecipient, 0);
                 }
@@ -120,11 +141,22 @@ public abstract class FeatureConnection {
         }
     }
 
+    /**
+     * The listener for ImsManger and RcsFeatureManager to receive IMS feature status changed.
+     * @param callback Callback that will fire when the feature status has changed.
+     */
+    public void setStatusCallback(IFeatureUpdate callback) {
+        mStatusCallback = callback;
+    }
+
     @VisibleForTesting
     public IImsServiceFeatureCallback getListener() {
         return mListenerBinder;
     }
 
+    /**
+     * The callback to receive ImsFeature status changed.
+     */
     private final IImsServiceFeatureCallback mListenerBinder =
         new IImsServiceFeatureCallback.Stub() {
             @Override
@@ -150,6 +182,37 @@ public abstract class FeatureConnection {
     protected abstract void handleImsFeatureCreatedCallback(int slotId, int feature);
     protected abstract void handleImsFeatureRemovedCallback(int slotId, int feature);
     protected abstract void handleImsStatusChangedCallback(int slotId, int feature, int status);
+
+    public @ImsRegistrationImplBase.ImsRegistrationTech int getRegistrationTech()
+        throws RemoteException {
+        IImsRegistration registration = getRegistration();
+        if (registration != null) {
+            return registration.getRegistrationTechnology();
+        } else {
+            return ImsRegistrationImplBase.REGISTRATION_TECH_NONE;
+        }
+    }
+
+    protected @Nullable IImsRegistration getRegistration() {
+        synchronized (mLock) {
+            // null if cache is invalid;
+            if (mRegistrationBinder != null) {
+                return mRegistrationBinder;
+            }
+        }
+        TelephonyManager tm = getTelephonyManager();
+        // We don't want to synchronize on a binder call to another process.
+        IImsRegistration regBinder = tm != null
+            ? tm.getImsRegistration(mSlotId, mFeatureType) : null;
+        synchronized (mLock) {
+            // mRegistrationBinder may have changed while we tried to get the registration
+            // interface.
+            if (mRegistrationBinder == null) {
+                mRegistrationBinder = regBinder;
+            }
+        }
+        return mRegistrationBinder;
+    }
 
     protected void checkServiceIsReady() throws RemoteException {
         if (!sImsSupportedOnDevice) {
