@@ -74,6 +74,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
         private final Context mContext;
         private final Object mLock;
+        private final int mSlotId;
         // Map of sub id -> List<callbacks> for sub id linked callbacks.
         private final SparseArray<Set<T>> mCallbackSubscriptionMap = new SparseArray<>();
         // List of all active callbacks to ImsService
@@ -81,9 +82,10 @@ public class MmTelFeatureConnection extends FeatureConnection {
         @VisibleForTesting
         public SubscriptionManager.OnSubscriptionsChangedListener mSubChangedListener;
 
-        public CallbackAdapterManager(Context context, Object lock) {
+        public CallbackAdapterManager(Context context, Object lock, int slotId) {
             mContext = context;
             mLock = lock;
+            mSlotId = slotId;
             if (Looper.myLooper() == null) {
                 Looper.prepare();
             }
@@ -94,7 +96,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
                     SubscriptionManager manager = mContext.getSystemService(
                             SubscriptionManager.class);
                     if (manager == null) {
-                        Log.w(TAG, "onSubscriptionsChanged: could not find SubscriptionManager.");
+                        Log.w(TAG + " [" + mSlotId + "]", "onSubscriptionsChanged: could not find "
+                                + "SubscriptionManager.");
                         return;
                     }
                     List<SubscriptionInfo> subInfos = manager.getActiveSubscriptionInfoList(false);
@@ -130,7 +133,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
                 // for the slot, independent of subscription (deprecated behavior).
                 // Throws a IllegalStateException if this registration fails.
                 registerCallback(localCallback);
-                Log.i(TAG, "Local callback added: " + localCallback);
+                Log.i(TAG + " [" + mSlotId + "]", "Local callback added: " + localCallback);
                 mRemoteCallbacks.register(localCallback);
             }
         }
@@ -149,7 +152,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
         // Removes a callback associated with the MmTelFeature.
         public final void removeCallback(T localCallback) {
-            Log.i(TAG, "Local callback removed: " + localCallback);
+            Log.i(TAG + " [" + mSlotId + "]", "Local callback removed: " + localCallback);
             synchronized (mLock) {
                 if (mRemoteCallbacks.unregister(localCallback)) {
                     // Will only occur if we have record of this callback in mRemoteCallbacks.
@@ -245,7 +248,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
             if (manager != null) {
                 manager.addOnSubscriptionsChangedListener(mSubChangedListener);
             } else {
-                Log.w(TAG, "registerForSubscriptionsChanged: could not find SubscriptionManager.");
+                Log.w(TAG + " [" + mSlotId + "]", "registerForSubscriptionsChanged: could not find"
+                        + " SubscriptionManager.");
             }
         }
 
@@ -254,8 +258,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
             if (manager != null) {
             manager.removeOnSubscriptionsChangedListener(mSubChangedListener);
             } else {
-                Log.w(TAG, "unregisterForSubscriptionsChanged: could not find"
-                        + " SubscriptionManager.");
+                Log.w(TAG + " [" + mSlotId + "]", "unregisterForSubscriptionsChanged: could not"
+                        + " find SubscriptionManager.");
             }
         }
 
@@ -271,7 +275,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
                     mRemoteCallbacks.unregister(callbackItem);
                 }
                 clearCallbacksForAllSubscriptions();
-                Log.i(TAG, "Closing connection and clearing callbacks");
+                Log.i(TAG + " [" + mSlotId + "]", "Closing connection and clearing callbacks");
             }
         }
 
@@ -286,7 +290,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
             CallbackAdapterManager<IImsRegistrationCallback> {
 
         public ImsRegistrationCallbackAdapter(Context context, Object lock) {
-            super(context, lock);
+            super(context, lock, mSlotId);
         }
 
         @Override
@@ -300,7 +304,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
                             + " binder is dead.");
                 }
             } else {
-                Log.e(TAG, "ImsRegistrationCallbackAdapter: ImsRegistration is null");
+                Log.e(TAG + " [" + mSlotId + "]", "ImsRegistrationCallbackAdapter: ImsRegistration"
+                        + " is null");
                 throw new IllegalStateException("ImsRegistrationCallbackAdapter: MmTelFeature is"
                         + "not available!");
             }
@@ -313,11 +318,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
                 try {
                     imsRegistration.removeRegistrationCallback(localCallback);
                 } catch (RemoteException e) {
-                    Log.w(TAG, "ImsRegistrationCallbackAdapter - unregisterCallback: couldn't"
-                            + " remove registration callback");
+                    Log.w(TAG + " [" + mSlotId + "]", "ImsRegistrationCallbackAdapter -"
+                            + " unregisterCallback: couldn't remove registration callback");
                 }
             } else {
-                Log.e(TAG, "ImsRegistrationCallbackAdapter: ImsRegistration is null");
+                Log.e(TAG + " [" + mSlotId + "]", "ImsRegistrationCallbackAdapter: ImsRegistration"
+                        + " is null");
             }
         }
     }
@@ -325,7 +331,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private class CapabilityCallbackManager extends CallbackAdapterManager<IImsCapabilityCallback> {
 
         public CapabilityCallbackManager(Context context, Object lock) {
-            super(context, lock);
+            super(context, lock, mSlotId);
         }
 
         @Override
@@ -348,7 +354,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
                             + " binder is null.");
                 }
             } else {
-                Log.w(TAG, "CapabilityCallbackManager, register: Couldn't get binder");
+                Log.w(TAG + " [" + mSlotId + "]", "CapabilityCallbackManager, register: Couldn't"
+                        + " get binder");
                 throw new IllegalStateException("CapabilityCallbackManager: MmTelFeature is"
                         + " not available!");
             }
@@ -363,7 +370,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
                     binder = getServiceInterface(mBinder);
                 } catch (RemoteException e) {
                     // binder is null
-                    Log.w(TAG, "CapabilityCallbackManager, unregister: couldn't get binder.");
+                    Log.w(TAG + " [" + mSlotId + "]", "CapabilityCallbackManager, unregister:"
+                            + " couldn't get binder.");
                     return;
                 }
             }
@@ -371,17 +379,19 @@ public class MmTelFeatureConnection extends FeatureConnection {
                 try {
                     binder.removeCapabilityCallback(localCallback);
                 } catch (RemoteException e) {
-                    Log.w(TAG, "CapabilityCallbackManager, unregister: Binder is dead.");
+                    Log.w(TAG + " [" + mSlotId + "]", "CapabilityCallbackManager, unregister:"
+                            + " Binder is dead.");
                 }
             } else {
-                Log.w(TAG, "CapabilityCallbackManager, unregister: binder is null.");
+                Log.w(TAG + " [" + mSlotId + "]", "CapabilityCallbackManager, unregister:"
+                        + " binder is null.");
             }
         }
     }
 
     private class ProvisioningCallbackManager extends CallbackAdapterManager<IImsConfigCallback> {
         public ProvisioningCallbackManager (Context context, Object lock) {
-            super(context, lock);
+            super(context, lock, mSlotId);
         }
 
         @Override
@@ -389,7 +399,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
             IImsConfig binder = getConfigInterface();
             if (binder == null) {
                 // Config interface is not currently available.
-                Log.w(TAG, "ProvisioningCallbackManager - couldn't register, binder is null.");
+                Log.w(TAG + " [" + mSlotId + "]", "ProvisioningCallbackManager - couldn't register,"
+                        + " binder is null.");
                 throw new IllegalStateException("ImsConfig is not available!");
             }
             try {
@@ -403,13 +414,15 @@ public class MmTelFeatureConnection extends FeatureConnection {
         public void unregisterCallback(IImsConfigCallback localCallback) {
             IImsConfig binder = getConfigInterface();
             if (binder == null) {
-                Log.w(TAG, "ProvisioningCallbackManager - couldn't unregister, binder is null.");
+                Log.w(TAG + " [" + mSlotId + "]", "ProvisioningCallbackManager - couldn't"
+                        + " unregister, binder is null.");
                 return;
             }
             try {
                 binder.removeImsConfigCallback(localCallback);
             } catch (RemoteException e) {
-                Log.w(TAG, "ProvisioningCallbackManager - couldn't unregister, binder is dead.");
+                Log.w(TAG + " [" + mSlotId + "]", "ProvisioningCallbackManager - couldn't"
+                        + " unregister, binder is dead.");
             }
         }
     }
@@ -434,7 +447,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
         TelephonyManager tm = serviceProxy.getTelephonyManager();
         if (tm == null) {
-            Rlog.w(TAG, "create: TelephonyManager is null!");
+            Rlog.w(TAG + " [" + slotId + "]", "create: TelephonyManager is null!");
             // Binder can be unset in this case because it will be torn down/recreated as part of
             // a retry mechanism until the serviceProxy binder is set successfully.
             return serviceProxy;
@@ -447,7 +460,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
             // Trigger the cache to be updated for feature status.
             serviceProxy.getFeatureState();
         } else {
-            Rlog.w(TAG, "create: binder is null! Slot Id: " + slotId);
+            Rlog.w(TAG + " [" + slotId + "]", "create: binder is null!");
         }
         return serviceProxy;
     }
@@ -511,14 +524,14 @@ public class MmTelFeatureConnection extends FeatureConnection {
             switch (feature) {
                 case ImsFeature.FEATURE_MMTEL: {
                     if (!mIsAvailable) {
-                        Log.i(TAG, "MmTel enabled on slotId: " + slotId);
+                        Log.i(TAG + " [" + mSlotId + "]", "MmTel enabled");
                         mIsAvailable = true;
                     }
                     break;
                 }
                 case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
                     mSupportsEmergencyCalling = true;
-                    Log.i(TAG, "Emergency calling enabled on slotId: " + slotId);
+                    Log.i(TAG + " [" + mSlotId + "]", "Emergency calling enabled");
                     break;
                 }
             }
@@ -533,13 +546,13 @@ public class MmTelFeatureConnection extends FeatureConnection {
             }
             switch (feature) {
                 case ImsFeature.FEATURE_MMTEL: {
-                    Log.i(TAG, "MmTel removed on slotId: " + slotId);
+                    Log.i(TAG + " [" + mSlotId + "]", "MmTel removed");
                     onRemovedOrDied();
                     break;
                 }
                 case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
                     mSupportsEmergencyCalling = false;
-                    Log.i(TAG, "Emergency calling disabled on slotId: " + slotId);
+                    Log.i(TAG + " [" + mSlotId + "]", "Emergency calling disabled");
                     break;
                 }
             }
@@ -549,7 +562,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
     @Override
     protected void handleImsStatusChangedCallback(int slotId, int feature, int status) {
         synchronized (mLock) {
-            Log.i(TAG, "imsStatusChanged: slot: " + slotId + " feature: "
+            Log.i(TAG + " [" + mSlotId + "]", "imsStatusChanged: slot: " + slotId + " feature: "
                 + ImsFeature.FEATURE_LOG_MAP.get(feature) +
                 " status: " + ImsFeature.STATE_LOG_MAP.get(status));
             if (mSlotId == slotId && feature == ImsFeature.FEATURE_MMTEL) {
@@ -590,7 +603,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
                 }
             }
         } catch (RemoteException e) {
-            Log.w(TAG, "closeConnection: couldn't remove listener!");
+            Log.w(TAG + " [" + mSlotId + "]", "closeConnection: couldn't remove listener!");
         }
     }
 
@@ -764,7 +777,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
             String[] numbers) throws RemoteException {
         if (isEmergency && !isEmergencyMmTelAvailable()) {
             // Don't query the ImsService if emergency calling is not available on the ImsService.
-            Log.i(TAG, "MmTel does not support emergency over IMS, fallback to CS.");
+            Log.i(TAG + " [" + mSlotId + "]", "MmTel does not support emergency over IMS, fallback"
+                    + " to CS.");
             return MmTelFeature.PROCESS_CALL_CSFB;
         }
         synchronized (mLock) {

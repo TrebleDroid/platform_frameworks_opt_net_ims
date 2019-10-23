@@ -17,6 +17,7 @@
 package com.android.ims;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.telephony.ims.feature.ImsFeature;
@@ -73,7 +74,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     protected final String mLogPrefix;
 
     @VisibleForTesting
-    public Listener mListener;
+    public Listener<T> mListener;
 
     // The IMS feature manager which interacts with ImsService
     @VisibleForTesting
@@ -92,7 +93,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
         }
     };
 
-    public FeatureConnector(Context context, int phoneId, Listener listener) {
+    public FeatureConnector(Context context, int phoneId, Listener<T> listener) {
         mContext = context;
         mPhoneId = phoneId;
         mListener = listener;
@@ -100,7 +101,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
         mLogPrefix = "?";
     }
 
-    public FeatureConnector(Context context, int phoneId, Listener listener,
+    public FeatureConnector(Context context, int phoneId, Listener<T> listener,
             String logPrefix) {
         mContext = context;
         mPhoneId = phoneId;
@@ -110,7 +111,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     }
 
     @VisibleForTesting
-    public FeatureConnector(Context context, int phoneId, Listener listener,
+    public FeatureConnector(Context context, int phoneId, Listener<T> listener,
             Executor executor, String logPrefix) {
         mContext = context;
         mPhoneId = phoneId;
@@ -120,7 +121,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     }
 
     @VisibleForTesting
-    public FeatureConnector(Context context, int phoneId, Listener listener,
+    public FeatureConnector(Context context, int phoneId, Listener<T> listener,
             Executor executor, Looper looper) {
         super(looper);
         mContext = context;
@@ -132,16 +133,16 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
 
     /**
      * Start the creation of a connection to the underlying ImsService implementation. When the
-     * service is connected, {@link FeatureConnector.Listener#connectionReady(T manager)} will be
+     * service is connected, {@link FeatureConnector.Listener#connectionReady(Object)} will be
      * called with an active instance.
      *
      * If this device does not support an ImsStack (i.e. doesn't support
      * {@link PackageManager#FEATURE_TELEPHONY_IMS} feature), this method will do nothing.
      */
     public void connect() {
-        Log.i(TAG, "connect");
+        Log.i(TAG, getLogMessage("connect"));
         if (!isSupported()) {
-            Log.i(TAG, "connect: NOT support!");
+            Log.i(TAG, getLogMessage("connect: not supported."));
             return;
         }
         mRetryCount = 0;
@@ -160,7 +161,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
      * {@link FeatureConnector.Listener#connectionUnavailable()} will be called one last time.
      */
     public void disconnect() {
-        Log.i(TAG, "disconnect");
+        Log.i(TAG, getLogMessage("disconnect"));
         removeCallbacks(mGetServiceRunnable);
         synchronized (mLock) {
             if (mManager != null) {
@@ -181,8 +182,8 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     @VisibleForTesting
     public void createImsService() throws ImsException {
         synchronized (mLock) {
-            Log.d(TAG, "createImsService");
-            mManager = (T) mListener.getFeatureManager();
+            Log.d(TAG, getLogMessage("createImsService"));
+            mManager = mListener.getFeatureManager();
             // Adding to set, will be safe adding multiple times. If the ImsService is not
             // active yet, this method will throw an ImsException.
             mManager.addNotifyStatusChangedCallbackIfAvailable(mNotifyStatusChangedCallback);
@@ -238,7 +239,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
                                     break;
                                 }
                                 default: {
-                                    Log.w(TAG, "Unexpected State!");
+                                    Log.w(TAG, getLogMessage("Unexpected State!"));
                                 }
                             }
                         } catch (ImsException e) {
@@ -264,7 +265,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
             manager = mManager;
         }
         try {
-            Log.i(TAG, "notifyReady");
+            Log.i(TAG, getLogMessage("notifyReady"));
             mListener.connectionReady(manager);
         }
         catch (ImsException e) {
@@ -278,11 +279,11 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     }
 
     protected void notifyNotReady() {
-        Log.i(TAG, "notifyNotReady");
+        Log.i(TAG, getLogMessage("notifyNotReady"));
         mListener.connectionUnavailable();
     }
 
     protected String getLogMessage(String message) {
-        return "Connector-[" + mLogPrefix + "] " + message;
+        return "Connector-[" + mLogPrefix + ", " + mPhoneId + "] " + message;
     }
 }
