@@ -262,7 +262,8 @@ public abstract class FeatureConnection {
             // Cache only non-null value for feature status.
             mFeatureStateCached = state;
         }
-        Log.i(TAG, "getFeatureState - returning " + ImsFeature.STATE_LOG_MAP.get(state));
+        Log.i(TAG + " [" + mSlotId + "]", "getFeatureState - returning "
+                + ImsFeature.STATE_LOG_MAP.get(state));
         return state;
     }
 
