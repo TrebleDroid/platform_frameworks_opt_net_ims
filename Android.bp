@@ -19,6 +19,10 @@ java_library {
     aidl: {
         local_include_dirs: ["src/java"],
     },
-    srcs: ["src/java/**/*.java"],
+    srcs: [
+        "src/java/**/*.java",
+        ":framework-ims-common-shared-srcs",
+    ],
 
+    jarjar_rules: "jarjar-rules-shared.txt",
 }
