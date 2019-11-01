@@ -1,4 +1,3 @@
-rule android.os.AsyncResult* com.android.ims.AsyncResult@1
 rule android.os.RegistrantList* com.android.ims.RegistrantList@1
 rule android.os.Registrant* com.android.ims.Registrant@1
 rule com.android.internal.os.SomeArgs* com.android.ims.SomeArgs@1
