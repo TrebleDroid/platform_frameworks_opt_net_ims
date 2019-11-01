@@ -229,7 +229,6 @@ public class ImsManager implements IFeatureConnector {
     private Context mContext;
     private CarrierConfigManager mConfigManager;
     private int mPhoneId;
-    private final boolean mConfigDynamicBind;
     private @Nullable MmTelFeatureConnection mMmTelFeatureConnection = null;
     private boolean mConfigUpdated = false;
 
@@ -1486,19 +1485,9 @@ public class ImsManager implements IFeatureConnector {
     public ImsManager(Context context, int phoneId) {
         mContext = context;
         mPhoneId = phoneId;
-        mConfigDynamicBind = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_dynamic_bind_ims);
         mConfigManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
         createImsService();
-    }
-
-    /**
-     * @return Whether or not ImsManager is configured to Dynamically bind or not to support legacy
-     * devices.
-     */
-    public boolean isDynamicBinding() {
-        return mConfigDynamicBind;
     }
 
     /*
