@@ -16,6 +16,7 @@
 
 package com.android.ims.internal;
 
+import android.annotation.UnsupportedAppUsage;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Handler;
@@ -227,6 +228,7 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
      *
      * @param VideoProvider
      */
+    @UnsupportedAppUsage
     public ImsVideoCallProviderWrapper(IImsVideoCallProvider videoProvider)
             throws RemoteException {
 
