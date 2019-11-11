@@ -17,6 +17,7 @@
 package com.android.ims;
 
 import android.annotation.Nullable;
+import android.annotation.UnsupportedAppUsage;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -33,32 +34,32 @@ import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.CarrierConfigManager;
-import android.telephony.ims.RegistrationManager;
-import android.telephony.ims.ImsMmTelManager;
-import android.telephony.ims.ImsService;
-import android.telephony.ims.ProvisioningManager;
-import android.telephony.ims.aidl.IImsCapabilityCallback;
-import android.telephony.ims.aidl.IImsConfigCallback;
-import android.telephony.ims.aidl.IImsRegistrationCallback;
-import android.telephony.ims.stub.ImsCallSessionImplBase;
-import android.telephony.ims.stub.ImsConfigImplBase;
-import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.Rlog;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
+import android.telephony.ims.ImsCallSession;
+import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.ims.ImsService;
+import android.telephony.ims.ProvisioningManager;
+import android.telephony.ims.RegistrationManager;
+import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
+import android.telephony.ims.aidl.IImsConfigCallback;
+import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.stub.ImsCallSessionImplBase;
+import android.telephony.ims.stub.ImsConfigImplBase;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 
 import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
-import android.telephony.ims.ImsCallSession;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 
@@ -259,6 +260,7 @@ public class ImsManager implements IFeatureConnector {
      * @param phoneId the phone ID for the IMS Service
      * @return the manager instance corresponding to the phoneId
      */
+    @UnsupportedAppUsage
     public static ImsManager getInstance(Context context, int phoneId) {
         synchronized (sImsManagerInstances) {
             if (sImsManagerInstances.containsKey(phoneId)) {
@@ -287,6 +289,7 @@ public class ImsManager implements IFeatureConnector {
      * @deprecated Doesn't support MSIM devices. Use
      * {@link #isEnhanced4gLteModeSettingEnabledByUser()} instead.
      */
+    @UnsupportedAppUsage
     public static boolean isEnhanced4gLteModeSettingEnabledByUser(Context context) {
         ImsManager mgr = ImsManager.getInstance(context,
                 SubscriptionManager.getDefaultVoicePhoneId());
@@ -392,6 +395,7 @@ public class ImsManager implements IFeatureConnector {
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isNonTtyOrTtyOnVolteEnabled()} instead.
      */
+    @UnsupportedAppUsage
     public static boolean isNonTtyOrTtyOnVolteEnabled(Context context) {
         ImsManager mgr = ImsManager.getInstance(context,
                 SubscriptionManager.getDefaultVoicePhoneId());
@@ -428,6 +432,7 @@ public class ImsManager implements IFeatureConnector {
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isVolteEnabledByPlatform()} instead.
      */
+    @UnsupportedAppUsage
     public static boolean isVolteEnabledByPlatform(Context context) {
         ImsManager mgr = ImsManager.getInstance(context,
                 SubscriptionManager.getDefaultVoicePhoneId());
@@ -1970,6 +1975,7 @@ public class ImsManager implements IFeatureConnector {
      * @return the ImsConfig instance.
      * @throws ImsException if getting the setting interface results in an error.
      */
+    @UnsupportedAppUsage
     public ImsConfig getConfigInterface() throws ImsException {
         checkAndThrowExceptionIfServiceUnavailable();
 
