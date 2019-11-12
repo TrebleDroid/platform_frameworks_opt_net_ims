@@ -34,6 +34,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
 
 import java.util.Collections;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -76,7 +77,11 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
     private IBinder.DeathRecipient mDeathRecipient = new IBinder.DeathRecipient() {
         @Override
         public void binderDied() {
-            mVideoCallProvider.asBinder().unlinkToDeath(this, 0);
+            try {
+                mVideoCallProvider.asBinder().unlinkToDeath(this, 0);
+            } catch (NoSuchElementException nse) {
+                // Already unlinked, potentially below in tearDown.
+            }
         }
     };
 
@@ -594,5 +599,18 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
      */
     public void setIsVideoEnabled(boolean isVideoEnabled) {
         mIsVideoEnabled = isVideoEnabled;
+    }
+
+    /**
+     * Tears down the ImsVideoCallProviderWrapper.
+     */
+    public void tearDown() {
+        if (mDeathRecipient != null) {
+            try {
+                mVideoCallProvider.asBinder().unlinkToDeath(mDeathRecipient, 0);
+            } catch (NoSuchElementException nse) {
+                // Already unlinked in binderDied above.
+            }
+        }
     }
 }
