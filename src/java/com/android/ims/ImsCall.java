@@ -23,7 +23,7 @@ import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
 import android.telecom.Call;
-import android.telecom.ConferenceParticipant;
+import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
 import android.telephony.Rlog;
