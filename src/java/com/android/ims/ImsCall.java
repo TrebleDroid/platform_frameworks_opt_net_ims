@@ -2649,17 +2649,6 @@ public class ImsCall implements ICall {
             return;
         }
 
-        /*
-         * This method check if session exists as a session on the current
-         * ImsCall or its counterpart if it is in the process of a conference
-         */
-        private boolean doesCallSessionExistsInMerge(ImsCallSession cs) {
-            String callId = cs.getCallId();
-            return ((isMergeHost() && Objects.equals(mMergePeer.mSession.getCallId(), callId)) ||
-                    (isMergePeer() && Objects.equals(mMergeHost.mSession.getCallId(), callId)) ||
-                    Objects.equals(mSession.getCallId(), callId));
-        }
-
         /**
          * We received a callback from ImsCallSession that merge completed.
          * @param newSession - this session can have 2 values based on the below scenarios
@@ -2693,8 +2682,7 @@ public class ImsCall implements ICall {
             } else {
                 // Handles case 1, 2, 3
                 if (newSession != null) {
-                    mTransientConferenceSession = doesCallSessionExistsInMerge(newSession) ?
-                            null: newSession;
+                    mTransientConferenceSession = newSession;
                 }
                 // Handles case 5
                 processMergeComplete();
