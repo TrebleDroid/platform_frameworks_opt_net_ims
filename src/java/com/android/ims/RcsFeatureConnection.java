@@ -47,10 +47,13 @@ public class RcsFeatureConnection extends FeatureConnection {
 
     public static @NonNull RcsFeatureConnection create(Context context , int slotId,
             IFeatureUpdate callback) {
+
         RcsFeatureConnection serviceProxy = new RcsFeatureConnection(context, slotId, callback);
+
         if (!ImsManager.isImsSupportedOnDevice(context)) {
             // Return empty service proxy in the case that IMS is not supported.
             sImsSupportedOnDevice = false;
+            Rlog.w(TAG, "create: IMS is not supported");
             return serviceProxy;
         }
 
@@ -69,6 +72,7 @@ public class RcsFeatureConnection extends FeatureConnection {
 
         IImsRcsFeature binder = tm.getImsRcsFeatureAndListen(slotId, serviceProxy.getListener());
         if (binder != null) {
+            Rlog.d(TAG, "create: set binder");
             serviceProxy.setBinder(binder.asBinder());
             // Trigger the cache to be updated for feature status.
             serviceProxy.getFeatureState();
@@ -76,7 +80,7 @@ public class RcsFeatureConnection extends FeatureConnection {
             Rlog.w(TAG, "create: binder is null! Slot Id: " + slotId);
         }
 
-        Rlog.d(TAG, "create: RcsFeatureConnection");
+        Rlog.d(TAG, "create: RcsFeatureConnection done");
         return serviceProxy;
     }
 

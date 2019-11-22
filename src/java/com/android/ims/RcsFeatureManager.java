@@ -136,8 +136,12 @@ public class RcsFeatureManager implements IFeatureConnector {
     public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
             throws ImsException {
         if (!mRcsFeatureConnection.isBinderAlive()) {
-            throw new ImsException("Binder is not active!",
-                ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+            int reason = ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN;
+            if (!isRcsUceSupportedByCarrier(mContext, mSlotId)) {
+                reason = ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE;
+            } else {
+                throw new ImsException("Binder is not active!", reason);
+            }
         }
         if (c != null) {
             mStatusCallbacks.add(c);
