@@ -30,7 +30,6 @@ import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
-import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.CarrierConfigManager;
@@ -2028,21 +2027,22 @@ public class ImsManager implements IFeatureConnector {
     }
 
     public boolean updateRttConfigValue() {
+        // If there's no active sub anywhere on the device, enable RTT on the modem so that
+        // the device can make an emergency call.
         boolean isCarrierSupported =
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL);
-        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.RTT_CALLING_MODE, 0) != 0;
-        boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
 
-        boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
-        logi("update RTT: settings value: " + isRttUiSettingEnabled + " always-on carrierconfig: "
-                + isRttAlwaysOnCarrierConfig);
+        boolean isActiveSubscriptionPresent = isActiveSubscriptionPresent();
 
-        if (isCarrierSupported) {
-            setRttConfig(shouldImsRttBeOn);
+        logi("update RTT: is carrier enabled: "
+                + isCarrierSupported + "; is active sub present: "
+                + isActiveSubscriptionPresent);
+
+        if (isCarrierSupported || !isActiveSubscriptionPresent) {
+            setRttConfig(true);
+            return true;
         }
-        return isCarrierSupported && shouldImsRttBeOn;
+        return false;
     }
 
     private void setRttConfig(boolean enabled) {
@@ -2686,6 +2686,12 @@ public class ImsManager implements IFeatureConnector {
     private boolean isSubIdValid(int subId) {
         return SubscriptionManager.isValidSubscriptionId(subId) &&
                 subId != SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+    }
+
+    private boolean isActiveSubscriptionPresent() {
+        SubscriptionManager sm = (SubscriptionManager) mContext.getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        return sm.getActiveSubscriptionIdList().length > 0;
     }
 
     private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
