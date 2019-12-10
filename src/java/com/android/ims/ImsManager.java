@@ -17,8 +17,8 @@
 package com.android.ims;
 
 import android.annotation.Nullable;
-import android.annotation.UnsupportedAppUsage;
 import android.app.PendingIntent;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Handler;
