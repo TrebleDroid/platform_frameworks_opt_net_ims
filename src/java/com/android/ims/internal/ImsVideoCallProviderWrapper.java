@@ -16,7 +16,7 @@
 
 package com.android.ims.internal;
 
-import android.annotation.UnsupportedAppUsage;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Handler;

@@ -24,5 +24,7 @@ java_library {
         ":framework-ims-common-shared-srcs",
     ],
 
+    libs: ["unsupportedappusage"],
+
     jarjar_rules: "jarjar-rules-shared.txt",
 }
