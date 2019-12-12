@@ -2049,8 +2049,14 @@ public class ImsManager implements IFeatureConnector {
     }
 
     public boolean updateRttConfigValue() {
+        // If there's no active sub anywhere on the device, enable RTT on the modem so that
+        // the device can make an emergency call.
+
+        boolean isActiveSubscriptionPresent = isActiveSubscriptionPresent();
         boolean isCarrierSupported =
-                getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL);
+                getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL)
+                || !isActiveSubscriptionPresent;
+
         boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
                 Settings.Secure.RTT_CALLING_MODE, 0) != 0;
         boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
@@ -2058,7 +2064,8 @@ public class ImsManager implements IFeatureConnector {
 
         boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
         logi("update RTT: settings value: " + isRttUiSettingEnabled + " always-on carrierconfig: "
-                + isRttAlwaysOnCarrierConfig);
+                + isRttAlwaysOnCarrierConfig
+                + "isActiveSubscriptionPresent: " + isActiveSubscriptionPresent);
 
         if (isCarrierSupported) {
             setRttConfig(shouldImsRttBeOn);
@@ -2722,6 +2729,12 @@ public class ImsManager implements IFeatureConnector {
     private boolean isSubIdValid(int subId) {
         return SubscriptionManager.isValidSubscriptionId(subId) &&
                 subId != SubscriptionManager.DEFAULT_SUBSCRIPTION_ID;
+    }
+
+    private boolean isActiveSubscriptionPresent() {
+        SubscriptionManager sm = (SubscriptionManager) mContext.getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        return sm.getActiveSubscriptionIdList().length > 0;
     }
 
     private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
