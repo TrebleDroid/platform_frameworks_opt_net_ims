@@ -11,7 +11,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
 package com.android.ims;
@@ -39,10 +39,10 @@ public class RcsFeatureConnection extends FeatureConnection {
     private static final String TAG = "RcsFeatureConnection";
 
     public interface IRcsFeatureUpdate extends IFeatureUpdate {
-      /**
-       * Called when the ImsFeature has been created.
-       */
-       void notifyFeatureCreated();
+        /**
+         * Called when the ImsFeature has been created.
+         */
+        void notifyFeatureCreated();
     }
 
     public static @NonNull RcsFeatureConnection create(Context context , int slotId,
@@ -54,12 +54,6 @@ public class RcsFeatureConnection extends FeatureConnection {
             // Return empty service proxy in the case that IMS is not supported.
             sImsSupportedOnDevice = false;
             Rlog.w(TAG, "create: IMS is not supported");
-            return serviceProxy;
-        }
-
-        if (!sRcsFeatureManagerProxy.isRcsUceSupportedByCarrier(context, slotId)) {
-            // Return empty service proxy in the case that RCS feature is not supported.
-            Rlog.w(TAG, "create: RCS UCE feature is not supported");
             return serviceProxy;
         }
 
@@ -92,39 +86,14 @@ public class RcsFeatureConnection extends FeatureConnection {
         setStatusCallback(callback);
     }
 
+    public void close() {
+        removeRcsFeatureListener();
+    }
+
     @Override
     public void setStatusCallback(IFeatureUpdate callback) {
         super.setStatusCallback(callback);
         mRcsFeatureStatusCallback = (IRcsFeatureUpdate) mStatusCallback;
-    }
-
-    /**
-     * Testing interface used to mock RcsFeatureManager in testing
-     * @hide
-     */
-    @VisibleForTesting
-    public interface RcsFeatureManagerProxy {
-        /**
-         * Mock-able interface for
-         * {@link RcsFeatureManager#isRcsUceSupportedByCarrier(Context, int)} used for testing.
-         */
-        boolean isRcsUceSupportedByCarrier(Context context, int slotId);
-    }
-
-    private static RcsFeatureManagerProxy sRcsFeatureManagerProxy = new RcsFeatureManagerProxy() {
-        @Override
-        public boolean isRcsUceSupportedByCarrier(Context context, int slotId) {
-            return RcsFeatureManager.isRcsUceSupportedByCarrier(context, slotId);
-        }
-    };
-
-    /**
-     * Testing function used to mock RcsFeatureManager in testing
-     * @hide
-     */
-    @VisibleForTesting
-    public static void setRcsFeatureManagerProxy(RcsFeatureManagerProxy proxy) {
-        sRcsFeatureManagerProxy = proxy;
     }
 
     @Override
@@ -184,24 +153,53 @@ public class RcsFeatureConnection extends FeatureConnection {
     }
 
     public void setRcsFeatureListener(IRcsFeatureListener listener) throws RemoteException {
-        checkServiceIsReady();
-        getServiceInterface(mBinder).setListener(listener);
-    }
-
-    public void changeEnabledCapabilities(CapabilityChangeRequest request,
-        IImsCapabilityCallback callback) throws RemoteException {
         synchronized (mLock) {
             checkServiceIsReady();
-            getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
+            getServiceInterface(mBinder).setListener(listener);
         }
     }
 
-    @Override
-    @VisibleForTesting
-    public void checkServiceIsReady() throws RemoteException {
-        super.checkServiceIsReady();
-        if (!sRcsFeatureManagerProxy.isRcsUceSupportedByCarrier(mContext, mSlotId)) {
-            throw new RemoteException("RCS UCE feature is not supported");
+    public void removeRcsFeatureListener() {
+        try {
+            setRcsFeatureListener(null);
+        } catch (RemoteException e) {
+        }
+    }
+
+    public int queryCapabilityStatus() throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            return getServiceInterface(mBinder).queryCapabilityStatus();
+        }
+    }
+
+    public void addCapabilityCallback(IImsCapabilityCallback callback) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).addCapabilityCallback(callback);
+        }
+    }
+
+    public void removeCapabilityCallback(IImsCapabilityCallback callback) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).removeCapabilityCallback(callback);
+        }
+    }
+
+    public void queryCapabilityConfiguration(int capability, int radioTech,
+            IImsCapabilityCallback c) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).queryCapabilityConfiguration(capability, radioTech, c);
+        }
+    }
+
+    public void changeEnabledCapabilities(CapabilityChangeRequest request,
+            IImsCapabilityCallback callback) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
         }
     }
 
@@ -218,7 +216,8 @@ public class RcsFeatureConnection extends FeatureConnection {
         return null;
     }
 
-    private IImsRcsFeature getServiceInterface(IBinder b) {
+    @VisibleForTesting
+    public IImsRcsFeature getServiceInterface(IBinder b) {
         return IImsRcsFeature.Stub.asInterface(b);
     }
 }
