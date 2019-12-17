@@ -16,14 +16,13 @@
 
 package com.android.ims;
 
-import android.annotation.UnsupportedAppUsage;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
 import android.telecom.Call;
-import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
 import android.telephony.Rlog;
@@ -36,6 +35,7 @@ import android.telephony.ims.ImsStreamMediaProfile;
 import android.telephony.ims.ImsSuppServiceNotification;
 import android.util.Log;
 
+import com.android.ims.internal.ConferenceParticipant;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
 import com.android.internal.annotations.VisibleForTesting;
@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
