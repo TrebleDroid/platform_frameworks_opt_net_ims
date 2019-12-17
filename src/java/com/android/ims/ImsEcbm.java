@@ -29,7 +29,7 @@
 
 package com.android.ims;
 
-import android.annotation.UnsupportedAppUsage;
+import android.compat.annotation.UnsupportedAppUsage;
 import android.os.RemoteException;
 import android.telephony.Rlog;
 import android.telephony.ims.ImsReasonInfo;
