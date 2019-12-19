@@ -1325,10 +1325,10 @@ public class ImsCall implements ICall {
                         ImsReasonInfo.CODE_LOCAL_CALL_TERMINATED);
             }
 
-            mSession.hold(createHoldMediaProfile());
             // FIXME: We should update the state on the callback because that is where
             // we can confirm that the hold request was successful or not.
             mHold = true;
+            mSession.hold(createHoldMediaProfile());
             mUpdateRequest = UPDATE_HOLD;
         }
     }
