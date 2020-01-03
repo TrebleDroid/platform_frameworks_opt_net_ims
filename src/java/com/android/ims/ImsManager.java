@@ -544,6 +544,18 @@ public class ImsManager implements IFeatureConnector {
     }
 
     /**
+     * Indicates whether EAB is provisioned on this slot.
+     */
+    public boolean isEabProvisionedOnDevice() {
+        if (getBooleanCarrierConfig(
+                CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL)) {
+            return isEabProvisioned();
+        }
+
+        return true;
+    }
+
+    /**
      * Indicates whether VoWifi is provisioned on device.
      *
      * When CarrierConfig KEY_CARRIER_VOLTE_OVERRIDE_WFC_PROVISIONING_BOOL is true, and VoLTE is not
@@ -2619,6 +2631,13 @@ public class ImsManager implements IFeatureConnector {
                 provisionStatus);
     }
 
+    public void setEabProvisioned(boolean isProvisioned) {
+        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
+                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
+        setProvisionedBoolNoException(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED,
+                provisionStatus);
+    }
+
     private boolean isDataEnabled() {
         return new TelephonyManager(mContext, getSubId()).isDataCapable();
     }
@@ -2626,6 +2645,11 @@ public class ImsManager implements IFeatureConnector {
     private boolean isVolteProvisioned() {
         return getProvisionedBoolNoException(
                 ImsConfig.ConfigConstants.VLT_SETTING_ENABLED);
+    }
+
+    private boolean isEabProvisioned() {
+        return getProvisionedBoolNoException(
+                ImsConfig.ConfigConstants.EAB_SETTING_ENABLED);
     }
 
     private boolean isWfcProvisioned() {
