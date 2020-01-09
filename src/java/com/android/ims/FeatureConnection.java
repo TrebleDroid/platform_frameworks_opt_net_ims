@@ -28,7 +28,7 @@ import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
-import android.telephony.Rlog;
+import com.android.telephony.Rlog;
 import android.util.Log;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
