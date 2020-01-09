@@ -20,7 +20,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.telephony.Rlog;
+import com.android.telephony.Rlog;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.feature.ImsFeature;
 
