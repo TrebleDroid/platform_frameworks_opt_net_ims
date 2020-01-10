@@ -16,6 +16,7 @@
 
 package com.android.ims;
 
+import android.annotation.Nullable;
 import android.content.Context;
 import android.net.Uri;
 import android.os.PersistableBundle;
@@ -25,6 +26,8 @@ import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
+import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -41,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class RcsFeatureManager implements IFeatureConnector {
     private static final String TAG = "RcsFeatureManager";
@@ -57,6 +61,8 @@ public class RcsFeatureManager implements IFeatureConnector {
     @VisibleForTesting
     public RcsCapabilityCallbackManager mCapabilityCallbackManager;
     @VisibleForTesting
+    public ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
+    @VisibleForTesting
     public Set<IFeatureUpdate> mStatusCallbacks = new CopyOnWriteArraySet<>();
 
     public RcsFeatureManager(Context context, int slotId) {
@@ -65,6 +71,7 @@ public class RcsFeatureManager implements IFeatureConnector {
         logi("RcsFeatureManager");
 
         mCapabilityCallbackManager = new RcsCapabilityCallbackManager(context);
+        mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context);
 
         createImsService();
     }
@@ -73,6 +80,7 @@ public class RcsFeatureManager implements IFeatureConnector {
         logi("release");
         mStatusCallbacks.clear();
         mCapabilityCallbackManager.close();
+        mRegistrationCallbackManager.close();
         mRcsFeatureConnection.close();
     }
 
@@ -172,6 +180,103 @@ public class RcsFeatureManager implements IFeatureConnector {
     };
 
     /**
+     * A inner class to manager all the ImsRegistrationCallback associated with RcsFeature.
+     */
+    private class ImsRegistrationCallbackAdapter extends
+            ImsCallbackAdapterManager<IImsRegistrationCallback> {
+
+        public ImsRegistrationCallbackAdapter(Context context) {
+            super(context, new Object() /* Lock object */, mSlotId);
+        }
+
+        @Override
+        public void registerCallback(IImsRegistrationCallback localCallback) {
+            if (DBG) log("Register IMS registration callback");
+
+            IImsRegistration imsRegistration = getRegistration();
+            if (imsRegistration == null) {
+                loge("Register IMS registration callback: ImsRegistration is null");
+                throw new IllegalStateException("ImsRegistrationCallbackAdapter: RcsFeature is"
+                        + " not available!");
+            }
+
+            try {
+                imsRegistration.addRegistrationCallback(localCallback);
+            } catch (RemoteException e) {
+                throw new IllegalStateException("ImsRegistrationCallbackAdapter: RcsFeature"
+                        + " binder is dead.");
+            }
+        }
+
+        @Override
+        public void unregisterCallback(IImsRegistrationCallback localCallback) {
+            if (DBG) log("Unregister IMS registration callback");
+
+            IImsRegistration imsRegistration = getRegistration();
+            if (imsRegistration == null) {
+                log("Unregister IMS registration callback: ImsRegistration is null");
+                return;
+            }
+
+            try {
+                imsRegistration.removeRegistrationCallback(localCallback);
+            } catch (RemoteException e) {
+                loge("Cannot remove registration callback: " + e);
+            }
+        }
+
+        private @Nullable IImsRegistration getRegistration() {
+            if (mRcsFeatureConnection == null) {
+                return null;
+            }
+            return mRcsFeatureConnection.getRegistration();
+        }
+    }
+
+    /**
+     * Add a {@link RegistrationManager.RegistrationCallback} callback that gets called when IMS
+     * registration has changed for a specific subscription.
+     */
+    public void registerImsRegistrationCallback(IImsRegistrationCallback callback)
+            throws ImsException {
+        try {
+            int subId = sSubscriptionManagerProxy.getSubId(mSlotId);
+            mRegistrationCallbackManager.addCallbackForSubscription(callback, subId);
+        } catch (IllegalStateException e) {
+            loge("registerImsRegistrationCallback error: ", e);
+            throw new ImsException(
+                    "register registration callback", e, ImsReasonInfo.CODE_LOCAL_INTERNAL_ERROR);
+        }
+    }
+
+    /**
+     * Removes a previously registered {@link RegistrationManager.RegistrationCallback} callback
+     * that is associated with a specific subscription.
+     */
+    public void unregisterImsRegistrationCallback(IImsRegistrationCallback callback) {
+        try {
+            int subId = sSubscriptionManagerProxy.getSubId(mSlotId);
+            mRegistrationCallbackManager.removeCallbackForSubscription(callback, subId);
+        } catch (IllegalStateException e) {
+            loge("unregisterImsRegistrationCallback error: ", e);
+        }
+    }
+
+    /**
+     * Get the IMS RCS registration technology for this Phone,
+     * defined in {@link ImsRegistrationImplBase}.
+     */
+    public void getImsRegistrationTech(Consumer<Integer> callback) {
+        try {
+            int tech = mRcsFeatureConnection.getRegistrationTech();
+            callback.accept(tech);
+        } catch (RemoteException e) {
+            loge("getImsRegistrationTech error: ", e);
+            callback.accept(ImsRegistrationImplBase.REGISTRATION_TECH_NONE);
+        }
+    }
+
+    /**
      * A inner class to manager all the ImsCapabilityCallbacks associated with RcsFeature.
      */
     @VisibleForTesting
@@ -200,9 +305,7 @@ public class RcsFeatureManager implements IFeatureConnector {
             try {
                 mRcsFeatureConnection.removeCapabilityCallback(localCallback);
             } catch (RemoteException e) {
-                loge("Unregister capability callback error: " + e);
-                throw new IllegalStateException(
-                        " CapabilityCallbackManager: Unregister callback error");
+                loge("Cannot remove capability callback: " + e);
             }
         }
     }

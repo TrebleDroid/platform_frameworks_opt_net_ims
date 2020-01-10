@@ -137,6 +137,7 @@ public abstract class FeatureConnection {
                     mBinder.unlinkToDeath(mDeathRecipient, 0);
                 }
                 if (mStatusCallback != null) {
+                    Log.d(TAG, "onRemovedOrDied: notifyUnavailable");
                     mStatusCallback.notifyUnavailable();
                 }
             }
@@ -186,16 +187,17 @@ public abstract class FeatureConnection {
     protected abstract void handleImsStatusChangedCallback(int slotId, int feature, int status);
 
     public @ImsRegistrationImplBase.ImsRegistrationTech int getRegistrationTech()
-        throws RemoteException {
+            throws RemoteException {
         IImsRegistration registration = getRegistration();
         if (registration != null) {
             return registration.getRegistrationTechnology();
         } else {
+            Log.w(TAG, "getRegistrationTech: ImsRegistration is null");
             return ImsRegistrationImplBase.REGISTRATION_TECH_NONE;
         }
     }
 
-    protected @Nullable IImsRegistration getRegistration() {
+    public @Nullable IImsRegistration getRegistration() {
         synchronized (mLock) {
             // null if cache is invalid;
             if (mRegistrationBinder != null) {
