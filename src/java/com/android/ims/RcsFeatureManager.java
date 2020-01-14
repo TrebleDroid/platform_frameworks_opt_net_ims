@@ -32,7 +32,7 @@ import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
-import android.telephony.Rlog;
+import com.android.telephony.Rlog;
 import android.util.Log;
 
 import com.android.ims.FeatureConnection.IFeatureUpdate;
