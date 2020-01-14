@@ -24,7 +24,7 @@ import android.telecom.Connection;
 import android.telecom.ParcelableCall;
 import android.telecom.PhoneAccount;
 import android.telephony.PhoneNumberUtils;
-import android.telephony.Rlog;
+import com.android.telephony.Rlog;
 import android.text.TextUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
