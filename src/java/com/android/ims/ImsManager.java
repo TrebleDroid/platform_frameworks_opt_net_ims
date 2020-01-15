@@ -208,15 +208,17 @@ public class ImsManager implements IFeatureConnector {
     private static class ImsExecutorFactory implements ExecutorFactory {
 
         private final HandlerThread mThreadHandler;
+        private final Handler mHandler;
 
         public ImsExecutorFactory() {
             mThreadHandler = new HandlerThread("ImsHandlerThread");
             mThreadHandler.start();
+            mHandler = new Handler(mThreadHandler.getLooper());
         }
 
         @Override
         public void executeRunnable(Runnable runnable) {
-            mThreadHandler.getThreadHandler().post(runnable);
+            mHandler.post(runnable);
         }
     }
 
