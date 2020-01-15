@@ -26,8 +26,8 @@ import android.os.Message;
 import android.os.RegistrantList;
 import android.os.RemoteException;
 import android.telecom.Connection;
-import android.telecom.Log;
 import android.telecom.VideoProfile;
+import android.util.Log;
 import android.view.Surface;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -55,6 +55,8 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
         void onReceiveSessionModifyResponse(int status, VideoProfile requestProfile,
                 VideoProfile responseProfile);
     }
+
+    private static final String LOG_TAG = ImsVideoCallProviderWrapper.class.getSimpleName();
 
     private static final int MSG_RECEIVE_SESSION_MODIFY_REQUEST = 1;
     private static final int MSG_RECEIVE_SESSION_MODIFY_RESPONSE = 2;
@@ -163,10 +165,10 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
                     if (!VideoProfile.isVideo(mCurrentVideoState) && VideoProfile.isVideo(
                             videoProfile.getVideoState()) && !mIsVideoEnabled) {
                         // Video is disabled, reject the request.
-                        Log.i(ImsVideoCallProviderWrapper.this,
+                        Log.i(LOG_TAG, String.format(
                                 "receiveSessionModifyRequest: requestedVideoState=%s; rejecting "
                                         + "as video is disabled.",
-                                videoProfile.getVideoState());
+                                videoProfile.getVideoState()));
                         try {
                             mVideoCallProvider.sendSessionModifyResponse(
                                     new VideoProfile(VideoProfile.STATE_AUDIO_ONLY));
@@ -231,7 +233,7 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
      * Instantiates an instance of the ImsVideoCallProvider, taking in the binder for IMS's video
      * call provider implementation.
      *
-     * @param VideoProvider
+     * @param videoProvider
      */
     @UnsupportedAppUsage
     public ImsVideoCallProviderWrapper(IImsVideoCallProvider videoProvider)
@@ -303,7 +305,7 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
      **/
     public void onSendSessionModifyRequest(VideoProfile fromProfile, VideoProfile toProfile) {
         if (fromProfile == null || toProfile == null) {
-            Log.w(this, "onSendSessionModifyRequest: null profile in request.");
+            Log.w(LOG_TAG, "onSendSessionModifyRequest: null profile in request.");
             return;
         }
 
@@ -311,10 +313,11 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
             if (isResumeRequest(fromProfile.getVideoState(), toProfile.getVideoState()) &&
                     !VideoProfile.isPaused(mCurrentVideoState)) {
                 // Request is to resume, but we're already resumed so ignore the request.
-                Log.i(this, "onSendSessionModifyRequest: fromVideoState=%s, toVideoState=%s; "
+                Log.i(LOG_TAG, String.format(
+                        "onSendSessionModifyRequest: fromVideoState=%s, toVideoState=%s; "
                                 + "skipping resume request - already resumed.",
                         VideoProfile.videoStateToString(fromProfile.getVideoState()),
-                        VideoProfile.videoStateToString(toProfile.getVideoState()));
+                        VideoProfile.videoStateToString(toProfile.getVideoState())));
                 return;
             }
 
@@ -323,9 +326,10 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
 
             int fromVideoState = fromProfile.getVideoState();
             int toVideoState = toProfile.getVideoState();
-            Log.i(this, "onSendSessionModifyRequest: fromVideoState=%s, toVideoState=%s; ",
+            Log.i(LOG_TAG, String.format(
+                    "onSendSessionModifyRequest: fromVideoState=%s, toVideoState=%s; ",
                     VideoProfile.videoStateToString(fromProfile.getVideoState()),
-                    VideoProfile.videoStateToString(toProfile.getVideoState()));
+                    VideoProfile.videoStateToString(toProfile.getVideoState())));
             mVideoCallProvider.sendSessionModifyRequest(fromProfile, toProfile);
         } catch (RemoteException e) {
         }
@@ -455,9 +459,9 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
         boolean isPauseRequest = isPauseRequest(fromVideoState, toVideoState) || isPauseSpecialCase;
         boolean isResumeRequest = isResumeRequest(fromVideoState, toVideoState);
         if (isPauseRequest) {
-            Log.i(this, "maybeFilterPauseResume: isPauseRequest (from=%s, to=%s)",
+            Log.i(LOG_TAG, String.format("maybeFilterPauseResume: isPauseRequest (from=%s, to=%s)",
                     VideoProfile.videoStateToString(fromVideoState),
-                    VideoProfile.videoStateToString(toVideoState));
+                    VideoProfile.videoStateToString(toVideoState)));
             // Check if we have already paused the video in the past.
             if (!mVideoPauseTracker.shouldPauseVideoFor(source) && !isPauseSpecialCase) {
                 // Note: We don't want to remove the "pause" in the "special case" scenario. If we
@@ -483,15 +487,15 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
             // FROM: Audio Rx Pause TO: Audio Rx Tx Pause
             // Unfortunately, it does not. ¯\_(ツ)_/¯
             if (mUseVideoPauseWorkaround && (isTurnOffCameraRequest || isTurnOnCameraRequest)) {
-                Log.i(this, "maybeFilterPauseResume: isResumeRequest, but camera turning on/off so "
-                        + "skipping (from=%s, to=%s)",
+                Log.i(LOG_TAG, String.format("maybeFilterPauseResume: isResumeRequest,"
+                                + " but camera turning on/off so skipping (from=%s, to=%s)",
                         VideoProfile.videoStateToString(fromVideoState),
-                        VideoProfile.videoStateToString(toVideoState));
+                        VideoProfile.videoStateToString(toVideoState)));
                 return toProfile;
             }
-            Log.i(this, "maybeFilterPauseResume: isResumeRequest (from=%s, to=%s)",
+            Log.i(LOG_TAG, String.format("maybeFilterPauseResume: isResumeRequest (from=%s, to=%s)",
                     VideoProfile.videoStateToString(fromVideoState),
-                    VideoProfile.videoStateToString(toVideoState));
+                    VideoProfile.videoStateToString(toVideoState)));
             // Check if we should remain paused (other pause requests pending).
             if (!mVideoPauseTracker.shouldResumeVideoFor(source)) {
                 // There are other pause requests from other sources which are still active, so we
@@ -518,14 +522,14 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
             VideoProfile toProfile = new VideoProfile(fromVideoState | VideoProfile.STATE_PAUSED);
 
             try {
-                Log.i(this, "pauseVideo: fromVideoState=%s, toVideoState=%s",
+                Log.i(LOG_TAG, String.format("pauseVideo: fromVideoState=%s, toVideoState=%s",
                         VideoProfile.videoStateToString(fromProfile.getVideoState()),
-                        VideoProfile.videoStateToString(toProfile.getVideoState()));
+                        VideoProfile.videoStateToString(toProfile.getVideoState())));
                 mVideoCallProvider.sendSessionModifyRequest(fromProfile, toProfile);
             } catch (RemoteException e) {
             }
         } else {
-            Log.i(this, "pauseVideo: video already paused");
+            Log.i(LOG_TAG, "pauseVideo: video already paused");
         }
     }
 
@@ -543,14 +547,14 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
             VideoProfile toProfile = new VideoProfile(fromVideoState & ~VideoProfile.STATE_PAUSED);
 
             try {
-                Log.i(this, "resumeVideo: fromVideoState=%s, toVideoState=%s",
+                Log.i(LOG_TAG, String.format("resumeVideo: fromVideoState=%s, toVideoState=%s",
                         VideoProfile.videoStateToString(fromProfile.getVideoState()),
-                        VideoProfile.videoStateToString(toProfile.getVideoState()));
+                        VideoProfile.videoStateToString(toProfile.getVideoState())));
                 mVideoCallProvider.sendSessionModifyRequest(fromProfile, toProfile);
             } catch (RemoteException e) {
             }
         } else {
-            Log.i(this, "resumeVideo: remaining paused (paused from other sources)");
+            Log.i(LOG_TAG, "resumeVideo: remaining paused (paused from other sources)");
         }
     }
 
@@ -578,15 +582,16 @@ public class ImsVideoCallProviderWrapper extends Connection.VideoProvider {
     public void onVideoStateChanged(int newVideoState) {
         if (VideoProfile.isPaused(mCurrentVideoState) && !VideoProfile.isPaused(newVideoState)) {
             // New video state is un-paused, so clear any pending pause requests.
-            Log.i(this, "onVideoStateChanged: currentVideoState=%s, newVideoState=%s, "
-                            + "clearing pending pause requests.",
+            Log.i(LOG_TAG, String.format("onVideoStateChanged: currentVideoState=%s,"
+                            + " newVideoState=%s, clearing pending pause requests.",
                     VideoProfile.videoStateToString(mCurrentVideoState),
-                    VideoProfile.videoStateToString(newVideoState));
+                    VideoProfile.videoStateToString(newVideoState)));
             mVideoPauseTracker.clearPauseRequests();
         } else {
-            Log.d(this, "onVideoStateChanged: currentVideoState=%s, newVideoState=%s",
-                    VideoProfile.videoStateToString(mCurrentVideoState),
-                    VideoProfile.videoStateToString(newVideoState));
+            Log.d(LOG_TAG,
+                    String.format("onVideoStateChanged: currentVideoState=%s, newVideoState=%s",
+                            VideoProfile.videoStateToString(mCurrentVideoState),
+                            VideoProfile.videoStateToString(newVideoState)));
         }
         mCurrentVideoState = newVideoState;
     }
