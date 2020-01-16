@@ -24,18 +24,22 @@ import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
+import android.telephony.ims.RcsContactUceCapability;
 import com.android.telephony.Rlog;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.service.ims.presence.PresencePublisher;
+import com.android.service.ims.presence.SubscribePublisher;
 
 /**
  * A container of the IImsServiceController binder, which implements all of the RcsFeatures that
  * the platform currently supports: RCS
  */
-public class RcsFeatureConnection extends FeatureConnection {
+public class RcsFeatureConnection extends FeatureConnection implements PresencePublisher,
+        SubscribePublisher {
     private static final String TAG = "RcsFeatureConnection";
 
     public interface IRcsFeatureUpdate extends IFeatureUpdate {
@@ -201,6 +205,43 @@ public class RcsFeatureConnection extends FeatureConnection {
             checkServiceIsReady();
             getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
         }
+    }
+
+    @Override
+    public int getPublisherState() {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requestPublication(RcsContactUceCapability capabilities, String contactUri,
+            int taskId) {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void updatePublisherState(int publishState) {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requestCapability(String[] formattedContacts, int taskId) {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requestAvailability(String formattedContact, int taskId) {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getStackStatusForCapabilityRequest() {
+        // Need to implement this api
+        throw new UnsupportedOperationException();
     }
 
     @Override

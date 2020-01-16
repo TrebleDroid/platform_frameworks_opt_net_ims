@@ -143,6 +143,10 @@ public class RcsFeatureManager implements IFeatureConnector {
         }
     }
 
+    public RcsFeatureConnection getRcsFeatureConnection() {
+        return mRcsFeatureConnection;
+    }
+
     /**
      * The callback to receive updated from RcsFeature
      */
