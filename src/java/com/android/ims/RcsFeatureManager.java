@@ -32,6 +32,7 @@ import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
+import android.telephony.ims.stub.RcsPresenceExchangeImplBase;
 import com.android.telephony.Rlog;
 import android.util.Log;
 
@@ -161,7 +162,8 @@ public class RcsFeatureManager implements IFeatureConnector {
         }
 
         @Override
-        public void onNotifyUpdateCapabilities() {
+        public void onNotifyUpdateCapabilities(
+                @RcsPresenceExchangeImplBase.StackPublishTriggerType int triggerType) {
         }
 
         @Override
