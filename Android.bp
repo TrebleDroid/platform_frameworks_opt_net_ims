@@ -16,6 +16,10 @@ java_library {
     name: "ims-common",
     installable: true,
 
+    static_libs: [
+        "ucepresencelib",
+    ],
+
     aidl: {
         local_include_dirs: ["src/java"],
     },
