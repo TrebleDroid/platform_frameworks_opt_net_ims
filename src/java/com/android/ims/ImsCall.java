@@ -28,12 +28,14 @@ import android.telecom.Connection;
 import android.telephony.CallQuality;
 import com.android.telephony.Rlog;
 import android.telephony.ServiceState;
+import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsCallSession;
 import android.telephony.ims.ImsConferenceState;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsStreamMediaProfile;
 import android.telephony.ims.ImsSuppServiceNotification;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.ims.internal.ICall;
@@ -3075,10 +3077,10 @@ public class ImsCall implements ICall {
             }
         }
 
-        public void callSessionHandover(ImsCallSession session, int srcAccessTech,
-            int targetAccessTech, ImsReasonInfo reasonInfo) {
+        public void callSessionHandover(ImsCallSession session, int srcNetworkType,
+            int targetNetworkType, ImsReasonInfo reasonInfo) {
             logi("callSessionHandover :: session=" + session + ", srcAccessTech=" +
-                srcAccessTech + ", targetAccessTech=" + targetAccessTech + ", reasonInfo=" +
+                    srcNetworkType + ", targetAccessTech=" + targetNetworkType + ", reasonInfo=" +
                 reasonInfo);
 
             ImsCall.Listener listener;
@@ -3089,8 +3091,10 @@ public class ImsCall implements ICall {
 
             if (listener != null) {
                 try {
-                    listener.onCallHandover(ImsCall.this, srcAccessTech, targetAccessTech,
-                        reasonInfo);
+                    listener.onCallHandover(ImsCall.this,
+                            ServiceState.networkTypeToRilRadioTechnology(srcNetworkType),
+                            ServiceState.networkTypeToRilRadioTechnology(targetNetworkType),
+                            reasonInfo);
                 } catch (Throwable t) {
                     loge("callSessionHandover :: ", t);
                 }
@@ -3098,10 +3102,10 @@ public class ImsCall implements ICall {
         }
 
         @Override
-        public void callSessionHandoverFailed(ImsCallSession session, int srcAccessTech,
-            int targetAccessTech, ImsReasonInfo reasonInfo) {
+        public void callSessionHandoverFailed(ImsCallSession session, int srcNetworkType,
+            int targetNetworkType, ImsReasonInfo reasonInfo) {
             loge("callSessionHandoverFailed :: session=" + session + ", srcAccessTech=" +
-                srcAccessTech + ", targetAccessTech=" + targetAccessTech + ", reasonInfo=" +
+                    srcNetworkType + ", targetAccessTech=" + targetNetworkType + ", reasonInfo=" +
                 reasonInfo);
 
             ImsCall.Listener listener;
@@ -3112,8 +3116,10 @@ public class ImsCall implements ICall {
 
             if (listener != null) {
                 try {
-                    listener.onCallHandoverFailed(ImsCall.this, srcAccessTech, targetAccessTech,
-                        reasonInfo);
+                    listener.onCallHandoverFailed(ImsCall.this,
+                            ServiceState.networkTypeToRilRadioTechnology(srcNetworkType),
+                            ServiceState.networkTypeToRilRadioTechnology(targetNetworkType),
+                            reasonInfo);
                 } catch (Throwable t) {
                     loge("callSessionHandoverFailed :: ", t);
                 }
@@ -3491,8 +3497,8 @@ public class ImsCall implements ICall {
         ImsCallProfile imsCallProfile = mCallProfile;
         if (imsCallProfile != null) {
             sb.append(" mCallProfile:" + imsCallProfile);
-            sb.append(" tech:");
-            sb.append(imsCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE));
+            sb.append(" networkType:");
+            sb.append(getNetworkType());
         }
         sb.append(" updateRequest:");
         sb.append(updateRequestToString(mUpdateRequest));
@@ -3591,35 +3597,35 @@ public class ImsCall implements ICall {
             if (mCallProfile == null) {
                 return false;
             }
-            int radioTechnology = getRadioTechnology();
-            return radioTechnology == ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN;
+            return getNetworkType() == TelephonyManager.NETWORK_TYPE_IWLAN;
         }
     }
 
     /**
-     * Determines the radio access technology for the {@link ImsCall}.
-     * @return The {@link ServiceState} {@code RIL_RADIO_TECHNOLOGY_*} code in use.
+     * Determines the network type for the {@link ImsCall}.
+     * @return The {@link TelephonyManager} {@code NETWORK_TYPE_*} code in use.
      */
-    public int getRadioTechnology() {
+    public int getNetworkType() {
         synchronized(mLockObj) {
             if (mCallProfile == null) {
                 return ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
             }
-            String callType = mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE);
-            if (callType == null || callType.isEmpty()) {
-                callType = mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE_ALT);
+            int networkType = mCallProfile.getCallExtraInt(ImsCallProfile.EXTRA_CALL_NETWORK_TYPE,
+                    TelephonyManager.NETWORK_TYPE_UNKNOWN);
+            if (networkType == TelephonyManager.NETWORK_TYPE_UNKNOWN) {
+                //  Try to look at old extras to see if the ImsService is using deprecated behavior.
+                String oldRatType = mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE);
+                if (TextUtils.isEmpty(oldRatType)) {
+                    oldRatType = mCallProfile.getCallExtra(ImsCallProfile.EXTRA_CALL_RAT_TYPE_ALT);
+                }
+                try {
+                    int oldRatTypeConverted = Integer.parseInt(oldRatType);
+                    networkType = ServiceState.rilRadioTechnologyToNetworkType(oldRatTypeConverted);
+                } catch (NumberFormatException e) {
+                    networkType = TelephonyManager.NETWORK_TYPE_UNKNOWN;
+                }
             }
-
-            // The RIL (sadly) sends us the EXTRA_CALL_RAT_TYPE as a string extra, rather than an
-            // integer extra, so we need to parse it.
-            int radioTechnology = ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
-            try {
-                radioTechnology = Integer.parseInt(callType);
-            } catch (NumberFormatException nfe) {
-                radioTechnology = ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
-            }
-
-            return radioTechnology;
+            return networkType;
         }
     }
 
