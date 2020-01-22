@@ -1948,7 +1948,7 @@ public class ImsManager implements IFeatureConnector {
         call.setListener(listener);
         ImsCallSession session = createCallSession(profile);
 
-        if ((callees != null) && (callees.length == 1)) {
+        if ((callees != null) && (callees.length == 1) && !(session.isMultiparty())) {
             call.start(session, callees[0]);
         } else {
             call.start(session, callees);
