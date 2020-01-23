@@ -193,6 +193,8 @@ public class ImsManager implements IFeatureConnector {
      */
     public static final String EXTRA_IS_UNKNOWN_CALL = "android:isUnknown";
 
+    private static final int SUBINFO_PROPERTY_FALSE = 0;
+
     private static final int SYSTEM_PROPERTY_NOT_SET = -1;
 
     // -1 indicates a subscriptionProperty value that is never set.
@@ -2611,6 +2613,11 @@ public class ImsManager implements IFeatureConnector {
             SubscriptionManager.setSubscriptionProperty(subId,
                     SubscriptionManager.VT_IMS_ENABLED,
                     Integer.toString(SUB_PROPERTY_NOT_INITIALIZED));
+
+            // Set RCS UCE to default
+            SubscriptionManager.setSubscriptionProperty(subId,
+                    SubscriptionManager.IMS_RCS_UCE_ENABLED, Integer.toString(
+                            SUBINFO_PROPERTY_FALSE));
         } else {
             loge("factoryReset: invalid sub id, can not reset siminfo db settings; subId=" + subId);
         }
