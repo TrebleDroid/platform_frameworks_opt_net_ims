@@ -2913,6 +2913,8 @@ public class ImsCall implements ICall {
                 listener = mListener;
             }
 
+            mIsConferenceHost = true;
+
             if (listener != null) {
                 try {
                     listener.onCallInviteParticipantsRequestDelivered(ImsCall.this);
