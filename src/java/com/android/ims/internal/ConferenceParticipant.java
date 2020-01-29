@@ -281,17 +281,23 @@ public class ConferenceParticipant implements Parcelable {
     }
 
     /**
-     * @return The direction of the call (incoming/outgoing).
+     * @return The direction of the call (incoming/outgoing):
+     *         {@link android.telecom.Call.Details#DIRECTION_INCOMING} for incoming calls, or
+     *         {@link android.telecom.Call.Details#DIRECTION_OUTGOING} for outgoing calls.
      */
-    public @android.telecom.Call.Details.CallDirection int getCallDirection() {
+    public int getCallDirection() {
         return mCallDirection;
     }
 
     /**
      * Sets the direction of the call.
-     * @param callDirection Whether the call is incoming or outgoing.
+     * @param callDirection Whether the call is incoming or outgoing:
+     *                      {@link android.telecom.Call.Details#DIRECTION_INCOMING} for
+     *                      incoming calls, or
+     *                      {@link android.telecom.Call.Details#DIRECTION_OUTGOING} for
+     *                      outgoing calls.
      */
-    public void setCallDirection(@Call.Details.CallDirection int callDirection) {
+    public void setCallDirection(int callDirection) {
         mCallDirection = callDirection;
     }
 
