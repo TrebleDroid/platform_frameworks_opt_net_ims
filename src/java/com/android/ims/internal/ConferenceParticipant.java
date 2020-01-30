@@ -108,7 +108,7 @@ public class ConferenceParticipant implements Parcelable {
 
                 @Override
                 public ConferenceParticipant createFromParcel(Parcel source) {
-                    ClassLoader classLoader = ParcelableCall.class.getClassLoader();
+                    ClassLoader classLoader = ConferenceParticipant.class.getClassLoader();
                     Uri handle = source.readParcelable(classLoader);
                     String displayName = source.readString();
                     Uri endpoint = source.readParcelable(classLoader);
