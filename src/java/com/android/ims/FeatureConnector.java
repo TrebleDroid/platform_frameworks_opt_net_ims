@@ -46,11 +46,6 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
 
     public interface Listener<T> {
         /**
-         * Check if ImsFeature supported
-         */
-        boolean isSupported();
-
-        /**
          * Get ImsFeature manager instance
          */
         T getFeatureManager();
@@ -95,14 +90,6 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
             return timeout;
         }
     };
-
-    public FeatureConnector(Context context, int phoneId, Listener<T> listener) {
-        mContext = context;
-        mPhoneId = phoneId;
-        mListener = listener;
-        mExecutor = new HandlerExecutor(this);
-        mLogPrefix = "?";
-    }
 
     public FeatureConnector(Context context, int phoneId, Listener<T> listener,
             String logPrefix) {
@@ -157,7 +144,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
 
     // Check if this ImsFeature is supported or not.
     private boolean isSupported() {
-        return mListener.isSupported();
+        return ImsManager.isImsSupportedOnDevice(mContext);
     }
 
     /**
@@ -178,18 +165,18 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     private final Runnable mGetServiceRunnable = () -> {
         try {
             createImsService();
-        } catch (ImsException e) {
+        } catch (android.telephony.ims.ImsException e) {
             int errorCode = e.getCode();
             if (DBG) logw("Create IMS service error: " + errorCode);
-            if (ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE != errorCode) {
-                // Retry when error is not IMS_NOT_SUPPORTED_ON_DEVICE
+            if (android.telephony.ims.ImsException.CODE_ERROR_UNSUPPORTED_OPERATION != errorCode) {
+                // Retry when error is not CODE_ERROR_UNSUPPORTED_OPERATION
                 retryGetImsService();
             }
         }
     };
 
     @VisibleForTesting
-    public void createImsService() throws ImsException {
+    public void createImsService() throws android.telephony.ims.ImsException {
         synchronized (mLock) {
             if (DBG) log("createImsService");
             mManager = mListener.getFeatureManager();
