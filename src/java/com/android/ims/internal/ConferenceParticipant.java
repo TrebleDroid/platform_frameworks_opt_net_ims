@@ -19,16 +19,14 @@ package com.android.ims.internal;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.telecom.Call;
 import android.telecom.Connection;
-import android.telecom.ParcelableCall;
 import android.telecom.PhoneAccount;
 import android.telephony.PhoneNumberUtils;
-import com.android.telephony.Rlog;
 import android.text.TextUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.telephony.Rlog;
 
 /**
  * Parcelable representation of a participant's state in a conference call.
