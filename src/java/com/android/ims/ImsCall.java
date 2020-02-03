@@ -25,7 +25,6 @@ import android.os.Parcel;
 import android.telecom.Call;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
-import com.android.telephony.Rlog;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
@@ -41,6 +40,7 @@ import com.android.ims.internal.ConferenceParticipant;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
 import java.util.Iterator;

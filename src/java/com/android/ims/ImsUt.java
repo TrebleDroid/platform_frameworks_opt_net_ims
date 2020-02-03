@@ -16,9 +16,6 @@
 
 package com.android.ims;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import android.content.res.Resources;
 import android.os.AsyncResult;
 import android.os.Bundle;
@@ -26,7 +23,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Registrant;
 import android.os.RemoteException;
-import com.android.telephony.Rlog;
 import android.telephony.ims.ImsCallForwardInfo;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsSsData;
@@ -36,6 +32,10 @@ import android.telephony.ims.ImsUtListener;
 import com.android.ims.internal.IImsUt;
 import com.android.ims.internal.IImsUtListener;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.telephony.Rlog;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Provides APIs for the supplementary service settings using IMS (Ut interface).
