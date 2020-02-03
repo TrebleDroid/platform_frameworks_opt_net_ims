@@ -20,19 +20,19 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.telephony.TelephonyManager;
+import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
+import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
-import android.telephony.ims.RcsContactUceCapability;
-import com.android.telephony.Rlog;
-import android.telephony.TelephonyManager;
-import android.telephony.ims.aidl.IImsRcsFeature;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.service.ims.presence.PresencePublisher;
 import com.android.service.ims.presence.SubscribePublisher;
+import com.android.telephony.Rlog;
 
 /**
  * A container of the IImsServiceController binder, which implements all of the RcsFeatures that

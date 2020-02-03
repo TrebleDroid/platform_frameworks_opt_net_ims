@@ -29,21 +29,21 @@ import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
-import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.stub.RcsPresenceExchangeImplBase;
-import com.android.telephony.Rlog;
 import android.util.Log;
 
 import com.android.ims.FeatureConnection.IFeatureUpdate;
 import com.android.ims.RcsFeatureConnection.IRcsFeatureUpdate;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.telephony.Rlog;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 

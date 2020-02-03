@@ -17,17 +17,10 @@
 package com.android.ims;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.content.Context;
 import android.os.IBinder;
-import android.os.IInterface;
-import android.os.Looper;
 import android.os.Message;
-import android.os.RemoteCallbackList;
 import android.os.RemoteException;
-import com.android.telephony.Rlog;
-import android.telephony.SubscriptionInfo;
-import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
@@ -40,24 +33,14 @@ import android.telephony.ims.aidl.IImsSmsListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
-import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.stub.ImsSmsImplBase;
-import android.util.ArraySet;
 import android.util.Log;
-import android.util.SparseArray;
 
 import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
-import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.ims.internal.IImsUt;
-import com.android.internal.annotations.VisibleForTesting;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import com.android.telephony.Rlog;
 
 /**
  * A container of the IImsServiceController binder, which implements all of the ImsFeatures that
