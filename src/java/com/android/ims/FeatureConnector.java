@@ -20,12 +20,12 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
-import com.android.telephony.Rlog;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.feature.ImsFeature;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.util.HandlerExecutor;
+import com.android.telephony.Rlog;
 
 import java.util.concurrent.Executor;
 
