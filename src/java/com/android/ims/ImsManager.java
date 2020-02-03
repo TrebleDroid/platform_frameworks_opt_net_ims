@@ -2706,7 +2706,8 @@ public class ImsManager implements IFeatureConnector {
 
         pw.println("  isWfcEnabledByPlatform = " + isWfcEnabledByPlatform());
         pw.println("  isWfcEnabledByUser = " + isWfcEnabledByUser());
-        pw.println("  getWfcMode = " + getWfcMode());
+        pw.println("  getWfcMode(non-roaming) = " + getWfcMode(false));
+        pw.println("  getWfcMode(roaming) = " + getWfcMode(true));
         pw.println("  isWfcRoamingEnabledByUser = " + isWfcRoamingEnabledByUser());
 
         pw.println("  isVtProvisionedOnDevice = " + isVtProvisionedOnDevice());
