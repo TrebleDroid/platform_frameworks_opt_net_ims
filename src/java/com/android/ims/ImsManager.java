@@ -2652,7 +2652,7 @@ public class ImsManager implements IFeatureConnector {
     }
 
     private boolean isDataEnabled() {
-        return new TelephonyManager(mContext, getSubId()).isDataCapable();
+        return new TelephonyManager(mContext, getSubId()).isDataConnectionEnabled();
     }
 
     private boolean isVolteProvisioned() {
