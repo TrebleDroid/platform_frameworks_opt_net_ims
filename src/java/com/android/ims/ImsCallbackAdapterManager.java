@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public abstract class ImsCallbackAdapterManager<T extends IInterface> {
-    private static final String TAG = "ImsCallbackAdapterManager";
+    private static final String TAG = "ImsCallbackAM";
 
     private final Context mContext;
     private final Object mLock;
@@ -98,8 +98,8 @@ public abstract class ImsCallbackAdapterManager<T extends IInterface> {
         };
     }
 
-    // Add a callback to the MmTelFeature associated with this manager (independent of the)
-    // current subscription.
+    // Add a callback to the ImsFeature associated with this manager (independent of the
+    // current subscription).
     public final void addCallback(T localCallback) {
         synchronized (mLock) {
             // Skip registering to callback subscription map here, because we are registering
@@ -124,7 +124,7 @@ public abstract class ImsCallbackAdapterManager<T extends IInterface> {
         }
     }
 
-    // Removes a callback associated with the MmTelFeature.
+    // Removes a callback associated with the ImsFeature.
     public final void removeCallback(T localCallback) {
         Log.i(TAG + " [" + mSlotId + "]", "Local callback removed: " + localCallback);
         synchronized (mLock) {
@@ -255,9 +255,9 @@ public abstract class ImsCallbackAdapterManager<T extends IInterface> {
         }
     }
 
-    // A callback has been registered. Register that callback with the MmTelFeature.
+    // A callback has been registered. Register that callback with the ImsFeature.
     public abstract void registerCallback(T localCallback);
 
-    // A callback has been removed, unregister that callback with the MmTelFeature.
+    // A callback has been removed, unregister that callback with the RcsFeature.
     public abstract void unregisterCallback(T localCallback);
 }
