@@ -240,21 +240,11 @@ public class MmTelFeatureConnection extends FeatureConnection {
     @Override
     protected void onRemovedOrDied() {
         synchronized (mLock) {
+            super.onRemovedOrDied();
             mRegistrationCallbackManager.close();
             mCapabilityCallbackManager.close();
             mProvisioningCallbackManager.close();
-            if (mIsAvailable) {
-                mIsAvailable = false;
-                // invalidate caches.
-                mRegistrationBinder = null;
-                mConfigBinder = null;
-                if (mBinder != null) {
-                    mBinder.unlinkToDeath(mDeathRecipient, 0);
-                }
-                if (mStatusCallback != null) {
-                    mStatusCallback.notifyUnavailable();
-                }
-            }
+            mConfigBinder = null;
         }
     }
 

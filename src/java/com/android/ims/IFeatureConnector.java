@@ -16,9 +16,9 @@
 
 package com.android.ims;
 
-public interface IFeatureConnector {
+public interface IFeatureConnector<T> {
     int getImsServiceState() throws ImsException;
     void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate callback)
-            throws ImsException;
+            throws android.telephony.ims.ImsException;
     void removeNotifyStatusChangedCallback(FeatureConnection.IFeatureUpdate callback);
 }
