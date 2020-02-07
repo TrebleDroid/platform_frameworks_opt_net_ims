@@ -1560,10 +1560,10 @@ public class ImsManager implements IFeatureConnector {
     @Override
     @VisibleForTesting
     public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
-            throws ImsException {
+            throws android.telephony.ims.ImsException {
         if (!mMmTelFeatureConnection.isBinderAlive()) {
-            throw new ImsException("Binder is not active!",
-                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+            throw new android.telephony.ims.ImsException("Can not connect to ImsService",
+                    android.telephony.ims.ImsException.CODE_ERROR_SERVICE_UNAVAILABLE);
         }
         if (c != null) {
             mStatusCallbacks.add(c);
@@ -2280,10 +2280,7 @@ public class ImsManager implements IFeatureConnector {
     }
 
     /**
-     * Binds the IMS service to make/receive the call. Supports two methods of exposing an
-     * ImsService:
-     * 1) com.android.ims.ImsService implementation in ServiceManager (deprecated).
-     * 2) android.telephony.ims.ImsService implementation through ImsResolver.
+     * Creates a connection to the ImsService associated with this slot.
      */
     private void createImsService() {
         mMmTelFeatureConnection = MmTelFeatureConnection.create(mContext, mPhoneId);
