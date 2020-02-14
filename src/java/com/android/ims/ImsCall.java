@@ -23,7 +23,6 @@ import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
 import android.telecom.Call;
-import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
 import android.telephony.ServiceState;
@@ -37,8 +36,10 @@ import android.telephony.ims.ImsSuppServiceNotification;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.ims.internal.ConferenceParticipant;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
+import com.android.ims.internal.TelephonyResourceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
@@ -46,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -1421,8 +1421,8 @@ public class ImsCall implements ICall {
 
             // if skipHoldBeforeMerge = true, IMS service implementation will
             // merge without explicitly holding the call.
-            if (mHold || (mContext.getResources().getBoolean(
-                    com.android.internal.R.bool.skipHoldBeforeMerge))) {
+            if (mHold || (TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
+                    com.android.telephony.resources.R.bool.skipHoldBeforeMerge))) {
 
                 if (mMergePeer != null && !mMergePeer.isMultiparty() && !isMultiparty()) {
                     // We only set UPDATE_MERGE when we are adding the first

@@ -16,6 +16,7 @@
 
 package com.android.ims;
 
+import android.content.Context;
 import android.content.res.Resources;
 import android.os.AsyncResult;
 import android.os.Bundle;
@@ -31,6 +32,7 @@ import android.telephony.ims.ImsUtListener;
 
 import com.android.ims.internal.IImsUt;
 import com.android.ims.internal.IImsUtListener;
+import com.android.ims.internal.TelephonyResourceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
@@ -81,14 +83,15 @@ public class ImsUt implements ImsUtInterface {
 
     // For synchronization of private variables
     private Object mLockObj = new Object();
+    private final Context mContext;
     private final IImsUt miUt;
     private HashMap<Integer, Message> mPendingCmds =
             new HashMap<Integer, Message>();
     private Registrant mSsIndicationRegistrant;
 
-    public ImsUt(IImsUt iUt) {
+    public ImsUt(Context context, IImsUt iUt) {
+        mContext = context;
         miUt = iUt;
-
         if (miUt != null) {
             try {
                 miUt.setListener(new IImsUtListenerProxy());
@@ -614,8 +617,8 @@ public class ImsUt implements ImsUtInterface {
         // If ImsReasonInfo object does not have a String error code, use a
         // default error string.
         if (error.mExtraMessage == null) {
-            errorString = Resources.getSystem().getString(
-                    com.android.internal.R.string.mmiError);
+            errorString = TelephonyResourceUtils.getTelephonyResources(mContext)
+                    .getString(com.android.telephony.resources.R.string.mmiError);
         }
         else {
             errorString = new String(error.mExtraMessage);
