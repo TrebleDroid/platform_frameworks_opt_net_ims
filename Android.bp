@@ -29,7 +29,6 @@ java_library {
     ],
 
     libs: [
-        "telephony-resources",
         "unsupportedappusage",
         "framework-telephony",
         // TODO link to framework-minus-apex stub and framework-wifi-stubs

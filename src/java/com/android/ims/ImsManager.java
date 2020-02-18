@@ -59,7 +59,6 @@ import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
-import com.android.ims.internal.TelephonyResourceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.util.HandlerExecutor;
@@ -519,8 +518,8 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
-                com.android.telephony.resources.R.bool.config_device_volte_available)
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_device_volte_available)
                 && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VOLTE_AVAILABLE_BOOL)
                 && isGbaValid();
     }
@@ -669,10 +668,10 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
-                com.android.telephony.resources.R.bool.config_device_vt_available)
-                && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VT_AVAILABLE_BOOL)
-                && isGbaValid();
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_device_vt_available) &&
+                getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VT_AVAILABLE_BOOL) &&
+                isGbaValid();
     }
 
     /**
@@ -1189,10 +1188,11 @@ public class ImsManager implements IFeatureConnector {
             return true;
         }
 
-        return TelephonyResourceUtils.getTelephonyResources(mContext).getBoolean(
-                com.android.telephony.resources.R.bool.config_device_wfc_ims_available)
-                && getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_WFC_IMS_AVAILABLE_BOOL)
-                && isGbaValid();
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_device_wfc_ims_available) &&
+                getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_WFC_IMS_AVAILABLE_BOOL) &&
+                isGbaValid();
     }
 
     public boolean isSuppServicesOverUtEnabledByPlatform() {
@@ -1892,7 +1892,7 @@ public class ImsManager implements IFeatureConnector {
                         ImsReasonInfo.CODE_UT_NOT_SUPPORTED);
             }
 
-            mUt = new ImsUt(mContext, iUt);
+            mUt = new ImsUt(iUt);
         } catch (RemoteException e) {
             throw new ImsException("getSupplementaryServiceConfiguration()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
