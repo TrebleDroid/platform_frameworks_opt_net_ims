@@ -488,6 +488,17 @@ public class ImsCall implements ICall {
         }
 
         /**
+         * Notifies the result of transfer request.
+         *
+         * @param imsCall ImsCall object
+         */
+        public void onCallSessionTransferred(ImsCall imsCall) {
+        }
+
+        public void onCallSessionTransferFailed(ImsCall imsCall, ImsReasonInfo reasonInfo) {
+        }
+
+        /**
          * Called when the call quality has changed.
          *
          * @param imsCall ImsCall object
@@ -1250,6 +1261,56 @@ public class ImsCall implements ICall {
             // Other call update received
             if (mInCall && (mUpdateRequest == UPDATE_UNSPECIFIED)) {
                 mUpdateRequest = UPDATE_NONE;
+            }
+        }
+    }
+
+    /**
+     * Transfers a call.
+     *
+     * @param number number to be transferred to.
+     * @param isConfirmationRequired indicates blind or assured transfer.
+     * @throws ImsException if the IMS service fails to transfer the call.
+     */
+    public void transfer(String number, boolean isConfirmationRequired) throws ImsException {
+        logi("transfer :: session=" + mSession + ", number=" + Rlog.pii(TAG, number) +
+                ", isConfirmationRequired=" + isConfirmationRequired);
+
+        synchronized(mLockObj) {
+            if (mSession == null) {
+                throw new ImsException("No call to transfer",
+                        ImsReasonInfo.CODE_LOCAL_CALL_TERMINATED);
+            }
+
+            try {
+                mSession.transfer(number, isConfirmationRequired);
+            } catch (Throwable t) {
+                loge("transfer :: ", t);
+                throw new ImsException("transfer()", t, 0);
+            }
+        }
+    }
+
+    /**
+     * Transfers a call to another ongoing call.
+     *
+     * @param transferToImsCall the other ongoing call to which this call will be transferred.
+     * @throws ImsException if the IMS service fails to transfer the call.
+     */
+    public void consultativeTransfer(ImsCall transferToImsCall) throws ImsException {
+        logi("consultativeTransfer :: session=" + mSession + ", other call=" + transferToImsCall);
+
+        synchronized(mLockObj) {
+            if (mSession == null) {
+                throw new ImsException("No call to transfer",
+                        ImsReasonInfo.CODE_LOCAL_CALL_TERMINATED);
+            }
+
+            try {
+                mSession.transfer(transferToImsCall.getSession());
+            } catch (Throwable t) {
+                loge("consultativeTransfer :: ", t);
+                throw new ImsException("consultativeTransfer()", t, 0);
             }
         }
     }
@@ -3235,6 +3296,40 @@ public class ImsCall implements ICall {
                     listener.onRttAudioIndicatorChanged(ImsCall.this, profile);
                 } catch (Throwable t) {
                     loge("callSessionRttAudioIndicatorChanged:: ", t);
+                }
+            }
+        }
+
+        @Override
+        public void callSessionTransferred(ImsCallSession session) {
+            ImsCall.Listener listener;
+
+            synchronized(ImsCall.this) {
+                listener = mListener;
+            }
+
+            if (listener != null) {
+                try {
+                    listener.onCallSessionTransferred(ImsCall.this);
+                } catch (Throwable t) {
+                    loge("callSessionTransferred:: ", t);
+                }
+            }
+        }
+
+        @Override
+        public void callSessionTransferFailed(ImsCallSession session, ImsReasonInfo reasonInfo) {
+            ImsCall.Listener listener;
+
+            synchronized(ImsCall.this) {
+                listener = mListener;
+            }
+
+            if (listener != null) {
+                try {
+                    listener.onCallSessionTransferFailed(ImsCall.this, reasonInfo);
+                } catch (Throwable t) {
+                    loge("callSessionTransferFailed:: ", t);
                 }
             }
         }
