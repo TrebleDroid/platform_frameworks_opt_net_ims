@@ -154,7 +154,6 @@ public class RcsFeatureManager implements IFeatureConnector {
     public RcsFeatureManager(Context context, int slotId) {
         mContext = context;
         mSlotId = slotId;
-        logi("RcsFeatureManager");
 
         createImsService();
     }

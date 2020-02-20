@@ -133,10 +133,8 @@ public class RcsFeatureConnection extends FeatureConnection {
             // Trigger the cache to be updated for feature status.
             serviceProxy.getFeatureState();
         } else {
-            Rlog.w(TAG, "create: binder is null! Slot Id: " + slotId);
+            Rlog.i(TAG, "create: binder is null! Slot Id: " + slotId);
         }
-
-        Rlog.d(TAG, "create: RcsFeatureConnection done");
         return serviceProxy;
     }
 
