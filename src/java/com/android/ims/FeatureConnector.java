@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
  */
 public class FeatureConnector<T extends IFeatureConnector> extends Handler {
     private static final String TAG = "FeatureConnector";
-    private static final boolean DBG = true;
+    private static final boolean DBG = false;
 
     // Initial condition for ims connection retry.
     private static final int IMS_RETRY_STARTING_TIMEOUT_MS = 500; // ms
@@ -206,7 +206,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
         removeCallbacks(mGetServiceRunnable);
         int timeout = mRetryTimeout.get();
         postDelayed(mGetServiceRunnable, timeout);
-        if (DBG) log("retryGetImsService: unavailable, retrying in " + timeout + " seconds");
+        if (DBG) log("retryGetImsService: unavailable, retrying in " + timeout + " ms");
     }
 
     // Callback fires when IMS Feature changes state
@@ -264,7 +264,7 @@ public class FeatureConnector<T extends IFeatureConnector> extends Handler {
             mListener.connectionReady(manager);
         }
         catch (ImsException e) {
-            logw("notifyReady exception: " + e.getMessage());
+            if(DBG) log("notifyReady exception: " + e.getMessage());
             throw e;
         }
         // Only reset retry count if connectionReady does not generate an ImsException/
