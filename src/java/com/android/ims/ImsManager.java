@@ -2128,6 +2128,26 @@ public class ImsManager implements IFeatureConnector {
         return false;
     }
 
+    public boolean queryMmTelCapabilityStatus(
+            @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+            @ImsRegistrationImplBase.ImsRegistrationTech int radioTech) throws ImsException {
+        checkAndThrowExceptionIfServiceUnavailable();
+
+        if (getRegistrationTech() != radioTech)
+            return false;
+
+        try {
+
+            MmTelFeature.MmTelCapabilities capabilities =
+                    mMmTelFeatureConnection.queryCapabilityStatus();
+
+            return capabilities.isCapable(capability);
+        } catch (RemoteException e) {
+            throw new ImsException("queryMmTelCapabilityStatus()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
     public void setRttEnabled(boolean enabled) {
         try {
             if (enabled) {
