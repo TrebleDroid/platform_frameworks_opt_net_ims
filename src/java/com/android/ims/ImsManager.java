@@ -1402,17 +1402,21 @@ public class ImsManager implements IFeatureConnector {
      */
     private void updateVideoCallFeatureValue(CapabilityChangeRequest request) {
         boolean available = isVtEnabledByPlatform();
-        boolean enabled = isVtEnabledByUser();
+        boolean vtEnabled = isVtEnabledByUser();
+        boolean advancedEnabled = isEnhanced4gLteModeSettingEnabledByUser();
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
         boolean isDataEnabled = isDataEnabled();
         boolean ignoreDataEnabledChanged = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_DATA_ENABLED_CHANGED_FOR_VIDEO_CALLS);
         boolean isProvisioned = isVtProvisionedOnDevice();
-        boolean isFeatureOn = available && enabled && isNonTty && isProvisioned
-                && (ignoreDataEnabledChanged || isDataEnabled);
+        // TODO: Support carrier config setting about if VT settings should be associated with
+        //  advanced calling settings.
+        boolean isFeatureOn = available && vtEnabled && isNonTty && isProvisioned
+                && advancedEnabled && (ignoreDataEnabledChanged || isDataEnabled);
 
         log("updateVideoCallFeatureValue: available = " + available
-                + ", enabled = " + enabled
+                + ", vtenabled = " + vtEnabled
+                + ", advancedCallEnabled = " + advancedEnabled
                 + ", nonTTY = " + isNonTty
                 + ", data enabled = " + isDataEnabled
                 + ", provisioned = " + isProvisioned
