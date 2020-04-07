@@ -66,7 +66,8 @@ public class RcsFeatureManager implements IFeatureConnector {
      */
     public static class RcsFeatureCallbacks {
         /** See {@link RcsCapabilityExchange#onCommandUpdate(int, int)} */
-        void onCommandUpdate(int commandCode, int operationToken) {}
+        @VisibleForTesting
+        public void onCommandUpdate(int commandCode, int operationToken) {}
 
         /** See {@link RcsPresenceExchangeImplBase#onNetworkResponse(int, String, int)} */
         public void onNetworkResponse(int code, String reason, int operationToken) {}
@@ -428,6 +429,11 @@ public class RcsFeatureManager implements IFeatureConnector {
                 ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
         request.addCapabilitiesToEnableForTech(capability,
                 ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+    }
+
+    public void requestPublication(RcsContactUceCapability capabilities, int taskId)
+            throws RemoteException {
+        mRcsFeatureConnection.requestPublication(capabilities, taskId);
     }
 
     /**
