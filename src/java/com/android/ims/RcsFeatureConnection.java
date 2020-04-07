@@ -21,6 +21,7 @@ import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
@@ -287,6 +288,14 @@ public class RcsFeatureConnection extends FeatureConnection {
         synchronized (mLock) {
             checkServiceIsReady();
             getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
+        }
+    }
+
+    public void requestPublication(RcsContactUceCapability capabilities, int taskId)
+            throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).updateCapabilities(capabilities, taskId);
         }
     }
 
