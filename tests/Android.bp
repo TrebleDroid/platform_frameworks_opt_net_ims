@@ -32,8 +32,4 @@ android_test {
         "androidx.test.rules",
         "mockito-target-minus-junit4",
     ],
-
-    test_suites: [
-        "mts",
-    ],
 }
