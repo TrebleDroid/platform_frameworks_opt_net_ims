@@ -43,8 +43,10 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1914,14 +1916,26 @@ public class ImsCall implements ICall {
             return;
         }
 
+        mConferenceParticipants = parseConferenceState(state);
+
+        if (mConferenceParticipants != null && mListener != null) {
+            try {
+                mListener.onConferenceParticipantsStateChanged(this, mConferenceParticipants);
+            } catch (Throwable t) {
+                loge("notifyConferenceStateUpdated :: ", t);
+            }
+        }
+    }
+
+    public static List<ConferenceParticipant> parseConferenceState(ImsConferenceState state) {
         Set<Entry<String, Bundle>> participants = state.mParticipants.entrySet();
 
         if (participants == null) {
-            return;
+            return Collections.emptyList();
         }
 
         Iterator<Entry<String, Bundle>> iterator = participants.iterator();
-        mConferenceParticipants = new ArrayList<>(participants.size());
+        List<ConferenceParticipant> conferenceParticipants = new ArrayList<>(participants.size());
         while (iterator.hasNext()) {
             Entry<String, Bundle> entry = iterator.next();
 
@@ -1933,7 +1947,7 @@ public class ImsCall implements ICall {
             String endpoint = confInfo.getString(ImsConferenceState.ENDPOINT);
 
             if (CONF_DBG) {
-                logi("notifyConferenceStateUpdated :: key=" + Rlog.pii(TAG, key) +
+                Log.i(TAG, "notifyConferenceStateUpdated :: key=" + Rlog.pii(TAG, key) +
                         ", status=" + status +
                         ", user=" + Rlog.pii(TAG, user) +
                         ", displayName= " + Rlog.pii(TAG, displayName) +
@@ -1950,17 +1964,10 @@ public class ImsCall implements ICall {
             if (connectionState != Connection.STATE_DISCONNECTED) {
                 ConferenceParticipant conferenceParticipant = new ConferenceParticipant(handle,
                         displayName, endpointUri, connectionState, Call.Details.DIRECTION_UNKNOWN);
-                mConferenceParticipants.add(conferenceParticipant);
+                conferenceParticipants.add(conferenceParticipant);
             }
         }
-
-        if (mConferenceParticipants != null && mListener != null) {
-            try {
-                mListener.onConferenceParticipantsStateChanged(this, mConferenceParticipants);
-            } catch (Throwable t) {
-                loge("notifyConferenceStateUpdated :: ", t);
-            }
-        }
+        return conferenceParticipants;
     }
 
     /**
@@ -3066,7 +3073,6 @@ public class ImsCall implements ICall {
         public void callSessionConferenceStateUpdated(ImsCallSession session,
                 ImsConferenceState state) {
             logi("callSessionConferenceStateUpdated :: state=" + state);
-
             conferenceStateUpdated(state);
         }
 
