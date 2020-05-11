@@ -2072,6 +2072,8 @@ public class ImsManager implements IFeatureConnector {
 
         if (isCarrierSupported) {
             setRttConfig(shouldImsRttBeOn);
+        } else {
+            setRttConfig(false);
         }
         return isCarrierSupported && shouldImsRttBeOn;
     }
