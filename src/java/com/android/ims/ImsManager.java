@@ -1985,6 +1985,7 @@ public class ImsManager implements IFeatureConnector {
 
             return call;
         } catch (Throwable t) {
+            loge("takeCall caught: ", t);
             throw new ImsException("takeCall()", t, ImsReasonInfo.CODE_UNSPECIFIED);
         }
     }
