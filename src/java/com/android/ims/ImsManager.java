@@ -210,7 +210,8 @@ public class ImsManager implements IFeatureConnector {
         void executeRunnable(Runnable runnable);
     }
 
-    private static class ImsExecutorFactory implements ExecutorFactory {
+    @VisibleForTesting
+    public static class ImsExecutorFactory implements ExecutorFactory {
 
         private final HandlerThread mThreadHandler;
         private final Handler mHandler;
@@ -224,6 +225,10 @@ public class ImsManager implements IFeatureConnector {
         @Override
         public void executeRunnable(Runnable runnable) {
             mHandler.post(runnable);
+        }
+
+        public void destroy() {
+            mThreadHandler.quit();
         }
     }
 
