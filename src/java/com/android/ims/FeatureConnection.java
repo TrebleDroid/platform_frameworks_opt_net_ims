@@ -57,7 +57,6 @@ public abstract class FeatureConnection {
     protected static boolean sImsSupportedOnDevice = true;
 
     protected final int mSlotId;
-    protected final int mFeatureType;
     protected Context mContext;
     protected IBinder mBinder;
     @VisibleForTesting
@@ -71,10 +70,9 @@ public abstract class FeatureConnection {
     protected IImsRegistration mRegistrationBinder;
     protected final Object mLock = new Object();
 
-    public FeatureConnection(Context context, int slotId, int featureType) {
+    public FeatureConnection(Context context, int slotId) {
         mSlotId = slotId;
         mContext = context;
-        mFeatureType = featureType;
 
         // Callbacks should be scheduled on the main thread.
         if (context.getMainLooper() != null) {
@@ -135,6 +133,8 @@ public abstract class FeatureConnection {
                 if (mStatusCallback != null) {
                     Log.d(TAG, "onRemovedOrDied: notifyUnavailable");
                     mStatusCallback.notifyUnavailable();
+                    // Unlink because this FeatureConnection should no longer send callbacks.
+                    mStatusCallback = null;
                 }
             }
         }
@@ -178,10 +178,6 @@ public abstract class FeatureConnection {
             }
         };
 
-    protected abstract void handleImsFeatureCreatedCallback(int slotId, int feature);
-    protected abstract void handleImsFeatureRemovedCallback(int slotId, int feature);
-    protected abstract void handleImsStatusChangedCallback(int slotId, int feature, int status);
-
     public @ImsRegistrationImplBase.ImsRegistrationTech int getRegistrationTech()
             throws RemoteException {
         IImsRegistration registration = getRegistration();
@@ -200,10 +196,8 @@ public abstract class FeatureConnection {
                 return mRegistrationBinder;
             }
         }
-        TelephonyManager tm = getTelephonyManager();
         // We don't want to synchronize on a binder call to another process.
-        IImsRegistration regBinder = tm != null
-            ? tm.getImsRegistration(mSlotId, mFeatureType) : null;
+        IImsRegistration regBinder = getRegistrationBinder();
         synchronized (mLock) {
             // mRegistrationBinder may have changed while we tried to get the registration
             // interface.
@@ -269,7 +263,36 @@ public abstract class FeatureConnection {
     }
 
     /**
+     * An ImsFeature has been created for this FeatureConnection for the associated
+     * {@link ImsFeature.FeatureType}.
+     * @param slotId The slot ID associated with the event.
+     * @param feature The {@link ImsFeature.FeatureType} associated with the event.
+     */
+    protected abstract void handleImsFeatureCreatedCallback(int slotId, int feature);
+
+    /**
+     * An ImsFeature has been removed for this FeatureConnection for the associated
+     * {@link ImsFeature.FeatureType}.
+     * @param slotId The slot ID associated with the event.
+     * @param feature The {@link ImsFeature.FeatureType} associated with the event.
+     */
+    protected abstract void handleImsFeatureRemovedCallback(int slotId, int feature);
+
+    /**
+     * The status of an ImsFeature has changed for the associated {@link ImsFeature.FeatureType}.
+     * @param slotId The slot ID associated with the event.
+     * @param feature The {@link ImsFeature.FeatureType} associated with the event.
+     * @param status The new {@link ImsFeature.ImsState} associated with the ImsFeature
+     */
+    protected abstract void handleImsStatusChangedCallback(int slotId, int feature, int status);
+
+    /**
      * Internal method used to retrieve the feature status from the corresponding ImsService.
      */
     protected abstract Integer retrieveFeatureState();
+
+    /**
+     * @return The ImsRegistration instance associated with the FeatureConnection.
+     */
+    protected abstract IImsRegistration getRegistrationBinder();
 }
