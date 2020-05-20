@@ -230,7 +230,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
     }
 
     public MmTelFeatureConnection(Context context, int slotId) {
-        super(context, slotId, ImsFeature.FEATURE_MMTEL);
+        super(context, slotId);
 
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);
         mCapabilityCallbackManager = new CapabilityCallbackManager(context, mLock);
@@ -239,12 +239,20 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
+        removeImsFeatureCallback();
         synchronized (mLock) {
             super.onRemovedOrDied();
             mRegistrationCallbackManager.close();
             mCapabilityCallbackManager.close();
             mProvisioningCallbackManager.close();
             mConfigBinder = null;
+        }
+    }
+
+    private void removeImsFeatureCallback() {
+        TelephonyManager tm = getTelephonyManager();
+        if (tm != null) {
+            tm.unregisterImsFeatureCallback(mSlotId, ImsFeature.FEATURE_MMTEL, getListener());
         }
     }
 
@@ -551,6 +559,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
             }
         }
         return null;
+    }
+
+    @Override
+    protected IImsRegistration getRegistrationBinder() {
+        TelephonyManager tm = getTelephonyManager();
+        return  tm != null ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
     }
 
     private IImsMmTelFeature getServiceInterface(IBinder b) {
