@@ -436,6 +436,10 @@ public class RcsFeatureManager implements IFeatureConnector {
         mRcsFeatureConnection.requestPublication(capabilities, taskId);
     }
 
+    public void requestCapabilities(List<Uri> uris, int taskId) throws RemoteException {
+        mRcsFeatureConnection.requestCapabilities(uris, taskId);
+    }
+
     /**
      * Disable all of the UCE capabilities.
      */
