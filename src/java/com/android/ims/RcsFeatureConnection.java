@@ -147,7 +147,7 @@ public class RcsFeatureConnection extends FeatureConnection {
     public RegistrationCallbackManager mRegistrationCallbackManager;
 
     private RcsFeatureConnection(Context context, int slotId, IFeatureUpdate callback) {
-        super(context, slotId, ImsFeature.FEATURE_RCS);
+        super(context, slotId);
         setStatusCallback(callback);
         mAvailabilityCallbackManager = new AvailabilityCallbackManager(mContext);
         mRegistrationCallbackManager = new RegistrationCallbackManager(mContext);
@@ -161,9 +161,17 @@ public class RcsFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
+        removeImsFeatureCallback();
         super.onRemovedOrDied();
         synchronized (mLock) {
             close();
+        }
+    }
+
+    private void removeImsFeatureCallback() {
+        TelephonyManager tm = getTelephonyManager();
+        if (tm != null) {
+            tm.unregisterImsFeatureCallback(mSlotId, ImsFeature.FEATURE_RCS, getListener());
         }
     }
 
@@ -319,6 +327,12 @@ public class RcsFeatureConnection extends FeatureConnection {
             }
         }
         return null;
+    }
+
+    @Override
+    protected IImsRegistration getRegistrationBinder() {
+        TelephonyManager tm = getTelephonyManager();
+        return  tm != null ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_RCS) : null;
     }
 
     @VisibleForTesting
