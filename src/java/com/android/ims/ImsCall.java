@@ -1951,7 +1951,7 @@ public class ImsCall implements ICall {
                         ", status=" + status +
                         ", user=" + Rlog.pii(TAG, user) +
                         ", displayName= " + Rlog.pii(TAG, displayName) +
-                        ", endpoint=" + endpoint);
+                        ", endpoint=" + Rlog.pii(TAG, endpoint));
             }
 
             Uri handle = Uri.parse(user);
