@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
 import android.telecom.Call;
+import com.android.ims.internal.ConferenceParticipant;
 import android.telecom.Connection;
 import android.telephony.CallQuality;
 import android.telephony.ServiceState;
@@ -36,7 +37,6 @@ import android.telephony.ims.ImsSuppServiceNotification;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.android.ims.internal.ConferenceParticipant;
 import com.android.ims.internal.ICall;
 import com.android.ims.internal.ImsStreamMediaSession;
 import com.android.internal.annotations.VisibleForTesting;
@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -3671,7 +3672,8 @@ public class ImsCall implements ICall {
      * @param profile The current {@link ImsCallProfile} for the call.
      */
     private void trackVideoStateHistory(ImsCallProfile profile) {
-        mWasVideoCall = mWasVideoCall || profile.isVideoCall();
+        mWasVideoCall = mWasVideoCall
+                || profile != null ? profile.isVideoCall() : false;
     }
 
     /**

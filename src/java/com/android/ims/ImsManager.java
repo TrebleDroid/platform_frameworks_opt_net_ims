@@ -28,13 +28,13 @@ import android.os.Message;
 import android.os.Parcel;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyFrameworkInitializer;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsCallSession;
@@ -1550,7 +1550,10 @@ public class ImsManager implements IFeatureConnector {
         boolean isProvisioned = true;
         if (requiresProvisioning) {
             ITelephony telephony = ITelephony.Stub.asInterface(
-                    ServiceManager.getService(Context.TELEPHONY_SERVICE));
+                    TelephonyFrameworkInitializer
+                            .getTelephonyServiceManager()
+                            .getTelephonyServiceRegisterer()
+                            .get());
             // Only track UT over LTE, since we do not differentiate between UT over LTE and IWLAN
             // currently.
             try {
@@ -2074,6 +2077,7 @@ public class ImsManager implements IFeatureConnector {
 
             return call;
         } catch (Throwable t) {
+            loge("takeCall caught: ", t);
             throw new ImsException("takeCall()", t, ImsReasonInfo.CODE_UNSPECIFIED);
         }
     }
