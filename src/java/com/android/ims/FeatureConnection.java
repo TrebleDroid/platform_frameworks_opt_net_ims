@@ -23,6 +23,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
@@ -68,6 +69,7 @@ public abstract class FeatureConnection {
     protected Integer mFeatureStateCached = null;
     protected IFeatureUpdate mStatusCallback;
     protected IImsRegistration mRegistrationBinder;
+    protected IImsConfig mConfigBinder;
     protected final Object mLock = new Object();
 
     public FeatureConnection(Context context, int slotId) {
@@ -208,6 +210,26 @@ public abstract class FeatureConnection {
         return mRegistrationBinder;
     }
 
+    public @Nullable
+    IImsConfig getConfig() {
+        synchronized (mLock) {
+            // null if cache is invalid;
+            if (mConfigBinder != null) {
+                return mConfigBinder;
+            }
+        }
+        // We don't want to synchronize on a binder call to another process.
+        IImsConfig configBinder = getConfigBinder();
+        synchronized (mLock) {
+            // mRegistrationBinder may have changed while we tried to get the registration
+            // interface.
+            if (mConfigBinder == null) {
+                mConfigBinder = configBinder;
+            }
+        }
+        return mConfigBinder;
+    }
+
     @VisibleForTesting
     public void checkServiceIsReady() throws RemoteException {
         if (!sImsSupportedOnDevice) {
@@ -295,4 +317,9 @@ public abstract class FeatureConnection {
      * @return The ImsRegistration instance associated with the FeatureConnection.
      */
     protected abstract IImsRegistration getRegistrationBinder();
+
+    /**
+     * @return The ImsRegistration instance associated with the FeatureConnection.
+     */
+    protected abstract IImsConfig getConfigBinder();
 }
