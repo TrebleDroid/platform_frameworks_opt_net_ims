@@ -23,6 +23,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
+import android.telephony.ims.ImsService;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsConfigCallback;
@@ -48,7 +49,7 @@ import com.android.telephony.Rlog;
  */
 
 public class MmTelFeatureConnection extends FeatureConnection {
-    protected static final String TAG = "MmTelFeatureConnection";
+    protected static final String TAG = "MmTelFeatureConn";
 
     private class ImsRegistrationCallbackAdapter extends
             ImsCallbackAdapterManager<IImsRegistrationCallback> {
@@ -160,7 +161,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
         @Override
         public void registerCallback(IImsConfigCallback localCallback) {
-            IImsConfig binder = getConfigInterface();
+            IImsConfig binder = getConfig();
             if (binder == null) {
                 // Config interface is not currently available.
                 Log.w(TAG + " [" + mSlotId + "]", "ProvisioningCallbackManager - couldn't register,"
@@ -176,7 +177,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
         @Override
         public void unregisterCallback(IImsConfigCallback localCallback) {
-            IImsConfig binder = getConfigInterface();
+            IImsConfig binder = getConfig();
             if (binder == null) {
                 Log.w(TAG + " [" + mSlotId + "]", "ProvisioningCallbackManager - couldn't"
                         + " unregister, binder is null.");
@@ -193,10 +194,11 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     // Updated by IImsServiceFeatureCallback when FEATURE_EMERGENCY_MMTEL is sent.
     private boolean mSupportsEmergencyCalling = false;
+    // MMTEL specific binder Interfaces
+    private ImsUt mUt;
+    private ImsEcbm mEcbm;
+    private ImsMultiEndpoint mMultiEndpoint;
 
-    // Cache the Registration and Config interfaces as long as the MmTel feature is connected. If
-    // it becomes disconnected, invalidate.
-    private IImsConfig mConfigBinder;
     private final ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
     private final CapabilityCallbackManager mCapabilityCallbackManager;
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
@@ -245,7 +247,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
             mRegistrationCallbackManager.close();
             mCapabilityCallbackManager.close();
             mProvisioningCallbackManager.close();
-            mConfigBinder = null;
         }
     }
 
@@ -254,25 +255,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
         if (tm != null) {
             tm.unregisterImsFeatureCallback(mSlotId, ImsFeature.FEATURE_MMTEL, getListener());
         }
-    }
-
-    private IImsConfig getConfig() {
-        synchronized (mLock) {
-            // null if cache is invalid;
-            if (mConfigBinder != null) {
-                return mConfigBinder;
-            }
-        }
-        TelephonyManager tm = getTelephonyManager();
-        IImsConfig configBinder = tm != null
-                ? tm.getImsConfig(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
-        synchronized (mLock) {
-            // mConfigBinder may have changed while we tried to get the config interface.
-            if (mConfigBinder == null) {
-                mConfigBinder = configBinder;
-            }
-        }
-        return mConfigBinder;
     }
 
     @Override
@@ -360,6 +342,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
         mProvisioningCallbackManager.close();
         try {
             synchronized (mLock) {
+                if (mUt != null) {
+                    mUt.close();
+                    mUt = null;
+                }
+                mEcbm = null;
+                mMultiEndpoint = null;
                 if (isBinderAlive()) {
                     getServiceInterface(mBinder).setListener(null);
                 }
@@ -456,21 +444,25 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    public IImsUt getUtInterface() throws RemoteException {
+    public ImsUt getUtInterface() throws RemoteException {
         synchronized (mLock) {
+            if (mUt != null) return mUt;
+
             checkServiceIsReady();
-            return getServiceInterface(mBinder).getUtInterface();
+            IImsUt imsUt = getServiceInterface(mBinder).getUtInterface();
+            mUt = (imsUt != null) ? new ImsUt(imsUt) : null;
+            return mUt;
         }
     }
 
-    public IImsConfig getConfigInterface() {
-        return getConfig();
-    }
-
-    public IImsEcbm getEcbmInterface() throws RemoteException {
+    public ImsEcbm getEcbmInterface() throws RemoteException {
         synchronized (mLock) {
+            if (mEcbm != null) return mEcbm;
+
             checkServiceIsReady();
-            return getServiceInterface(mBinder).getEcbmInterface();
+            IImsEcbm imsEcbm = getServiceInterface(mBinder).getEcbmInterface();
+            mEcbm = (imsEcbm != null) ? new ImsEcbm(imsEcbm) : null;
+            return mEcbm;
         }
     }
 
@@ -482,10 +474,14 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    public IImsMultiEndpoint getMultiEndpointInterface() throws RemoteException {
+    public ImsMultiEndpoint getMultiEndpointInterface() throws RemoteException {
         synchronized (mLock) {
+            if(mMultiEndpoint != null) return mMultiEndpoint;
+
             checkServiceIsReady();
-            return getServiceInterface(mBinder).getMultiEndpointInterface();
+            IImsMultiEndpoint imEndpoint = getServiceInterface(mBinder).getMultiEndpointInterface();
+            mMultiEndpoint = (imEndpoint != null) ? new ImsMultiEndpoint(imEndpoint) : null;
+            return mMultiEndpoint;
         }
     }
 
@@ -565,6 +561,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
     protected IImsRegistration getRegistrationBinder() {
         TelephonyManager tm = getTelephonyManager();
         return  tm != null ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
+    }
+
+    @Override
+    protected IImsConfig getConfigBinder() {
+        TelephonyManager tm = getTelephonyManager();
+        return  tm != null ? tm.getImsConfig(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
     }
 
     private IImsMmTelFeature getServiceInterface(IBinder b) {

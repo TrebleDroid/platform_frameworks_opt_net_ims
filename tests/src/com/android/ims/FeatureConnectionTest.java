@@ -28,6 +28,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
@@ -99,6 +100,11 @@ public class FeatureConnectionTest extends ImsTestBase {
             return getTestRegistrationBinder();
         }
 
+        @Override
+        protected IImsConfig getConfigBinder() {
+            return getTestConfigBinder();
+        }
+
         public void setFeatureState(int state) {
             mFeatureState = state;
         }
@@ -107,6 +113,7 @@ public class FeatureConnectionTest extends ImsTestBase {
     private TestFeatureConnection mTestFeatureConnection;
     @Mock IBinder mBinder;
     @Mock IImsRegistration mRegistrationBinder;
+    @Mock IImsConfig mConfigBinder;
 
     public static final int PHONE_ID = 1;
 
@@ -213,6 +220,10 @@ public class FeatureConnectionTest extends ImsTestBase {
         } catch (RemoteException e) {
             throw new AssertionFailedError("testListenerCallback(Changed): " + e);
         }
+    }
+
+    private IImsConfig getTestConfigBinder() {
+        return mConfigBinder;
     }
 
     private IImsRegistration getTestRegistrationBinder() {

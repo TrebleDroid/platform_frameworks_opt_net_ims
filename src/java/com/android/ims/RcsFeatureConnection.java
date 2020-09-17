@@ -24,6 +24,7 @@ import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
+import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
@@ -333,6 +334,12 @@ public class RcsFeatureConnection extends FeatureConnection {
     protected IImsRegistration getRegistrationBinder() {
         TelephonyManager tm = getTelephonyManager();
         return  tm != null ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_RCS) : null;
+    }
+
+    @Override
+    protected IImsConfig getConfigBinder() {
+        TelephonyManager tm = getTelephonyManager();
+        return  tm != null ? tm.getImsConfig(mSlotId, ImsFeature.FEATURE_RCS) : null;
     }
 
     @VisibleForTesting
