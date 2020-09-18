@@ -25,7 +25,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
-import android.os.Parcel;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.SystemProperties;
@@ -56,9 +55,6 @@ import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 
 import com.android.ims.internal.IImsCallSession;
-import com.android.ims.internal.IImsEcbm;
-import com.android.ims.internal.IImsMultiEndpoint;
-import com.android.ims.internal.IImsUt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.util.HandlerExecutor;
@@ -66,11 +62,9 @@ import com.android.telephony.Rlog;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -322,11 +316,6 @@ public class ImsManager implements IFeatureConnector {
 
     public static final String TRUE = "true";
     public static final String FALSE = "false";
-
-    // mRecentDisconnectReasons stores the last 16 disconnect reasons
-    private static final int MAX_RECENT_DISCONNECT_REASONS = 16;
-    private ConcurrentLinkedDeque<ImsReasonInfo> mRecentDisconnectReasons =
-            new ConcurrentLinkedDeque<>();
 
     /**
      * Gets a manager instance.
@@ -1355,81 +1344,49 @@ public class ImsManager implements IFeatureConnector {
 
     /**
      * Sync carrier config and user settings with ImsConfigImplBase implementation.
-     *
-     * @param context for the manager object
-     * @param phoneId phone id
-     * @param force update
-     *
-     * @deprecated Doesn't support MSIM devices. Use {@link #updateImsServiceConfig(boolean)}
-     * instead.
      */
-    public static void updateImsServiceConfig(Context context, int phoneId, boolean force) {
-        ImsManager mgr = ImsManager.getInstance(context, phoneId);
-        if (mgr != null) {
-            mgr.updateImsServiceConfig(force);
-        }
-        Rlog.e(TAG, "updateImsServiceConfig: ImsManager null, returning without update.");
-    }
+    public void updateImsServiceConfig() {
+        try {
+            PersistableBundle imsCarrierConfigs =
+                    mConfigManager.getConfigByComponentForSubId(
+                            CarrierConfigManager.Ims.KEY_PREFIX, getSubId());
 
-    /**
-     * Sync carrier config and user settings with ImsConfigImplBase implementation.
-     *
-     * @param force update
-     */
-    public void updateImsServiceConfig(boolean force) {
-        if (!force) {
-            TelephonyManager tm = new TelephonyManager(mContext, getSubId());
-            if (tm.getSimState() != TelephonyManager.SIM_STATE_READY) {
-                log("updateImsServiceConfig: SIM not ready");
-                // Don't disable IMS if SIM is not ready
-                return;
+            updateImsCarrierConfigs(imsCarrierConfigs);
+
+            // Note: currently the order of updates is set to produce different order of
+            // changeEnabledCapabilities() function calls from setAdvanced4GMode(). This is done
+            // to differentiate this code path from vendor code perspective.
+            CapabilityChangeRequest request = new CapabilityChangeRequest();
+            updateVolteFeatureValue(request);
+            updateWfcFeatureAndProvisionedValues(request);
+            updateVideoCallFeatureValue(request);
+            // Only turn on IMS for RTT if there's an active subscription present. If not, the
+            // modem will be in emergency-call-only mode and will use separate signaling to
+            // establish an RTT emergency call.
+            boolean isImsNeededForRtt = updateRttConfigValue() && isActiveSubscriptionPresent();
+            // Supplementary services over UT do not require IMS registration. Do not alter IMS
+            // registration based on UT.
+            updateUtFeatureValue(request);
+
+            // Send the batched request to the modem.
+            changeMmTelCapability(request);
+
+            if (isImsNeededForRtt || !isTurnOffImsAllowedByPlatform() || isImsNeeded(request)) {
+                // Turn on IMS if it is used.
+                // Also, if turning off is not allowed for current carrier,
+                // we need to turn IMS on because it might be turned off before
+                // phone switched to current carrier.
+                log("updateImsServiceConfig: turnOnIms");
+                turnOnIms();
+            } else {
+                // Turn off IMS if it is not used AND turning off is allowed for carrier.
+                log("updateImsServiceConfig: turnOffIms");
+                turnOffIms();
             }
-        }
-
-        if (!mConfigUpdated || force) {
-            try {
-                PersistableBundle imsCarrierConfigs =
-                        mConfigManager.getConfigByComponentForSubId(
-                                CarrierConfigManager.Ims.KEY_PREFIX, getSubId());
-
-                updateImsCarrierConfigs(imsCarrierConfigs);
-
-                // Note: currently the order of updates is set to produce different order of
-                // changeEnabledCapabilities() function calls from setAdvanced4GMode(). This is done
-                // to differentiate this code path from vendor code perspective.
-                CapabilityChangeRequest request = new CapabilityChangeRequest();
-                updateVolteFeatureValue(request);
-                updateWfcFeatureAndProvisionedValues(request);
-                updateVideoCallFeatureValue(request);
-                // Only turn on IMS for RTT if there's an active subscription present. If not, the
-                // modem will be in emergency-call-only mode and will use separate signaling to
-                // establish an RTT emergency call.
-                boolean isImsNeededForRtt = updateRttConfigValue() && isActiveSubscriptionPresent();
-                // Supplementary services over UT do not require IMS registration. Do not alter IMS
-                // registration based on UT.
-                updateUtFeatureValue(request);
-
-                // Send the batched request to the modem.
-                changeMmTelCapability(request);
-
-                if (isImsNeededForRtt || !isTurnOffImsAllowedByPlatform() || isImsNeeded(request)) {
-                    // Turn on IMS if it is used.
-                    // Also, if turning off is not allowed for current carrier,
-                    // we need to turn IMS on because it might be turned off before
-                    // phone switched to current carrier.
-                    log("updateImsServiceConfig: turnOnIms");
-                    turnOnIms();
-                } else {
-                    // Turn off IMS if it is not used AND turning off is allowed for carrier.
-                    log("updateImsServiceConfig: turnOffIms");
-                    turnOffIms();
-                }
-
-                mConfigUpdated = true;
-            } catch (ImsException e) {
-                loge("updateImsServiceConfig: ", e);
-                mConfigUpdated = false;
-            }
+            mConfigUpdated = true;
+        } catch (ImsException e) {
+            loge("updateImsServiceConfig: ", e);
+            mConfigUpdated = false;
         }
     }
 
@@ -1958,9 +1915,6 @@ public class ImsManager implements IFeatureConnector {
         if (mMmTelFeatureConnection != null) {
             mMmTelFeatureConnection.closeConnection();
         }
-        mUt = null;
-        mEcbm = null;
-        mMultiEndpoint = null;
     }
 
     /**
@@ -1970,26 +1924,20 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if getting the Ut interface results in an error
      */
     public ImsUtInterface getSupplementaryServiceConfiguration() throws ImsException {
-        // FIXME: manage the multiple Ut interfaces based on the session id
-        if (mUt != null && mUt.isBinderAlive()) {
-            return mUt;
-        }
-
+        ImsUt iUt = null;
         checkAndThrowExceptionIfServiceUnavailable();
         try {
-            IImsUt iUt = mMmTelFeatureConnection.getUtInterface();
+            iUt = mMmTelFeatureConnection.getUtInterface();
 
             if (iUt == null) {
                 throw new ImsException("getSupplementaryServiceConfiguration()",
                         ImsReasonInfo.CODE_UT_NOT_SUPPORTED);
             }
-
-            mUt = new ImsUt(iUt);
         } catch (RemoteException e) {
             throw new ImsException("getSupplementaryServiceConfiguration()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
-        return mUt;
+        return iUt;
     }
 
     /**
@@ -2092,7 +2040,7 @@ public class ImsManager implements IFeatureConnector {
     public ImsConfig getConfigInterface() throws ImsException {
         checkAndThrowExceptionIfServiceUnavailable();
 
-        IImsConfig config = mMmTelFeatureConnection.getConfigInterface();
+        IImsConfig config = mMmTelFeatureConnection.getConfig();
         if (config == null) {
             throw new ImsException("getConfigInterface()",
                     ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
@@ -2291,31 +2239,6 @@ public class ImsManager implements IFeatureConnector {
             throw new ImsException("setTTYMode()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
-    }
-
-    private ImsReasonInfo makeACopy(ImsReasonInfo imsReasonInfo) {
-        Parcel p = Parcel.obtain();
-        imsReasonInfo.writeToParcel(p, 0);
-        p.setDataPosition(0);
-        ImsReasonInfo clonedReasonInfo = ImsReasonInfo.CREATOR.createFromParcel(p);
-        p.recycle();
-        return clonedReasonInfo;
-    }
-
-    /**
-     * Get Recent IMS Disconnect Reasons.
-     *
-     * @return ArrayList of ImsReasonInfo objects. MAX size of the arraylist
-     * is MAX_RECENT_DISCONNECT_REASONS. The objects are in the
-     * chronological order.
-     */
-    public ArrayList<ImsReasonInfo> getRecentImsDisconnectReasons() {
-        ArrayList<ImsReasonInfo> disconnectReasons = new ArrayList<>();
-
-        for (ImsReasonInfo reason : mRecentDisconnectReasons) {
-            disconnectReasons.add(makeACopy(reason));
-        }
-        return disconnectReasons;
     }
 
     @Override
@@ -2539,14 +2462,6 @@ public class ImsManager implements IFeatureConnector {
         tm.disableIms(mPhoneId);
     }
 
-    private void addToRecentDisconnectReasons(ImsReasonInfo reason) {
-        if (reason == null) return;
-        while (mRecentDisconnectReasons.size() >= MAX_RECENT_DISCONNECT_REASONS) {
-            mRecentDisconnectReasons.removeFirst();
-        }
-        mRecentDisconnectReasons.addLast(reason);
-    }
-
     /**
      * Gets the ECBM interface to request ECBM exit.
      *
@@ -2554,24 +2469,20 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if getting the ECBM interface results in an error
      */
     public ImsEcbm getEcbmInterface() throws ImsException {
-        if (mEcbm != null && mEcbm.isBinderAlive()) {
-            return mEcbm;
-        }
-
+        ImsEcbm iEcbm = null;
         checkAndThrowExceptionIfServiceUnavailable();
         try {
-            IImsEcbm iEcbm = mMmTelFeatureConnection.getEcbmInterface();
+            iEcbm = mMmTelFeatureConnection.getEcbmInterface();
 
             if (iEcbm == null) {
                 throw new ImsException("getEcbmInterface()",
                         ImsReasonInfo.CODE_ECBM_NOT_SUPPORTED);
             }
-            mEcbm = new ImsEcbm(iEcbm);
         } catch (RemoteException e) {
             throw new ImsException("getEcbmInterface()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
-        return mEcbm;
+        return iEcbm;
     }
 
     public void sendSms(int token, int messageRef, String format, String smsc, boolean isRetry,
@@ -2657,25 +2568,21 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if getting the multi-endpoint interface results in an error
      */
     public ImsMultiEndpoint getMultiEndpointInterface() throws ImsException {
-        if (mMultiEndpoint != null && mMultiEndpoint.isBinderAlive()) {
-            return mMultiEndpoint;
-        }
-
         checkAndThrowExceptionIfServiceUnavailable();
+        ImsMultiEndpoint iImsMultiEndpoint;
         try {
-            IImsMultiEndpoint iImsMultiEndpoint = mMmTelFeatureConnection.getMultiEndpointInterface();
+            iImsMultiEndpoint = mMmTelFeatureConnection.getMultiEndpointInterface();
 
             if (iImsMultiEndpoint == null) {
                 throw new ImsException("getMultiEndpointInterface()",
                         ImsReasonInfo.CODE_MULTIENDPOINT_NOT_SUPPORTED);
             }
-            mMultiEndpoint = new ImsMultiEndpoint(iImsMultiEndpoint);
         } catch (RemoteException e) {
             throw new ImsException("getMultiEndpointInterface()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
 
-        return mMultiEndpoint;
+        return iImsMultiEndpoint;
     }
 
     /**
@@ -2742,7 +2649,7 @@ public class ImsManager implements IFeatureConnector {
         }
 
         // Push settings to ImsConfig
-        updateImsServiceConfig(true);
+        updateImsServiceConfig();
     }
 
     public void setVolteProvisioned(boolean isProvisioned) {
@@ -2852,7 +2759,7 @@ public class ImsManager implements IFeatureConnector {
     private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
         checkAndThrowExceptionIfServiceUnavailable();
 
-        IImsConfig config = mMmTelFeatureConnection.getConfigInterface();
+        IImsConfig config = mMmTelFeatureConnection.getConfig();
         if (config == null) {
             throw new ImsException("getConfigInterface()",
                     ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);

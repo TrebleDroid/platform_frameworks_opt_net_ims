@@ -816,7 +816,7 @@ public class ImsManagerTest extends ImsTestBase {
 
         // Configure ImsConfigStub
         mImsConfigStub = new ImsConfigImplBase.ImsConfigStub(mImsConfigImplBaseMock);
-        doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfigInterface();
+        doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfig();
 
 
         return new ImsManager(mContext, mPhoneId,
