@@ -20,7 +20,6 @@ import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.IBinder;
 import android.os.Message;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
@@ -48,6 +47,7 @@ import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
@@ -225,7 +225,7 @@ public class ImsManager implements FeatureUpdates {
     @VisibleForTesting
     public interface MmTelFeatureConnectionFactory {
         MmTelFeatureConnection create(Context context, int phoneId, IImsMmTelFeature feature,
-                IImsConfig c, IImsRegistration r);
+                IImsConfig c, IImsRegistration r, ISipTransport s);
     }
 
     @VisibleForTesting
@@ -1650,7 +1650,7 @@ public class ImsManager implements FeatureUpdates {
         mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // Start off with an empty MmTelFeatureConnection, which will be replaced one an
         // ImsService is available (ImsManager expects a non-null FeatureConnection)
-        associate(null, null, null);
+        associate(null /*container*/);
     }
 
     /**
@@ -1669,7 +1669,7 @@ public class ImsManager implements FeatureUpdates {
         mExecutor = Runnable::run;
         mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // MmTelFeatureConnection should be replaced for tests with mMmTelFeatureConnectionFactory.
-        associate(null, null, null);
+        associate(null /*container*/);
     }
 
     /*
@@ -2438,9 +2438,15 @@ public class ImsManager implements FeatureUpdates {
     }
 
     @Override
-    public void associate(IBinder binder, IImsConfig c, IImsRegistration r) {
-        mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
-                mContext, mPhoneId, IImsMmTelFeature.Stub.asInterface(binder), c, r));
+    public void associate(ImsFeatureContainer c) {
+        if (c == null) {
+            mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
+                    mContext, mPhoneId, null, null, null, null));
+        } else {
+            mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
+                    mContext, mPhoneId, IImsMmTelFeature.Stub.asInterface(c.imsFeature),
+                    c.imsConfig, c.imsRegistration, c.sipTransport));
+        }
     }
 
     @Override
