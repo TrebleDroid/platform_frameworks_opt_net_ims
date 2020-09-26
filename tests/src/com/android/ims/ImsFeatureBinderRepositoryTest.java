@@ -30,6 +30,7 @@ import android.os.IBinder;
 import android.telephony.ims.ImsService;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 
 import androidx.test.filters.SmallTest;
@@ -56,6 +57,7 @@ public class ImsFeatureBinderRepositoryTest extends ImsTestBase {
     @Mock IBinder mMockRcsFeatureA;
     @Mock IImsConfig mMockImsConfig;
     @Mock IImsRegistration mMockImsRegistration;
+    @Mock ISipTransport mMockSipTransport;
 
     @Mock IImsServiceFeatureCallback mConnectionCallback;
     @Mock IBinder mConnectionCallbackBinder;
@@ -356,6 +358,6 @@ public class ImsFeatureBinderRepositoryTest extends ImsTestBase {
 
     private ImsFeatureContainer getFeatureContainer(IBinder feature, long caps) {
         return new ImsFeatureContainer(feature, mMockImsConfig,
-                mMockImsRegistration, caps);
+                mMockImsRegistration, mMockSipTransport, caps);
     }
 }
