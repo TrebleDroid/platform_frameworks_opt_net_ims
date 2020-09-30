@@ -27,15 +27,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.pm.PackageManager;
-import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ProvisioningManager;
-import android.telephony.ims.aidl.IImsConfig;
-import android.telephony.ims.aidl.IImsMmTelFeature;
-import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.stub.ImsConfigImplBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -72,9 +68,6 @@ public class ImsManagerTest extends ImsTestBase {
     Hashtable<Integer, Integer> mProvisionedIntVals = new Hashtable<>();
     ImsConfigImplBase.ImsConfigStub mImsConfigStub;
     @Mock MmTelFeatureConnection mMmTelFeatureConnection;
-    @Mock IBinder mMmTelFeature;
-    @Mock IImsConfig mImsConfig;
-    @Mock IImsRegistration mImsReg;
     @Mock ImsManager.SubscriptionManagerProxy mSubscriptionManagerProxy;
 
     private final int[] mSubId = {0};
@@ -825,11 +818,9 @@ public class ImsManagerTest extends ImsTestBase {
         mImsConfigStub = new ImsConfigImplBase.ImsConfigStub(mImsConfigImplBaseMock);
         doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfig();
 
-        ImsManager mgr = new ImsManager(mContext, mPhoneId,
-                (context, phoneId, feature, c, r) -> mMmTelFeatureConnection,
-                mSubscriptionManagerProxy);
-        mgr.associate(mMmTelFeature, mImsConfig, mImsReg);
-        return mgr;
+
+        return new ImsManager(mContext, mPhoneId,
+                (context, phoneId) -> mMmTelFeatureConnection, mSubscriptionManagerProxy);
     }
 
     // If the value is ever set, return the set value. If not, return a constant value 1000.
