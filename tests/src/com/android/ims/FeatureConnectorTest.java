@@ -16,31 +16,21 @@
 
 package com.android.ims;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import junit.framework.AssertionFailedError;
+
+import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.IBinder;
-import android.telephony.ims.ImsService;
-import android.telephony.ims.aidl.IImsConfig;
-import android.telephony.ims.aidl.IImsRegistration;
+import android.os.HandlerThread;
 import android.telephony.ims.feature.ImsFeature;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-
-import com.android.ims.internal.IImsServiceFeatureCallback;
 
 import org.junit.After;
 import org.junit.Before;
@@ -48,344 +38,110 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.Executor;
 
 @RunWith(AndroidJUnit4.class)
 public class FeatureConnectorTest extends ImsTestBase {
 
-    private static class TestFeatureConnection extends FeatureConnection {
-
-        public TestFeatureConnection(Context context, int slotId, IImsConfig c,
-                IImsRegistration r) {
-            super(context, slotId, c, r);
-        }
-
+    private Executor mExecutor = new Executor() {
         @Override
-        protected Integer retrieveFeatureState() {
-            return null;
+        public void execute(Runnable r) {
+            r.run();
         }
+    };
 
-        @Override
-        protected void onFeatureCapabilitiesUpdated(long capabilities) {
-        }
-    }
-
-    private static class TestManager implements FeatureUpdates {
-
-        public IImsServiceFeatureCallback callback;
-        public TestFeatureConnection connection;
-        public boolean oneShot;
-        private Context mContext;
-        private int mPhoneId;
-
-
-        public TestManager(Context context, int phoneId) {
-            mContext = context;
-            mPhoneId = phoneId;
-        }
-
-        @Override
-        public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb,
-                boolean os) {
-            callback = cb;
-            oneShot = os;
-        }
-
-        @Override
-        public void unregisterFeatureCallback(IImsServiceFeatureCallback cb) {
-            callback = null;
-        }
-
-        @Override
-        public void associate(IBinder f, IImsConfig c, IImsRegistration r) {
-            connection = new TestFeatureConnection(mContext, mPhoneId, c, r);
-            connection.setBinder(f);
-        }
-
-        @Override
-        public void invalidate() {
-            connection = null;
-        }
-
-        @Override
-        public void updateFeatureState(int state) {
-            assertNotNull(connection);
-            connection.updateFeatureState(state);
-        }
-
-        @Override
-        public void updateFeatureCapabilities(long capabilities) {
-            connection.updateFeatureCapabilities(capabilities);
-        }
-    }
-
-    private FeatureConnector<TestManager> mFeatureConnector;
-    private TestManager mTestManager;
-    @Mock private FeatureConnector.Listener<TestManager> mListener;
-    @Mock private IBinder feature;
-    @Mock private IImsRegistration reg;
-    @Mock private IImsConfig config;
+    private HandlerThread mHandlerThread;
+    private FeatureConnector<ImsManager> mFeatureConnector;
+    @Mock
+    ImsManager mImsManager;
+    @Mock
+    FeatureConnector.Listener<ImsManager> mListener;
+    @Mock
+    FeatureConnector.RetryTimeout mRetryTimeout;
 
     private static final int PHONE_ID = 1;
-    private static final long TEST_CAPS = ImsService.CAPABILITY_EMERGENCY_OVER_MMTEL;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        setImsSupportedFeature(true);
-        mTestManager = new TestManager(mContext, PHONE_ID);
-        when(feature.isBinderAlive()).thenReturn(true);
+
+        mHandlerThread = new HandlerThread("ConnectorHandlerThread");
+        mHandlerThread.start();
+
+        mFeatureConnector = new FeatureConnector<>(mContext, PHONE_ID,
+            mListener, mExecutor, mHandlerThread.getLooper());
+        mFeatureConnector.mListener = mListener;
     }
 
     @After
     public void tearDown() throws Exception {
+        mHandlerThread.quit();
         super.tearDown();
     }
 
     @Test
     @SmallTest
-    public void testConnect() throws Exception {
-        createFeatureConnector();
+    public void testConnect() {
+        // ImsManager is supported on device
+        setImsSupportedFeature(true);
+        when(mListener.getFeatureManager()).thenReturn(mImsManager);
+
         mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        assertFalse("connect should not be one shot", mTestManager.oneShot);
+        waitForHandlerAction(mFeatureConnector, 1000);
 
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        assertNotNull(mTestManager.connection);
-        assertEquals(TEST_CAPS, mTestManager.connection.getFeatureCapabilties());
-        verify(mListener, never()).connectionReady(any());
-        verify(mListener, never()).connectionUnavailable(anyInt());
+        // Verify that mListener will retrieve feature manager
+        verify(mListener).getFeatureManager();
 
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-    }
+        reset(mListener);
 
-    @Test
-    @SmallTest
-    public void testConnectOneShot() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connectForOneShot();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        assertTrue("connectForOneShot should be one shot", mTestManager.oneShot);
-
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        assertNotNull(mTestManager.connection);
-        assertEquals(TEST_CAPS, mTestManager.connection.getFeatureCapabilties());
-        verify(mListener, never()).connectionReady(any());
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectNotSupported() {
-        createFeatureConnector();
-        // set not supported
+        // ImsManager is NOT supported on device
         setImsSupportedFeature(false);
+        when(mListener.getFeatureManager()).thenReturn(mImsManager);
 
         mFeatureConnector.connect();
-        assertNull("connect should not the callback registration if not supported",
-                mTestManager.callback);
-        verify(mListener).connectionUnavailable(
-                FeatureConnector.UNAVAILABLE_REASON_IMS_UNSUPPORTED);
+        waitForHandlerAction(mFeatureConnector, 1000);
+
+        // Verify that mListener won't retrieve feature manager
+        verify(mListener, never()).getFeatureManager();
     }
 
     @Test
     @SmallTest
-    public void testConnectReadyNotReady() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_UNAVAILABLE);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        assertNotNull("Do not invalidate the connection if not ready", mTestManager.connection);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_NOT_READY);
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectReadyAndInitializing() throws Exception {
-        ArrayList<Integer> filterList = new ArrayList<>();
-        filterList.add(ImsFeature.STATE_READY);
-        filterList.add(ImsFeature.STATE_INITIALIZING);
-        createFeatureConnector(filterList);
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        verify(mListener, never()).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_INITIALIZING);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        assertNotNull("Do not invalidate the connection if not ready", mTestManager.connection);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        assertNotNull("Do not invalidate the connection if not ready", mTestManager.connection);
-        // Should not notify ready multiple times
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectReadyAndUnavailable() throws Exception {
-        ArrayList<Integer> filterList = new ArrayList<>();
-        filterList.add(ImsFeature.STATE_READY);
-        filterList.add(ImsFeature.STATE_INITIALIZING);
-        filterList.add(ImsFeature.STATE_UNAVAILABLE);
-        createFeatureConnector(filterList);
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_UNAVAILABLE);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        assertNotNull("Do not invalidate the connection if not ready", mTestManager.connection);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_INITIALIZING);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        assertNotNull("Do not invalidate the connection if not ready", mTestManager.connection);
-        // Should not notify ready multiple times
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        // Should not notify ready multiple times
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectReadyRemovedReady() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        mTestManager.callback.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
-        assertNotNull("When not ready, the callback should still be registered",
-                mTestManager.callback);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
-
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener, times(2)).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectDisconnect() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        IImsServiceFeatureCallback oldCb = mTestManager.callback;
-        TestFeatureConnection testFc = mTestManager.connection;
-
+    public void testDisconnect() {
+        // Verify mListener will call connectionUnavailable if disconnect() is called.
         mFeatureConnector.disconnect();
-        assertNull(mTestManager.callback);
-        assertNull(mTestManager.connection);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
-
-        // make sure status/caps updates do not trigger more events after disconnect
-        oldCb.imsStatusChanged(ImsFeature.STATE_READY);
-        oldCb.imsStatusChanged(ImsFeature.STATE_UNAVAILABLE);
-        oldCb.updateCapabilities(0);
-        assertEquals(TEST_CAPS, testFc.getFeatureCapabilties());
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
+        verify(mListener).connectionUnavailable();
     }
 
     @Test
     @SmallTest
-    public void testConnectDisconnectConnect() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-
-        mFeatureConnector.disconnect();
-        assertNull(mTestManager.callback);
-        assertNull(mTestManager.connection);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
-
-        mFeatureConnector.connect();
-        assertNotNull(mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        assertNotNull(mTestManager.connection);
-        verify(mListener, times(2)).connectionReady(mTestManager);
-        verify(mListener).connectionUnavailable(FeatureConnector.UNAVAILABLE_REASON_DISCONNECTED);
+    public void testNotifyStateChanged() {
+        try {
+            mFeatureConnector.mManager = mImsManager;
+            when(mImsManager.getImsServiceState()).thenReturn(ImsFeature.STATE_READY);
+            // Trigger status changed
+            mFeatureConnector.mNotifyStatusChangedCallback.notifyStateChanged();
+            // Verify NotifyReady is called
+            verify(mListener).connectionReady(anyObject());
+        } catch (ImsException e) {
+            throw new AssertionFailedError("Exception in testNotifyStateChanged: " + e);
+        }
     }
 
     @Test
     @SmallTest
-    public void testUpdateCapabilities() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        assertEquals(TEST_CAPS, mTestManager.connection.getFeatureCapabilties());
-        mTestManager.callback.updateCapabilities(0);
-        assertEquals(0, mTestManager.connection.getFeatureCapabilties());
-    }
+    public void testRetryGetImsService() {
+        mFeatureConnector.mManager = mImsManager;
+        mFeatureConnector.mRetryTimeout = mRetryTimeout;
 
-    @Test
-    @SmallTest
-    public void testUpdateStatus() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connect();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        assertEquals(ImsFeature.STATE_READY, mTestManager.connection.getFeatureState());
+        when(mRetryTimeout.get()).thenReturn(1);
+        when(mListener.getFeatureManager()).thenReturn(mImsManager);
+
+        mFeatureConnector.retryGetImsService();
+        waitForHandlerAction(mFeatureConnector, 2000);
+
+        // Verify removeNotifyStatusChangedCallback will be called if ImsManager is not null.
+        verify(mImsManager).removeNotifyStatusChangedCallback(anyObject());
     }
 
     private void setImsSupportedFeature(boolean isSupported) {
@@ -394,22 +150,5 @@ public class FeatureConnectorTest extends ImsTestBase {
         } else {
             mContextFixture.removeSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
         }
-    }
-
-    private ImsFeatureContainer createContainer() {
-        ImsFeatureContainer c =  new ImsFeatureContainer(feature, config, reg, TEST_CAPS);
-        c.setState(ImsFeature.STATE_UNAVAILABLE);
-        return c;
-    }
-
-    private void createFeatureConnector() {
-        ArrayList<Integer> filter = new ArrayList<>();
-        filter.add(ImsFeature.STATE_READY);
-        createFeatureConnector(filter);
-    }
-
-    private void createFeatureConnector(List<Integer> featureReadyFilter) {
-        mFeatureConnector = new FeatureConnector<>(mContext, PHONE_ID,
-                (c, p) -> mTestManager, "Test", featureReadyFilter, mListener, Runnable::run);
     }
 }
