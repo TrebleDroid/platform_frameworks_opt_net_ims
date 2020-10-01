@@ -30,15 +30,13 @@ import com.android.ims.internal.IImsServiceFeatureCallback;
  */
 public interface FeatureUpdates {
     /**
-     * Register a calback for the slot specified so that the FeatureConnector can notify its
+     * Register a callback for the slot specified so that the FeatureConnector can notify its
      * listener of changes.
      * @param slotId The slot the callback is registered for.
      * @param cb The callback that the FeatureConnector will use to update its state and notify
      *           its callback of changes.
-     * @param oneShot True if this callback should only be registered for one update (feature is
-     *                available or not), false if this listener should be persistent.
      */
-    void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb, boolean oneShot);
+    void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb);
 
     /**
      * Unregister a previously registered callback due to the FeatureConnector disconnecting.
