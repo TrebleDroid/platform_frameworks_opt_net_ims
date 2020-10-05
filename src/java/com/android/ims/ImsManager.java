@@ -16,17 +16,15 @@
 
 package com.android.ims;
 
-import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
+import android.os.IBinder;
 import android.os.Message;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
+import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
@@ -45,6 +43,8 @@ import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsConfigCallback;
+import android.telephony.ims.aidl.IImsMmTelFeature;
+import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -53,32 +53,35 @@ import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsCallSessionImplBase;
 import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
+import android.util.SparseArray;
 
 import com.android.ims.internal.IImsCallSession;
+import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
-import com.android.internal.telephony.util.HandlerExecutor;
 import com.android.telephony.Rlog;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashMap;
-import java.util.Set;
+import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
- * Provides APIs for IMS services, such as initiating IMS calls, and provides access to
- * the operator's IMS network. This class is the starting point for any IMS actions.
- * You can acquire an instance of it with {@link #getInstance getInstance()}.</p>
+ * Provides APIs for MMTEL IMS services, such as initiating IMS calls, and provides access to
+ * the operator's IMS network. This class is the starting point for any IMS MMTEL actions.
+ * You can acquire an instance of it with {@link #getInstance getInstance()}.
+ * {Use {@link RcsFeatureManager} for RCS services}.
  * For internal use ONLY! Use {@link ImsMmTelManager} instead.
  * @hide
  */
-public class ImsManager implements IFeatureConnector {
+public class ImsManager implements FeatureUpdates {
 
     /*
      * Debug flag to override configuration flag
@@ -168,7 +171,7 @@ public class ImsManager implements IFeatureConnector {
      * The value "true" indicates that the incoming call is for USSD.
      * Internal use only.
      * @deprecated Keeping around to not break old vendor components. Use
-     * {@link MmTelFeature#EXTRA_USSD} instead.
+     * {@link MmTelFeature#EXTRA_IS_USSD} instead.
      * @hide
      */
     public static final String EXTRA_USSD = "android:ussd";
@@ -199,36 +202,29 @@ public class ImsManager implements IFeatureConnector {
 
     private static final int RESPONSE_WAIT_TIME_MS = 3000;
 
-    @VisibleForTesting
-    public interface ExecutorFactory {
-        void executeRunnable(Runnable runnable);
-    }
-
-    @VisibleForTesting
-    public static class ImsExecutorFactory implements ExecutorFactory {
-
-        private final HandlerThread mThreadHandler;
-        private final Handler mHandler;
-
-        public ImsExecutorFactory() {
-            mThreadHandler = new HandlerThread("ImsHandlerThread");
-            mThreadHandler.start();
-            mHandler = new Handler(mThreadHandler.getLooper());
-        }
+    /**
+     * Create a Lazy Executor that is not instantiated for this instance unless it is used. This
+     * is to stop threads from being started on ImsManagers that are created to do simple tasks.
+     */
+    private static class LazyExecutor implements Executor {
+        private Executor mExecutor;
 
         @Override
-        public void executeRunnable(Runnable runnable) {
-            mHandler.post(runnable);
+        public void execute(Runnable runnable) {
+            startExecutorIfNeeded();
+            mExecutor.execute(runnable);
         }
 
-        public void destroy() {
-            mThreadHandler.quit();
+        private synchronized void startExecutorIfNeeded() {
+            if (mExecutor != null) return;
+            mExecutor = Executors.newSingleThreadExecutor();
         }
     }
 
     @VisibleForTesting
     public interface MmTelFeatureConnectionFactory {
-        MmTelFeatureConnection create(Context context, int phoneId);
+        MmTelFeatureConnection create(Context context, int phoneId, IImsMmTelFeature feature,
+                IImsConfig c, IImsRegistration r);
     }
 
     @VisibleForTesting
@@ -286,39 +282,123 @@ public class ImsManager implements IFeatureConnector {
         }
     }
 
+    /**
+     * Internally we will create a FeatureConnector when {@link #getInstance(Context, int)} is
+     * called to keep the MmTelFeatureConnection instance fresh as new SIM cards are
+     * inserted/removed and MmTelFeature potentially changes.
+     * <p>
+     * For efficiency purposes, there is only one ImsManager created per-slot when using
+     * {@link #getInstance(Context, int)} and the same instance is returned for multiple callers.
+     * This is due to the ImsManager being a potentially heavyweight object depending on what it is
+     * being used for.
+     */
+    private static class InstanceManager implements FeatureConnector.Listener<ImsManager> {
+        // If this is the first time connecting, wait a small amount of time in case IMS has already
+        // connected. Otherwise, ImsManager will become ready when the ImsService is connected.
+        private static final int CONNECT_TIMEOUT_MS = 50;
+
+        private final FeatureConnector<ImsManager> mConnector;
+        private final ImsManager mImsManager;
+
+        private final Object mLock = new Object();
+        private boolean isConnectorActive = false;
+        private CountDownLatch mConnectedLatch;
+
+        public InstanceManager(ImsManager manager) {
+            mImsManager = manager;
+            // Set a special prefix so that logs generated by getInstance are distinguishable.
+            mImsManager.mLogTagPostfix = "IM";
+
+            ArrayList<Integer> readyFilter = new ArrayList<>();
+            readyFilter.add(ImsFeature.STATE_READY);
+            readyFilter.add(ImsFeature.STATE_INITIALIZING);
+            readyFilter.add(ImsFeature.STATE_UNAVAILABLE);
+            // Pass a reference of the ImsManager being managed into the connector, allowing it to
+            // update the internal MmTelFeatureConnection as it is being updated.
+            mConnector = new FeatureConnector<>(manager.mContext, manager.mPhoneId,
+                    (c,p) -> mImsManager, "InstanceManager", readyFilter, this,
+                    manager.getImsThreadExecutor());
+        }
+
+        public ImsManager getInstance() {
+            return mImsManager;
+        }
+
+        public void reconnect() {
+            boolean requiresReconnect = false;
+            synchronized (mLock) {
+                if (!isConnectorActive) {
+                    requiresReconnect = true;
+                    isConnectorActive = true;
+                    mConnectedLatch = new CountDownLatch(1);
+                }
+            }
+            if (requiresReconnect) {
+                mConnector.connect();
+            }
+            try {
+                // If this is during initial reconnect, let all threads wait for connect
+                // (or timeout)
+                mConnectedLatch.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                // Do nothing and allow ImsService to attach behind the scenes
+            }
+        }
+
+        @Override
+        public void connectionReady(ImsManager manager) {
+            synchronized (mLock) {
+                mConnectedLatch.countDown();
+            }
+        }
+
+        @Override
+        public void connectionUnavailable(int reason) {
+            synchronized (mLock) {
+                // only need to track the connection becoming unavailable due to telephony going
+                // down.
+                if (reason == FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE) {
+                    isConnectorActive = false;
+                }
+                mConnectedLatch.countDown();
+            }
+
+        }
+    }
+
     // Replaced with single-threaded executor for testing.
-    private final ExecutorFactory mExecutorFactory;
+    private final Executor mExecutor;
     // Replaced With mock for testing
     private MmTelFeatureConnectionFactory mMmTelFeatureConnectionFactory =
-            MmTelFeatureConnection::create;
+            MmTelFeatureConnection::new;
     private SubscriptionManagerProxy mSubscriptionManagerProxy;
-
-    private static HashMap<Integer, ImsManager> sImsManagerInstances =
-            new HashMap<Integer, ImsManager>();
 
     private Context mContext;
     private CarrierConfigManager mConfigManager;
     private int mPhoneId;
-    private @Nullable MmTelFeatureConnection mMmTelFeatureConnection = null;
+    private final Object mLock = new Object();
+    private AtomicReference<MmTelFeatureConnection> mMmTelConnectionRef = new AtomicReference<>();
     private boolean mConfigUpdated = false;
 
     private ImsConfigListener mImsConfigListener;
 
-    //TODO: Move these caches into the MmTelFeature Connection and restrict their lifetimes to the
-    // lifetime of the MmTelFeature.
-    // Ut interface for the supplementary service configuration
-    private ImsUt mUt = null;
-    // ECBM interface
-    private ImsEcbm mEcbm = null;
-    private ImsMultiEndpoint mMultiEndpoint = null;
-
-    private Set<FeatureConnection.IFeatureUpdate> mStatusCallbacks = new CopyOnWriteArraySet<>();
-
     public static final String TRUE = "true";
     public static final String FALSE = "false";
 
+    private static final SparseArray<InstanceManager> IMS_MANAGER_INSTANCES = new SparseArray<>(2);
+
+    // A log prefix added to some instances of ImsManager to make it distinguishable from others.
+    // - "IM" added to ImsManager for ImsManagers created using getInstance.
+    private String mLogTagPostfix = "";
+
     /**
-     * Gets a manager instance.
+     * Gets a manager instance and blocks for a limited period of time, connecting to the
+     * corresponding ImsService MmTelFeature if it exists.
+     * <p>
+     * If the ImsService is unavailable or becomes unavailable, the associated methods will fail and
+     * a new ImsManager will need to be requested. Instead, a {@link FeatureConnector} can be
+     * requested using {@link #getConnector}, which will notify the caller when a new ImsManager is
+     * available.
      *
      * @param context application context for creating the manager object
      * @param phoneId the phone ID for the IMS Service
@@ -326,21 +406,41 @@ public class ImsManager implements IFeatureConnector {
      */
     @UnsupportedAppUsage
     public static ImsManager getInstance(Context context, int phoneId) {
-        synchronized (sImsManagerInstances) {
-            if (sImsManagerInstances.containsKey(phoneId)) {
-                ImsManager m = sImsManagerInstances.get(phoneId);
-                // May be null for some tests
-                if (m != null) {
-                    m.connectIfServiceIsAvailable();
-                }
-                return m;
+        InstanceManager instanceManager;
+        synchronized (IMS_MANAGER_INSTANCES) {
+            instanceManager = IMS_MANAGER_INSTANCES.get(phoneId);
+            if (instanceManager == null) {
+                ImsManager m = new ImsManager(context, phoneId);
+                instanceManager = new InstanceManager(m);
+                IMS_MANAGER_INSTANCES.put(phoneId, instanceManager);
             }
-
-            ImsManager mgr = new ImsManager(context, phoneId);
-            sImsManagerInstances.put(phoneId, mgr);
-
-            return mgr;
         }
+        // If the ImsManager became disconnected for some reason, try to reconnect it now.
+        instanceManager.reconnect();
+        return instanceManager.getInstance();
+    }
+
+    /**
+     * Retrieve an FeatureConnector for ImsManager, which allows a Listener to listen for when
+     * the ImsManager becomes available or unavailable due to the ImsService MmTelFeature moving to
+     * the READY state or destroyed on a specific phone modem index.
+     *
+     * @param context The Context that will be used to connect the ImsManager.
+     * @param phoneId The modem phone ID that the ImsManager will be created for.
+     * @param logPrefix The log prefix used for debugging purposes.
+     * @param listener The Listener that will deliver ImsManager updates as it becomes available.
+     * @param executor The Executor that the Listener callbacks will be called on.
+     * @return A FeatureConnector instance for generating ImsManagers as the associated
+     * MmTelFeatures become available.
+     */
+    public static FeatureConnector<ImsManager> getConnector(Context context,
+            int phoneId, String logPrefix, FeatureConnector.Listener<ImsManager> listener,
+            Executor executor) {
+        // Only listen for the READY state from the MmTelFeature here.
+        ArrayList<Integer> readyFilter = new ArrayList<>();
+        readyFilter.add(ImsFeature.STATE_READY);
+        return new FeatureConnector<>(context, phoneId, ImsManager::new, logPrefix, readyFilter,
+                listener, executor);
     }
 
     public static boolean isImsSupportedOnDevice(Context context) {
@@ -511,7 +611,7 @@ public class ImsManager implements IFeatureConnector {
      * supported.
      */
     public void isSupported(int capability, int transportType, Consumer<Boolean> result) {
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             switch(transportType) {
                 case (AccessNetworkConstants.TRANSPORT_TYPE_WWAN): {
                     switch (capability) {
@@ -1132,7 +1232,7 @@ public class ImsManager implements IFeatureConnector {
 
     private void setWfcModeInternal(int wfcMode) {
         final int value = wfcMode;
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             try {
                 getConfigInterface().setConfig(
                         ProvisioningManager.KEY_VOICE_OVER_WIFI_MODE_OVERRIDE, value);
@@ -1201,7 +1301,7 @@ public class ImsManager implements IFeatureConnector {
         final int value = enabled
                 ? ProvisioningManager.PROVISIONING_VALUE_ENABLED
                 : ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             try {
                 getConfigInterface().setConfig(
                         ProvisioningManager.KEY_VOICE_OVER_WIFI_ROAMING_ENABLED_OVERRIDE, value);
@@ -1506,11 +1606,7 @@ public class ImsManager implements IFeatureConnector {
         // Count as "provisioned" if we do not require provisioning.
         boolean isProvisioned = true;
         if (requiresProvisioning) {
-            ITelephony telephony = ITelephony.Stub.asInterface(
-                    TelephonyFrameworkInitializer
-                            .getTelephonyServiceManager()
-                            .getTelephonyServiceRegisterer()
-                            .get());
+            ITelephony telephony = getITelephony();
             // Only track UT over LTE, since we do not differentiate between UT over LTE and IWLAN
             // currently.
             try {
@@ -1549,8 +1645,10 @@ public class ImsManager implements IFeatureConnector {
         mSubscriptionManagerProxy = new DefaultSubscriptionManagerProxy(context);
         mConfigManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
-        mExecutorFactory = new ImsExecutorFactory();
-        createImsService();
+        mExecutor = new LazyExecutor();
+        // Start off with an empty MmTelFeatureConnection, which will be replaced one an
+        // ImsService is available (ImsManager expects a non-null FeatureConnection)
+        associate(null, null, null);
     }
 
     /**
@@ -1566,66 +1664,27 @@ public class ImsManager implements IFeatureConnector {
         mConfigManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
         // Do not multithread tests
-        mExecutorFactory = Runnable::run;
-        createImsService();
+        mExecutor = Runnable::run;
+        // MmTelFeatureConnection should be replaced for tests with mMmTelFeatureConnectionFactory.
+        associate(null, null, null);
     }
 
     /*
-     * Returns a flag indicating whether the IMS service is available. If it is not available or
-     * busy, it will try to connect before reporting failure.
+     * Returns a flag indicating whether the IMS service is available.
      */
     public boolean isServiceAvailable() {
-        connectIfServiceIsAvailable();
-        // mImsServiceProxy will always create an ImsServiceProxy.
-        return mMmTelFeatureConnection.isBinderAlive();
+        return mMmTelConnectionRef.get().isBinderAlive();
     }
 
     /*
      * Returns a flag indicating whether the IMS service is ready to send requests to lower layers.
      */
     public boolean isServiceReady() {
-        connectIfServiceIsAvailable();
-        return mMmTelFeatureConnection.isBinderReady();
-    }
-
-    /**
-     * If the service is available, try to reconnect.
-     */
-    public void connectIfServiceIsAvailable() {
-        if (mMmTelFeatureConnection == null || !mMmTelFeatureConnection.isBinderAlive()) {
-            createImsService();
-        }
+        return mMmTelConnectionRef.get().isBinderReady();
     }
 
     public void setConfigListener(ImsConfigListener listener) {
         mImsConfigListener = listener;
-    }
-
-
-    /**
-     * Adds a callback for status changed events if the binder is already available. If it is not,
-     * this method will throw an ImsException.
-     */
-    @Override
-    @VisibleForTesting
-    public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
-            throws android.telephony.ims.ImsException {
-        if (!mMmTelFeatureConnection.isBinderAlive()) {
-            throw new android.telephony.ims.ImsException("Can not connect to ImsService",
-                    android.telephony.ims.ImsException.CODE_ERROR_SERVICE_UNAVAILABLE);
-        }
-        if (c != null) {
-            mStatusCallbacks.add(c);
-        }
-    }
-
-    @Override
-    public void removeNotifyStatusChangedCallback(FeatureConnection.IFeatureUpdate c) {
-        if (c != null) {
-            mStatusCallbacks.remove(c);
-        } else {
-            logw("removeNotifyStatusChangedCallback: callback is null!");
-        }
     }
 
     /**
@@ -1641,14 +1700,14 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if calling the IMS service results in an error
      */
     public void open(MmTelFeature.Listener listener) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
         if (listener == null) {
             throw new NullPointerException("listener can't be null");
         }
 
         try {
-            mMmTelFeatureConnection.openConnection(listener);
+            c.openConnection(listener);
         } catch (RemoteException e) {
             throw new ImsException("open()", e, ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
@@ -1676,14 +1735,14 @@ public class ImsManager implements IFeatureConnector {
      * @param listener To listen to IMS registration events; It cannot be null
      * @throws NullPointerException if {@code listener} is null
      * @throws ImsException if calling the IMS service results in an error
-     * @deprecated use {@link #addRegistrationCallback(RegistrationManager.RegistrationCallback)}
-     * instead.
+     * @deprecated use {@link #addRegistrationCallback(RegistrationManager.RegistrationCallback,
+     * Executor)} instead.
      */
     public void addRegistrationListener(ImsConnectionStateListener listener) throws ImsException {
         if (listener == null) {
             throw new NullPointerException("listener can't be null");
         }
-        addRegistrationCallback(listener);
+        addRegistrationCallback(listener, getImsThreadExecutor());
         // connect the ImsConnectionStateListener to the new CapabilityCallback.
         addCapabilitiesCallback(new ImsMmTelManager.CapabilityCallback() {
             @Override
@@ -1691,7 +1750,7 @@ public class ImsManager implements IFeatureConnector {
                     MmTelFeature.MmTelCapabilities capabilities) {
                 listener.onFeatureCapabilityChangedAdapter(getRegistrationTech(), capabilities);
             }
-        });
+        }, getImsThreadExecutor());
         log("Registration Callback registered.");
     }
 
@@ -1700,17 +1759,19 @@ public class ImsManager implements IFeatureConnector {
      * associated with this ImsManager.
      * @param callback A {@link RegistrationManager.RegistrationCallback} that will notify the
      *                 caller when IMS registration status has changed.
+     * @param executor The Executor that the callback should be called on.
      * @throws ImsException when the ImsService connection is not available.
      */
-    public void addRegistrationCallback(RegistrationManager.RegistrationCallback callback)
+    public void addRegistrationCallback(RegistrationManager.RegistrationCallback callback,
+            Executor executor)
             throws ImsException {
         if (callback == null) {
             throw new NullPointerException("registration callback can't be null");
         }
 
         try {
-            callback.setExecutor(getThreadExecutor());
-            mMmTelFeatureConnection.addRegistrationCallback(callback.getBinder());
+            callback.setExecutor(executor);
+            mMmTelConnectionRef.get().addRegistrationCallback(callback.getBinder());
             log("Registration Callback registered.");
             // Only record if there isn't a RemoteException.
         } catch (IllegalStateException e) {
@@ -1721,15 +1782,14 @@ public class ImsManager implements IFeatureConnector {
 
     /**
      * Removes a previously added registration callback that was added via
-     * {@link #addRegistrationCallback(RegistrationManager.RegistrationCallback)} .
+     * {@link #addRegistrationCallback(RegistrationManager.RegistrationCallback, Executor)} .
      * @param callback A {@link RegistrationManager.RegistrationCallback} that was previously added.
      */
     public void removeRegistrationListener(RegistrationManager.RegistrationCallback callback) {
         if (callback == null) {
             throw new NullPointerException("registration callback can't be null");
         }
-
-        mMmTelFeatureConnection.removeRegistrationCallback(callback.getBinder());
+        mMmTelConnectionRef.get().removeRegistrationCallback(callback.getBinder());
         log("Registration callback removed.");
     }
 
@@ -1747,7 +1807,7 @@ public class ImsManager implements IFeatureConnector {
         if (callback == null) {
             throw new IllegalArgumentException("registration callback can't be null");
         }
-        mMmTelFeatureConnection.addRegistrationCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().addRegistrationCallbackForSubscription(callback, subId);
         log("Registration Callback registered.");
         // Only record if there isn't a RemoteException.
     }
@@ -1761,8 +1821,7 @@ public class ImsManager implements IFeatureConnector {
         if (callback == null) {
             throw new IllegalArgumentException("registration callback can't be null");
         }
-
-        mMmTelFeatureConnection.removeRegistrationCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().removeRegistrationCallbackForSubscription(callback, subId);
     }
 
     /**
@@ -1770,18 +1829,19 @@ public class ImsManager implements IFeatureConnector {
      * Voice over IMS or VT over IMS is not available currently.
      * @param callback A {@link ImsMmTelManager.CapabilityCallback} that will notify the caller when
      *                 MMTel capability status has changed.
+     * @param executor The Executor that the callback should be called on.
      * @throws ImsException when the ImsService connection is not available.
      */
-    public void addCapabilitiesCallback(ImsMmTelManager.CapabilityCallback callback)
-            throws ImsException {
+    public void addCapabilitiesCallback(ImsMmTelManager.CapabilityCallback callback,
+            Executor executor) throws ImsException {
         if (callback == null) {
             throw new NullPointerException("capabilities callback can't be null");
         }
 
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         try {
-            callback.setExecutor(getThreadExecutor());
-            mMmTelFeatureConnection.addCapabilityCallback(callback.getBinder());
+            callback.setExecutor(executor);
+            c.addCapabilityCallback(callback.getBinder());
             log("Capability Callback registered.");
             // Only record if there isn't a RemoteException.
         } catch (IllegalStateException e) {
@@ -1800,8 +1860,8 @@ public class ImsManager implements IFeatureConnector {
             throw new NullPointerException("capabilities callback can't be null");
         }
 
-        checkAndThrowExceptionIfServiceUnavailable();
-        mMmTelFeatureConnection.removeCapabilityCallback(callback.getBinder());
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        c.removeCapabilityCallback(callback.getBinder());
     }
 
     /**
@@ -1817,8 +1877,7 @@ public class ImsManager implements IFeatureConnector {
         if (callback == null) {
             throw new IllegalArgumentException("registration callback can't be null");
         }
-
-        mMmTelFeatureConnection.addCapabilityCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().addCapabilityCallbackForSubscription(callback, subId);
         log("Capability Callback registered for subscription.");
     }
 
@@ -1831,8 +1890,7 @@ public class ImsManager implements IFeatureConnector {
         if (callback == null) {
             throw new IllegalArgumentException("capabilities callback can't be null");
         }
-
-        mMmTelFeatureConnection.removeCapabilityCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().removeCapabilityCallbackForSubscription(callback, subId);
     }
 
     /**
@@ -1849,8 +1907,8 @@ public class ImsManager implements IFeatureConnector {
             throw new NullPointerException("listener can't be null");
         }
 
-        checkAndThrowExceptionIfServiceUnavailable();
-        mMmTelFeatureConnection.removeRegistrationCallback(listener.getBinder());
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        c.removeRegistrationCallback(listener.getBinder());
         log("Registration Callback/Listener registered.");
         // Only record if there isn't a RemoteException.
     }
@@ -1868,7 +1926,7 @@ public class ImsManager implements IFeatureConnector {
             throw new IllegalArgumentException("provisioning callback can't be null");
         }
 
-        mMmTelFeatureConnection.addProvisioningCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().addProvisioningCallbackForSubscription(callback, subId);
         log("Capability Callback registered for subscription.");
     }
 
@@ -1883,12 +1941,12 @@ public class ImsManager implements IFeatureConnector {
             throw new IllegalArgumentException("provisioning callback can't be null");
         }
 
-        mMmTelFeatureConnection.removeProvisioningCallbackForSubscription(callback, subId);
+        mMmTelConnectionRef.get().removeProvisioningCallbackForSubscription(callback, subId);
     }
 
     public @ImsRegistrationImplBase.ImsRegistrationTech int getRegistrationTech() {
         try {
-            return mMmTelFeatureConnection.getRegistrationTech();
+            return mMmTelConnectionRef.get().getRegistrationTech();
         } catch (RemoteException e) {
             logw("getRegistrationTech: no connection to ImsService.");
             return ImsRegistrationImplBase.REGISTRATION_TECH_NONE;
@@ -1896,9 +1954,9 @@ public class ImsManager implements IFeatureConnector {
     }
 
     public void getRegistrationTech(Consumer<Integer> callback) {
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             try {
-                int tech = mMmTelFeatureConnection.getRegistrationTech();
+                int tech = mMmTelConnectionRef.get().getRegistrationTech();
                 callback.accept(tech);
             } catch (RemoteException e) {
                 logw("getRegistrationTech(C): no connection to ImsService.");
@@ -1912,9 +1970,7 @@ public class ImsManager implements IFeatureConnector {
      * All the resources that were allocated to the service are also released.
      */
     public void close() {
-        if (mMmTelFeatureConnection != null) {
-            mMmTelFeatureConnection.closeConnection();
-        }
+        mMmTelConnectionRef.get().closeConnection();
     }
 
     /**
@@ -1924,11 +1980,10 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if getting the Ut interface results in an error
      */
     public ImsUtInterface getSupplementaryServiceConfiguration() throws ImsException {
-        ImsUt iUt = null;
-        checkAndThrowExceptionIfServiceUnavailable();
+        ImsUt iUt;
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         try {
-            iUt = mMmTelFeatureConnection.getUtInterface();
-
+            iUt = c.getUtInterface();
             if (iUt == null) {
                 throw new ImsException("getSupplementaryServiceConfiguration()",
                         ImsReasonInfo.CODE_UT_NOT_SUPPORTED);
@@ -1960,10 +2015,10 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if calling the IMS service results in an error
      */
     public ImsCallProfile createCallProfile(int serviceType, int callType) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
         try {
-            return mMmTelFeatureConnection.createCallProfile(serviceType, callType);
+            return c.createCallProfile(serviceType, callType);
         } catch (RemoteException e) {
             throw new ImsException("createCallProfile()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -1986,7 +2041,8 @@ public class ImsManager implements IFeatureConnector {
             log("makeCall :: profile=" + profile);
         }
 
-        checkAndThrowExceptionIfServiceUnavailable();
+        // Check we are still alive
+        getOrThrowExceptionIfServiceUnavailable();
 
         ImsCall call = new ImsCall(mContext, profile);
 
@@ -2011,7 +2067,8 @@ public class ImsManager implements IFeatureConnector {
      */
     public ImsCall takeCall(IImsCallSession session, ImsCall.Listener listener)
             throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        // Check we are still alive
+        getOrThrowExceptionIfServiceUnavailable();
         try {
             if (session == null) {
                 throw new ImsException("No pending session for the call",
@@ -2038,9 +2095,9 @@ public class ImsManager implements IFeatureConnector {
      */
     @UnsupportedAppUsage
     public ImsConfig getConfigInterface() throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
-        IImsConfig config = mMmTelFeatureConnection.getConfig();
+        IImsConfig config = c.getConfig();
         if (config == null) {
             throw new ImsException("getConfigInterface()",
                     ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
@@ -2063,11 +2120,11 @@ public class ImsManager implements IFeatureConnector {
     }
 
     public void changeMmTelCapability(CapabilityChangeRequest r) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         try {
             logi("changeMmTelCapability: changing capabilities for sub: " + getSubId()
                     + ", request: " + r);
-            mMmTelFeatureConnection.changeEnabledCapabilities(r, null);
+            c.changeEnabledCapabilities(r, null);
             if (mImsConfigListener == null) {
                 return;
             }
@@ -2118,7 +2175,7 @@ public class ImsManager implements IFeatureConnector {
     private void setRttConfig(boolean enabled) {
         final int value = enabled ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
                 ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             try {
                 logi("Setting RTT enabled to " + enabled);
                 getConfigInterface().setProvisionedValue(
@@ -2132,13 +2189,12 @@ public class ImsManager implements IFeatureConnector {
     public boolean queryMmTelCapability(
             @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
             @ImsRegistrationImplBase.ImsRegistrationTech int radioTech) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
         BlockingQueue<Boolean> result = new LinkedBlockingDeque<>(1);
 
         try {
-            mMmTelFeatureConnection.queryEnabledCapabilities(capability, radioTech,
-                    new IImsCapabilityCallback.Stub() {
+            c.queryEnabledCapabilities(capability, radioTech, new IImsCapabilityCallback.Stub() {
                         @Override
                         public void onQueryCapabilityConfiguration(int resCap, int resTech,
                                 boolean enabled) {
@@ -2174,7 +2230,7 @@ public class ImsManager implements IFeatureConnector {
     public boolean queryMmTelCapabilityStatus(
             @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
             @ImsRegistrationImplBase.ImsRegistrationTech int radioTech) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
         if (getRegistrationTech() != radioTech)
             return false;
@@ -2182,7 +2238,7 @@ public class ImsManager implements IFeatureConnector {
         try {
 
             MmTelFeature.MmTelCapabilities capabilities =
-                    mMmTelFeatureConnection.queryCapabilityStatus();
+                    c.queryCapabilityStatus();
 
             return capabilities.isCapable(capability);
         } catch (RemoteException e) {
@@ -2231,23 +2287,32 @@ public class ImsManager implements IFeatureConnector {
     public void setUiTTYMode(Context context, int uiTtyMode, Message onComplete)
             throws ImsException {
 
-        checkAndThrowExceptionIfServiceUnavailable();
-
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         try {
-            mMmTelFeatureConnection.setUiTTYMode(uiTtyMode, onComplete);
+            c.setUiTTYMode(uiTtyMode, onComplete);
         } catch (RemoteException e) {
             throw new ImsException("setTTYMode()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
     }
 
-    @Override
     public int getImsServiceState() throws ImsException {
-        return mMmTelFeatureConnection.getFeatureState();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        return c.getFeatureState();
+    }
+
+    @Override
+    public void updateFeatureState(int state) {
+        mMmTelConnectionRef.get().updateFeatureState(state);
+    }
+
+    @Override
+    public void updateFeatureCapabilities(long capabilities) {
+        mMmTelConnectionRef.get().updateFeatureCapabilities(capabilities);
     }
 
     public void getImsServiceState(Consumer<Integer> result) {
-        mExecutorFactory.executeRunnable(() -> {
+        getImsThreadExecutor().execute(() -> {
             try {
                 result.accept(getImsServiceState());
             } catch (ImsException e) {
@@ -2257,11 +2322,11 @@ public class ImsManager implements IFeatureConnector {
         });
     }
 
-    private Executor getThreadExecutor() {
-        if (Looper.myLooper() == null) {
-            Looper.prepare();
-        }
-        return new HandlerExecutor(new Handler(Looper.myLooper()));
+    /**
+     * @return An Executor that should be used to execute potentially long-running operations.
+     */
+    private Executor getImsThreadExecutor() {
+        return mExecutor;
     }
 
     /**
@@ -2308,40 +2373,78 @@ public class ImsManager implements IFeatureConnector {
      * Checks to see if the ImsService Binder is connected. If it is not, we try to create the
      * connection again.
      */
-    private void checkAndThrowExceptionIfServiceUnavailable()
+    private MmTelFeatureConnection getOrThrowExceptionIfServiceUnavailable()
             throws ImsException {
         if (!isImsSupportedOnDevice(mContext)) {
             throw new ImsException("IMS not supported on device.",
                     ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE);
         }
-        if (mMmTelFeatureConnection == null || !mMmTelFeatureConnection.isBinderAlive()) {
-            createImsService();
+        MmTelFeatureConnection c = mMmTelConnectionRef.get();
+        if (c == null || !c.isBinderAlive()) {
+            throw new ImsException("Service is unavailable",
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+        return c;
+    }
 
-            if (mMmTelFeatureConnection == null) {
-                throw new ImsException("Service is unavailable",
-                        ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+    @Override
+    public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb) {
+        try {
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                telephony.registerMmTelFeatureCallback(slotId, cb);
+            } else {
+                cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
             }
+        } catch (ServiceSpecificException e) {
+            try {
+                switch (e.errorCode) {
+                    case android.telephony.ims.ImsException.CODE_ERROR_UNSUPPORTED_OPERATION:
+                        cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_IMS_UNSUPPORTED);
+                        break;
+                    default: {
+                        cb.imsFeatureRemoved(
+                                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+                    }
+                }
+            } catch (RemoteException ignore) {} // Already dead anyway if this happens.
+        } catch (RemoteException e) {
+            try {
+                cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+            } catch (RemoteException ignore) {} // Already dead if this happens.
         }
     }
 
-    /**
-     * Creates a connection to the ImsService associated with this slot.
-     */
-    private void createImsService() {
-        mMmTelFeatureConnection = mMmTelFeatureConnectionFactory.create(mContext, mPhoneId);
-
-        // Forwarding interface to tell mStatusCallbacks that the Proxy is unavailable.
-        mMmTelFeatureConnection.setStatusCallback(new FeatureConnection.IFeatureUpdate() {
-            @Override
-            public void notifyStateChanged() {
-                mStatusCallbacks.forEach(FeatureConnection.IFeatureUpdate::notifyStateChanged);
+    @Override
+    public void unregisterFeatureCallback(IImsServiceFeatureCallback cb) {
+        try {
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                telephony.unregisterImsFeatureCallback(cb);
             }
+        } catch (RemoteException e) {
+            // This means that telephony died, so do not worry about it.
+            loge("unregisterImsFeatureCallback (MMTEL), RemoteException: " + e.getMessage());
+        }
+    }
 
-            @Override
-            public void notifyUnavailable() {
-                mStatusCallbacks.forEach(FeatureConnection.IFeatureUpdate::notifyUnavailable);
-            }
-        });
+    @Override
+    public void associate(IBinder binder, IImsConfig c, IImsRegistration r) {
+        mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
+                mContext, mPhoneId, IImsMmTelFeature.Stub.asInterface(binder), c, r));
+    }
+
+    @Override
+    public void invalidate() {
+        mMmTelConnectionRef.get().onRemovedOrDied();
+    }
+
+    private ITelephony getITelephony() {
+        return ITelephony.Stub.asInterface(
+                TelephonyFrameworkInitializer
+                        .getTelephonyServiceManager()
+                        .getTelephonyServiceRegisterer()
+                        .get());
     }
 
     /**
@@ -2353,8 +2456,9 @@ public class ImsManager implements IFeatureConnector {
      */
     private ImsCallSession createCallSession(ImsCallProfile profile) throws ImsException {
         try {
+            MmTelFeatureConnection c = mMmTelConnectionRef.get();
             // Throws an exception if the ImsService Feature is not ready to accept commands.
-            return new ImsCallSession(mMmTelFeatureConnection.createCallSession(profile));
+            return new ImsCallSession(c.createCallSession(profile));
         } catch (RemoteException e) {
             logw("CreateCallSession: Error, remote exception: " + e.getMessage());
             throw new ImsException("createCallSession()", e,
@@ -2364,23 +2468,23 @@ public class ImsManager implements IFeatureConnector {
     }
 
     private void log(String s) {
-        Rlog.d(TAG + " [" + mPhoneId + "]", s);
+        Rlog.d(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
 
     private void logi(String s) {
-        Rlog.i(TAG + " [" + mPhoneId + "]", s);
+        Rlog.i(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
     
     private void logw(String s) {
-        Rlog.w(TAG + " [" + mPhoneId + "]", s);
+        Rlog.w(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
 
     private void loge(String s) {
-        Rlog.e(TAG + " [" + mPhoneId + "]", s);
+        Rlog.e(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
 
     private void loge(String s, Throwable t) {
-        Rlog.e(TAG + " [" + mPhoneId + "]", s, t);
+        Rlog.e(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s, t);
     }
 
     /**
@@ -2427,14 +2531,15 @@ public class ImsManager implements IFeatureConnector {
             }
         }
         try {
-            mMmTelFeatureConnection.changeEnabledCapabilities(request, null);
+            mMmTelConnectionRef.get().changeEnabledCapabilities(request, null);
         } catch (RemoteException e) {
             loge("setLteFeatureValues: Exception: " + e.getMessage());
         }
     }
 
     private void setAdvanced4GMode(boolean turnOn) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        // Check we are still alive
+        getOrThrowExceptionIfServiceUnavailable();
 
         // if turnOn: first set feature values then call turnOnIms()
         // if turnOff: only set feature values if IMS turn off is not allowed. If turn off is
@@ -2470,9 +2575,9 @@ public class ImsManager implements IFeatureConnector {
      */
     public ImsEcbm getEcbmInterface() throws ImsException {
         ImsEcbm iEcbm = null;
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         try {
-            iEcbm = mMmTelFeatureConnection.getEcbmInterface();
+            iEcbm = c.getEcbmInterface();
 
             if (iEcbm == null) {
                 throw new ImsException("getEcbmInterface()",
@@ -2488,7 +2593,7 @@ public class ImsManager implements IFeatureConnector {
     public void sendSms(int token, int messageRef, String format, String smsc, boolean isRetry,
             byte[] pdu) throws ImsException {
         try {
-            mMmTelFeatureConnection.sendSms(token, messageRef, format, smsc, isRetry, pdu);
+            mMmTelConnectionRef.get().sendSms(token, messageRef, format, smsc, isRetry, pdu);
         } catch (RemoteException e) {
             throw new ImsException("sendSms()", e, ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
@@ -2496,7 +2601,7 @@ public class ImsManager implements IFeatureConnector {
 
     public void acknowledgeSms(int token, int messageRef, int result) throws ImsException {
         try {
-            mMmTelFeatureConnection.acknowledgeSms(token, messageRef, result);
+            mMmTelConnectionRef.get().acknowledgeSms(token, messageRef, result);
         } catch (RemoteException e) {
             throw new ImsException("acknowledgeSms()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2505,7 +2610,7 @@ public class ImsManager implements IFeatureConnector {
 
     public void acknowledgeSmsReport(int token, int messageRef, int result) throws  ImsException{
         try {
-            mMmTelFeatureConnection.acknowledgeSmsReport(token, messageRef, result);
+            mMmTelConnectionRef.get().acknowledgeSmsReport(token, messageRef, result);
         } catch (RemoteException e) {
             throw new ImsException("acknowledgeSmsReport()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2514,7 +2619,7 @@ public class ImsManager implements IFeatureConnector {
 
     public String getSmsFormat() throws ImsException{
         try {
-            return mMmTelFeatureConnection.getSmsFormat();
+            return mMmTelConnectionRef.get().getSmsFormat();
         } catch (RemoteException e) {
             throw new ImsException("getSmsFormat()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2523,7 +2628,7 @@ public class ImsManager implements IFeatureConnector {
 
     public void setSmsListener(IImsSmsListener listener) throws ImsException {
         try {
-            mMmTelFeatureConnection.setSmsListener(listener);
+            mMmTelConnectionRef.get().setSmsListener(listener);
         } catch (RemoteException e) {
             throw new ImsException("setSmsListener()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2532,7 +2637,7 @@ public class ImsManager implements IFeatureConnector {
 
     public void onSmsReady() throws ImsException {
         try {
-            mMmTelFeatureConnection.onSmsReady();
+            mMmTelConnectionRef.get().onSmsReady();
         } catch (RemoteException e) {
             throw new ImsException("onSmsReady()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2554,7 +2659,7 @@ public class ImsManager implements IFeatureConnector {
     public @MmTelFeature.ProcessCallResult int shouldProcessCall(boolean isEmergency,
             String[] numbers) throws ImsException {
         try {
-            return mMmTelFeatureConnection.shouldProcessCall(isEmergency, numbers);
+            return mMmTelConnectionRef.get().shouldProcessCall(isEmergency, numbers);
         } catch (RemoteException e) {
             throw new ImsException("shouldProcessCall()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
@@ -2568,10 +2673,9 @@ public class ImsManager implements IFeatureConnector {
      * @throws ImsException if getting the multi-endpoint interface results in an error
      */
     public ImsMultiEndpoint getMultiEndpointInterface() throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
         ImsMultiEndpoint iImsMultiEndpoint;
         try {
-            iImsMultiEndpoint = mMmTelFeatureConnection.getMultiEndpointInterface();
+            iImsMultiEndpoint = mMmTelConnectionRef.get().getMultiEndpointInterface();
 
             if (iImsMultiEndpoint == null) {
                 throw new ImsException("getMultiEndpointInterface()",
@@ -2714,7 +2818,7 @@ public class ImsManager implements IFeatureConnector {
         pw.println("  device supports IMS = " + isImsSupportedOnDevice(mContext));
         pw.println("  mPhoneId = " + mPhoneId);
         pw.println("  mConfigUpdated = " + mConfigUpdated);
-        pw.println("  mImsServiceProxy = " + mMmTelFeatureConnection);
+        pw.println("  mImsServiceProxy = " + mMmTelConnectionRef.get());
         pw.println("  mDataEnabled = " + isDataEnabled());
         pw.println("  ignoreDataEnabledChanged = " + getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_DATA_ENABLED_CHANGED_FOR_VIDEO_CALLS));
@@ -2757,9 +2861,9 @@ public class ImsManager implements IFeatureConnector {
     }
 
     private void updateImsCarrierConfigs(PersistableBundle configs) throws ImsException {
-        checkAndThrowExceptionIfServiceUnavailable();
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
 
-        IImsConfig config = mMmTelFeatureConnection.getConfig();
+        IImsConfig config = c.getConfig();
         if (config == null) {
             throw new ImsException("getConfigInterface()",
                     ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
