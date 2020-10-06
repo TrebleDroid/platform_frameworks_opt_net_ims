@@ -2409,10 +2409,12 @@ public class ImsCall implements ICall {
             ImsCallProfile updatedProfile = session.getCallProfile();
             synchronized(ImsCall.this) {
                 listener = mListener;
-                mCallProfile.mMediaProfile.copyFrom(profile);
                 // The ImsCallProfile may have updated here (for example call state change). Query
                 // the potentially updated call profile to pick up these changes.
                 setCallProfile(updatedProfile);
+                // Apply the new mediaProfile on top of the Call Profile so it is not ignored in
+                // case the ImsService has not had a chance to update it yet.
+                mCallProfile.mMediaProfile.copyFrom(profile);
             }
 
             if (listener != null) {
