@@ -161,6 +161,19 @@ public class RcsFeatureManager implements FeatureUpdates {
     @VisibleForTesting
     public RcsFeatureConnection mRcsFeatureConnection;
 
+    /**
+     * Use to obtain a FeatureConnector, which will maintain a consistent listener to the
+     * RcsFeature attached to the specified slotId. If the RcsFeature changes (due to things like
+     * SIM swap), a new RcsFeatureManager will be delivered to this Listener.
+     * @param context The Context this connector should use.
+     * @param slotId The slotId associated with the Listener and requested RcsFeature
+     * @param listener The listener, which will be used to generate RcsFeatureManager instances.
+     * @param executor The executor that the Listener callbacks will be called on.
+     * @param logPrefix The prefix used in logging of the FeatureConnector for notable events.
+     * @return A FeatureConnector, which will start delivering RcsFeatureManagers as the underlying
+     * RcsFeature instances become available to the platform.
+     * @see {@link FeatureConnector#connect()}.
+     */
     public static FeatureConnector<RcsFeatureManager> getConnector(Context context, int slotId,
             FeatureConnector.Listener<RcsFeatureManager> listener, Executor executor,
             String logPrefix) {
@@ -484,15 +497,15 @@ public class RcsFeatureManager implements FeatureUpdates {
     }
 
     @Override
-    public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb,
-            boolean oneShot) {
+    public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb) {
         IImsRcsController controller = getIImsRcsController();
         try {
             if (controller == null) {
                 Log.e(TAG, "registerRcsFeatureListener: IImsRcsController is null");
                 cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+                return;
             }
-            controller.registerRcsFeatureCallback(slotId, cb, oneShot);
+            controller.registerRcsFeatureCallback(slotId, cb);
         } catch (ServiceSpecificException e) {
             try {
                 switch (e.errorCode) {
@@ -543,8 +556,7 @@ public class RcsFeatureManager implements FeatureUpdates {
 
     @Override
     public void invalidate() {
-        mRcsFeatureConnection.close();
-        mRcsFeatureConnection.setBinder(null);
+        mRcsFeatureConnection.onRemovedOrDied();
     }
 
     @Override
