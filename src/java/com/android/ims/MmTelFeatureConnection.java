@@ -215,12 +215,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
-        synchronized (mLock) {
-            super.onRemovedOrDied();
-            mRegistrationCallbackManager.close();
-            mCapabilityCallbackManager.close();
-            mProvisioningCallbackManager.close();
-        }
+        closeConnection();
+        super.onRemovedOrDied();
     }
 
     public boolean isEmergencyMmTelAvailable() {
@@ -241,24 +237,28 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
+    /**
+     * Clean up all caches as well as any callbacks that are currently associated with the
+     * MmTelFeature.
+     */
     public void closeConnection() {
         mRegistrationCallbackManager.close();
         mCapabilityCallbackManager.close();
         mProvisioningCallbackManager.close();
-        try {
-            synchronized (mLock) {
-                if (mUt != null) {
-                    mUt.close();
-                    mUt = null;
-                }
-                mEcbm = null;
-                mMultiEndpoint = null;
+        synchronized (mLock) {
+            if (mUt != null) {
+                mUt.close();
+                mUt = null;
+            }
+            mEcbm = null;
+            mMultiEndpoint = null;
+            try {
                 if (isBinderAlive()) {
                     getServiceInterface(mBinder).setListener(null);
                 }
+            } catch (RemoteException e) {
+                Log.w(TAG + " [" + mSlotId + "]", "closeConnection: couldn't remove listener!");
             }
-        } catch (RemoteException e) {
-            Log.w(TAG + " [" + mSlotId + "]", "closeConnection: couldn't remove listener!");
         }
     }
 

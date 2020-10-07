@@ -119,7 +119,7 @@ public class RcsFeatureConnection extends FeatureConnection {
     public RcsFeatureConnection(Context context, int slotId, IImsRcsFeature feature, IImsConfig c,
             IImsRegistration r) {
         super(context, slotId, c, r);
-        setBinder(feature.asBinder());
+        setBinder(feature != null ? feature.asBinder() : null);
         mAvailabilityCallbackManager = new AvailabilityCallbackManager(mContext);
         mRegistrationCallbackManager = new RegistrationCallbackManager(mContext);
     }
@@ -132,10 +132,8 @@ public class RcsFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
+        close();
         super.onRemovedOrDied();
-        synchronized (mLock) {
-            close();
-        }
     }
 
     public void setRcsFeatureListener(IRcsFeatureListener listener) throws RemoteException {

@@ -75,7 +75,6 @@ public class FeatureConnectorTest extends ImsTestBase {
 
         public IImsServiceFeatureCallback callback;
         public TestFeatureConnection connection;
-        public boolean oneShot;
         private Context mContext;
         private int mPhoneId;
 
@@ -86,10 +85,8 @@ public class FeatureConnectorTest extends ImsTestBase {
         }
 
         @Override
-        public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb,
-                boolean os) {
+        public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb) {
             callback = cb;
-            oneShot = os;
         }
 
         @Override
@@ -149,28 +146,6 @@ public class FeatureConnectorTest extends ImsTestBase {
         createFeatureConnector();
         mFeatureConnector.connect();
         assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        assertFalse("connect should not be one shot", mTestManager.oneShot);
-
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsFeatureCreated(createContainer());
-        assertNotNull(mTestManager.connection);
-        assertEquals(TEST_CAPS, mTestManager.connection.getFeatureCapabilties());
-        verify(mListener, never()).connectionReady(any());
-        verify(mListener, never()).connectionUnavailable(anyInt());
-
-        // simulate callback from ImsResolver
-        mTestManager.callback.imsStatusChanged(ImsFeature.STATE_READY);
-        verify(mListener).connectionReady(mTestManager);
-        verify(mListener, never()).connectionUnavailable(anyInt());
-    }
-
-    @Test
-    @SmallTest
-    public void testConnectOneShot() throws Exception {
-        createFeatureConnector();
-        mFeatureConnector.connectForOneShot();
-        assertNotNull("connect should trigger the callback registration", mTestManager.callback);
-        assertTrue("connectForOneShot should be one shot", mTestManager.oneShot);
 
         // simulate callback from ImsResolver
         mTestManager.callback.imsFeatureCreated(createContainer());
