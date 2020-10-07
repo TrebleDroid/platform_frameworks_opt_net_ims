@@ -135,49 +135,53 @@ public class FeatureConnector<U extends FeatureUpdates> {
                     log("imsFeatureRemoved: ignore");
                     return;
                 }
-                mManager.invalidate();
                 mDisconnectedReason = reason;
                 // Ensure that we set ready state back to false so that we do not miss setting ready
                 // later if the initial state when recreated is READY.
                 mLastReadyState = false;
             }
+            // Allow the listener to do cleanup while the connection still potentially valid (unless
+            // the process crashed).
             mExecutor.execute(() -> mListener.connectionUnavailable(reason));
+            mManager.invalidate();
         }
 
         @Override
         public void imsStatusChanged(int status) {
             log("imsStatusChanged: status=" + ImsFeature.STATE_LOG_MAP.get(status));
+            final U manager;
+            final boolean isReady;
             synchronized (mLock) {
                 if (mDisconnectedReason != null) {
                     log("imsStatusChanged: ignore");
                     return;
                 }
                 mManager.updateFeatureState(status);
-                final U manager = mManager;
-                final boolean isReady = mReadyFilter.contains(status);
+                manager = mManager;
+                isReady = mReadyFilter.contains(status);
                 boolean didReadyChange = isReady ^ mLastReadyState;
                 mLastReadyState = isReady;
                 if (!didReadyChange) {
                     log("imsStatusChanged: ready didn't change, ignore");
                     return;
                 }
-                mExecutor.execute(() -> {
-                    try {
-                        if (isReady) {
-                            notifyReady(manager);
-                        } else {
-                            notifyNotReady();
-                        }
-                    } catch (ImsException e) {
-                        if (e.getCode()
-                                == ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE) {
-                            mListener.connectionUnavailable(UNAVAILABLE_REASON_IMS_UNSUPPORTED);
-                        } else {
-                            notifyNotReady();
-                        }
-                    }
-                });
             }
+            mExecutor.execute(() -> {
+                try {
+                    if (isReady) {
+                        notifyReady(manager);
+                    } else {
+                        notifyNotReady();
+                    }
+                } catch (ImsException e) {
+                    if (e.getCode()
+                            == ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE) {
+                        mListener.connectionUnavailable(UNAVAILABLE_REASON_IMS_UNSUPPORTED);
+                    } else {
+                        notifyNotReady();
+                    }
+                }
+            });
         }
 
         @Override
@@ -208,8 +212,6 @@ public class FeatureConnector<U extends FeatureUpdates> {
     private U mManager;
     // Start in disconnected state;
     private Integer mDisconnectedReason = UNAVAILABLE_REASON_DISCONNECTED;
-    // Record state to cut down on logging
-    private boolean mIsOneShot = false;
     // Stop redundant connectionAvailable if the ready filter contains multiple states.
     // Also, do not send the first unavailable until after we have moved to available once.
     private boolean mLastReadyState = false;
@@ -245,29 +247,11 @@ public class FeatureConnector<U extends FeatureUpdates> {
             return;
         }
         synchronized (mLock) {
-            mIsOneShot = false;
             if (mManager == null) {
                 mManager = mFactory.createManager(mContext, mPhoneId);
             }
-            mManager.registerFeatureCallback(mPhoneId, mCallback, false /*oneShot*/);
         }
-    }
-
-    public void connectForOneShot() {
-        if (DBG) log("connectForOneShot");
-        if (!isSupported()) {
-            mExecutor.execute(() -> mListener.connectionUnavailable(
-                    UNAVAILABLE_REASON_IMS_UNSUPPORTED));
-            logw("connectForOneShot: not supported.");
-            return;
-        }
-        synchronized (mLock) {
-            mIsOneShot = true;
-            if (mManager == null) {
-                mManager = mFactory.createManager(mContext, mPhoneId);
-            }
-            mManager.registerFeatureCallback(mPhoneId, mCallback, true /*oneShot*/);
-        }
+        mManager.registerFeatureCallback(mPhoneId, mCallback);
     }
 
     // Check if this ImsFeature is supported or not.
@@ -281,12 +265,16 @@ public class FeatureConnector<U extends FeatureUpdates> {
      */
     public void disconnect() {
         if (DBG) log("disconnect");
+        final U manager;
         synchronized (mLock) {
-            mManager.unregisterFeatureCallback(mCallback);
-            try {
-                mCallback.imsFeatureRemoved(UNAVAILABLE_REASON_DISCONNECTED);
-            } catch (RemoteException ignore) {} // local call
+            manager = mManager;
         }
+        if (manager == null) return;
+
+        manager.unregisterFeatureCallback(mCallback);
+        try {
+            mCallback.imsFeatureRemoved(UNAVAILABLE_REASON_DISCONNECTED);
+        } catch (RemoteException ignore) {} // local call
     }
 
     // Should be called on executor
@@ -307,15 +295,11 @@ public class FeatureConnector<U extends FeatureUpdates> {
         mListener.connectionUnavailable(UNAVAILABLE_REASON_NOT_READY);
     }
 
-    private final void log(String message) {
-        // cut down on log spam
-        synchronized (mLock) {
-            if (mIsOneShot) return;
-        }
+    private void log(String message) {
         Rlog.d(TAG, "[" + mLogPrefix + ", " + mPhoneId + "] " + message);
     }
 
-    private final void logw(String message) {
+    private void logw(String message) {
         Rlog.w(TAG, "[" + mLogPrefix + ", " + mPhoneId + "] " + message);
     }
 }
