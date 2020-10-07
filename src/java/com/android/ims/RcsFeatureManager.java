@@ -18,16 +18,25 @@ package com.android.ims;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
+import android.os.ServiceSpecificException;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyFrameworkInitializer;
+import android.telephony.ims.ImsException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
+import android.telephony.ims.aidl.IImsConfig;
+import android.telephony.ims.aidl.IImsRcsController;
+import android.telephony.ims.aidl.IImsRcsFeature;
+import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
+import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
@@ -36,14 +45,16 @@ import android.telephony.ims.stub.RcsPresenceExchangeImplBase;
 import android.telephony.ims.stub.RcsSipOptionsImplBase;
 import android.util.Log;
 
-import com.android.ims.FeatureConnection.IFeatureUpdate;
+import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -53,7 +64,7 @@ import java.util.function.Consumer;
  * - Registering/Unregistering availability/registration callbacks.
  * - Querying Registration and Capability information.
  */
-public class RcsFeatureManager implements IFeatureConnector {
+public class RcsFeatureManager implements FeatureUpdates {
     private static final String TAG = "RcsFeatureManager";
     private static boolean DBG = true;
 
@@ -145,36 +156,26 @@ public class RcsFeatureManager implements IFeatureConnector {
 
     private final int mSlotId;
     private final Context mContext;
-    @VisibleForTesting
-    public final Set<IFeatureUpdate> mStatusCallbacks = new CopyOnWriteArraySet<>();
     private final Set<RcsFeatureCallbacks> mRcsFeatureCallbacks = new CopyOnWriteArraySet<>();
 
     @VisibleForTesting
     public RcsFeatureConnection mRcsFeatureConnection;
 
-    public RcsFeatureManager(Context context, int slotId) {
-        mContext = context;
-        mSlotId = slotId;
-
-        createImsService();
+    public static FeatureConnector<RcsFeatureManager> getConnector(Context context, int slotId,
+            FeatureConnector.Listener<RcsFeatureManager> listener, Executor executor,
+            String logPrefix) {
+        ArrayList<Integer> filter = new ArrayList<>();
+        filter.add(ImsFeature.STATE_READY);
+        return new FeatureConnector<>(context, slotId, RcsFeatureManager::new, logPrefix, filter,
+                listener, executor);
     }
 
-    // Binds the IMS service to the RcsFeature instance.
-    private void createImsService() {
-        mRcsFeatureConnection = RcsFeatureConnection.create(mContext, mSlotId,
-                new IFeatureUpdate() {
-                    @Override
-                    public void notifyStateChanged() {
-                        mStatusCallbacks.forEach(
-                            FeatureConnection.IFeatureUpdate::notifyStateChanged);
-                    }
-                    @Override
-                    public void notifyUnavailable() {
-                        logi("RcsFeature is unavailable");
-                        mStatusCallbacks.forEach(
-                            FeatureConnection.IFeatureUpdate::notifyUnavailable);
-                    }
-                });
+    /**
+     * Use {@link #getConnector} to get an instance of this class.
+     */
+    private RcsFeatureManager(Context context, int slotId) {
+        mContext = context;
+        mSlotId = slotId;
     }
 
     /**
@@ -201,7 +202,6 @@ public class RcsFeatureManager implements IFeatureConnector {
         } catch (RemoteException e){
             // Connection may not be available at this point.
         }
-        mStatusCallbacks.clear();
         mRcsFeatureConnection.close();
         mRcsFeatureCallbacks.clear();
     }
@@ -397,29 +397,6 @@ public class RcsFeatureManager implements IFeatureConnector {
     }
 
     /**
-     * Adds a callback for status changed events if the binder is already available. If it is not,
-     * this method will throw an ImsException.
-     */
-    @Override
-    public void addNotifyStatusChangedCallbackIfAvailable(FeatureConnection.IFeatureUpdate c)
-            throws android.telephony.ims.ImsException {
-        if (!mRcsFeatureConnection.isBinderAlive()) {
-            throw new android.telephony.ims.ImsException("Can not connect to service.",
-                    android.telephony.ims.ImsException.CODE_ERROR_SERVICE_UNAVAILABLE);
-        }
-        if (c != null) {
-            mStatusCallbacks.add(c);
-        }
-    }
-
-    @Override
-    public void removeNotifyStatusChangedCallback(FeatureConnection.IFeatureUpdate c) {
-        if (c != null) {
-            mStatusCallbacks.remove(c);
-        }
-    }
-
-    /**
      * Add UCE capabilities with given type.
      * @param capability the specific RCS UCE capability wants to enable
      */
@@ -507,8 +484,77 @@ public class RcsFeatureManager implements IFeatureConnector {
     }
 
     @Override
-    public int getImsServiceState() throws ImsException {
-        return mRcsFeatureConnection.getFeatureState();
+    public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb,
+            boolean oneShot) {
+        IImsRcsController controller = getIImsRcsController();
+        try {
+            if (controller == null) {
+                Log.e(TAG, "registerRcsFeatureListener: IImsRcsController is null");
+                cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+            }
+            controller.registerRcsFeatureCallback(slotId, cb, oneShot);
+        } catch (ServiceSpecificException e) {
+            try {
+                switch (e.errorCode) {
+                    case ImsException.CODE_ERROR_UNSUPPORTED_OPERATION:
+                        cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_IMS_UNSUPPORTED);
+                        break;
+                    default: {
+                        cb.imsFeatureRemoved(
+                                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+                    }
+                }
+            } catch (RemoteException ignore) {} // Already dead anyway if this happens.
+        } catch (RemoteException e) {
+            try {
+                cb.imsFeatureRemoved(FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+            } catch (RemoteException ignore) {} // Already dead if this happens.
+        }
+    }
+
+    @Override
+    public void unregisterFeatureCallback(IImsServiceFeatureCallback cb) {
+        try {
+            IImsRcsController imsRcsController = getIImsRcsController();
+            if (imsRcsController != null) {
+                imsRcsController.unregisterImsFeatureCallback(cb);
+            }
+        } catch (RemoteException e) {
+            // This means that telephony died, so do not worry about it.
+            Rlog.e(TAG, "unregisterImsFeatureCallback (RCS), RemoteException: "
+                    + e.getMessage());
+        }
+    }
+
+    private IImsRcsController getIImsRcsController() {
+        IBinder binder = TelephonyFrameworkInitializer
+                    .getTelephonyServiceManager()
+                    .getTelephonyImsServiceRegisterer()
+                    .get();
+        IImsRcsController c = IImsRcsController.Stub.asInterface(binder);
+        return c;
+    }
+
+    @Override
+    public void associate(IBinder b, IImsConfig c, IImsRegistration r) {
+        IImsRcsFeature f = IImsRcsFeature.Stub.asInterface(b);
+        mRcsFeatureConnection = new RcsFeatureConnection(mContext, mSlotId, f, c, r);
+    }
+
+    @Override
+    public void invalidate() {
+        mRcsFeatureConnection.close();
+        mRcsFeatureConnection.setBinder(null);
+    }
+
+    @Override
+    public void updateFeatureState(int state) {
+        mRcsFeatureConnection.updateFeatureState(state);
+    }
+
+    @Override
+    public void updateFeatureCapabilities(long capabilities) {
+        mRcsFeatureConnection.updateFeatureCapabilities(capabilities);
     }
 
     /**
