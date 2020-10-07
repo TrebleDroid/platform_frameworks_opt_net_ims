@@ -203,37 +203,11 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private final CapabilityCallbackManager mCapabilityCallbackManager;
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
 
-    public static @NonNull MmTelFeatureConnection create(Context context , int slotId) {
-        MmTelFeatureConnection serviceProxy = new MmTelFeatureConnection(context, slotId);
-        if (!ImsManager.isImsSupportedOnDevice(context)) {
-            // Return empty service proxy in the case that IMS is not supported.
-            sImsSupportedOnDevice = false;
-            return serviceProxy;
-        }
+    public MmTelFeatureConnection(Context context, int slotId, IImsMmTelFeature f,
+            IImsConfig c, IImsRegistration r) {
+        super(context, slotId, c, r);
 
-        TelephonyManager tm = serviceProxy.getTelephonyManager();
-        if (tm == null) {
-            Rlog.w(TAG + " [" + slotId + "]", "create: TelephonyManager is null!");
-            // Binder can be unset in this case because it will be torn down/recreated as part of
-            // a retry mechanism until the serviceProxy binder is set successfully.
-            return serviceProxy;
-        }
-
-        IImsMmTelFeature binder = tm.getImsMmTelFeatureAndListen(slotId,
-                serviceProxy.getListener());
-        if (binder != null) {
-            serviceProxy.setBinder(binder.asBinder());
-            // Trigger the cache to be updated for feature status.
-            serviceProxy.getFeatureState();
-        } else {
-            Rlog.w(TAG + " [" + slotId + "]", "create: binder is null!");
-        }
-        return serviceProxy;
-    }
-
-    public MmTelFeatureConnection(Context context, int slotId) {
-        super(context, slotId);
-
+        setBinder((f != null) ? f.asBinder() : null);
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);
         mCapabilityCallbackManager = new CapabilityCallbackManager(context, mLock);
         mProvisioningCallbackManager = new ProvisioningCallbackManager(context, mLock);
@@ -241,80 +215,11 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
-        removeImsFeatureCallback();
         synchronized (mLock) {
             super.onRemovedOrDied();
             mRegistrationCallbackManager.close();
             mCapabilityCallbackManager.close();
             mProvisioningCallbackManager.close();
-        }
-    }
-
-    private void removeImsFeatureCallback() {
-        TelephonyManager tm = getTelephonyManager();
-        if (tm != null) {
-            tm.unregisterImsFeatureCallback(mSlotId, ImsFeature.FEATURE_MMTEL, getListener());
-        }
-    }
-
-    @Override
-    protected void handleImsFeatureCreatedCallback(int slotId, int feature) {
-        // The feature has been enabled. This happens when the feature is first created and
-        // may happen when the feature is re-enabled.
-        synchronized (mLock) {
-            if(mSlotId != slotId) {
-                return;
-            }
-            switch (feature) {
-                case ImsFeature.FEATURE_MMTEL: {
-                    if (!mIsAvailable) {
-                        Log.i(TAG + " [" + mSlotId + "]", "MmTel enabled");
-                        mIsAvailable = true;
-                    }
-                    break;
-                }
-                case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
-                    mSupportsEmergencyCalling = true;
-                    Log.i(TAG + " [" + mSlotId + "]", "Emergency calling enabled");
-                    break;
-                }
-            }
-        }
-    }
-
-    @Override
-    protected void handleImsFeatureRemovedCallback(int slotId, int feature) {
-        synchronized (mLock) {
-            if (mSlotId != slotId) {
-                return;
-            }
-            switch (feature) {
-                case ImsFeature.FEATURE_MMTEL: {
-                    Log.i(TAG + " [" + mSlotId + "]", "MmTel removed");
-                    onRemovedOrDied();
-                    break;
-                }
-                case ImsFeature.FEATURE_EMERGENCY_MMTEL: {
-                    mSupportsEmergencyCalling = false;
-                    Log.i(TAG + " [" + mSlotId + "]", "Emergency calling disabled");
-                    break;
-                }
-            }
-        }
-    }
-
-    @Override
-    protected void handleImsStatusChangedCallback(int slotId, int feature, int status) {
-        synchronized (mLock) {
-            Log.i(TAG + " [" + mSlotId + "]", "imsStatusChanged: slot: " + slotId + " feature: "
-                + ImsFeature.FEATURE_LOG_MAP.get(feature) +
-                " status: " + ImsFeature.STATE_LOG_MAP.get(status));
-            if (mSlotId == slotId && feature == ImsFeature.FEATURE_MMTEL) {
-                mFeatureStateCached = status;
-                if (mStatusCallback != null) {
-                    mStatusCallback.notifyStateChanged();
-                }
-            }
         }
     }
 
@@ -558,15 +463,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
     }
 
     @Override
-    protected IImsRegistration getRegistrationBinder() {
-        TelephonyManager tm = getTelephonyManager();
-        return  tm != null ? tm.getImsRegistration(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
-    }
-
-    @Override
-    protected IImsConfig getConfigBinder() {
-        TelephonyManager tm = getTelephonyManager();
-        return  tm != null ? tm.getImsConfig(mSlotId, ImsFeature.FEATURE_MMTEL) : null;
+    public void onFeatureCapabilitiesUpdated(long capabilities)
+    {
+        synchronized (mLock) {
+            mSupportsEmergencyCalling =
+                    ((capabilities | ImsService.CAPABILITY_EMERGENCY_OVER_MMTEL) > 0);
+        }
     }
 
     private IImsMmTelFeature getServiceInterface(IBinder b) {
