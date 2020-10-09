@@ -22,6 +22,7 @@ import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyFrameworkInitializer;
@@ -47,6 +48,7 @@ import android.util.Log;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.telephony.ITelephony;
 import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
@@ -157,6 +159,8 @@ public class RcsFeatureManager implements FeatureUpdates {
     private final int mSlotId;
     private final Context mContext;
     private final Set<RcsFeatureCallbacks> mRcsFeatureCallbacks = new CopyOnWriteArraySet<>();
+    private final BinderCacheManager<IImsRcsController> mBinderCache
+            = new BinderCacheManager<>(RcsFeatureManager::getIImsRcsControllerInterface);
 
     @VisibleForTesting
     public RcsFeatureConnection mRcsFeatureConnection;
@@ -498,7 +502,13 @@ public class RcsFeatureManager implements FeatureUpdates {
 
     @Override
     public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb) {
-        IImsRcsController controller = getIImsRcsController();
+        IImsRcsController controller = mBinderCache.listenOnBinder(cb, () -> {
+            try {
+                cb.imsFeatureRemoved(
+                        FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+            } catch (RemoteException ignore) {} // This is local.
+        });
+
         try {
             if (controller == null) {
                 Log.e(TAG, "registerRcsFeatureListener: IImsRcsController is null");
@@ -528,7 +538,7 @@ public class RcsFeatureManager implements FeatureUpdates {
     @Override
     public void unregisterFeatureCallback(IImsServiceFeatureCallback cb) {
         try {
-            IImsRcsController imsRcsController = getIImsRcsController();
+            IImsRcsController imsRcsController = mBinderCache.removeRunnable(cb);
             if (imsRcsController != null) {
                 imsRcsController.unregisterImsFeatureCallback(cb);
             }
@@ -540,10 +550,14 @@ public class RcsFeatureManager implements FeatureUpdates {
     }
 
     private IImsRcsController getIImsRcsController() {
+        return mBinderCache.getBinder();
+    }
+
+    private static IImsRcsController getIImsRcsControllerInterface() {
         IBinder binder = TelephonyFrameworkInitializer
-                    .getTelephonyServiceManager()
-                    .getTelephonyImsServiceRegisterer()
-                    .get();
+                .getTelephonyServiceManager()
+                .getTelephonyImsServiceRegisterer()
+                .get();
         IImsRcsController c = IImsRcsController.Stub.asInterface(binder);
         return c;
     }

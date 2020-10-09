@@ -29,6 +29,7 @@ import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyFrameworkInitializer;
@@ -376,10 +377,10 @@ public class ImsManager implements FeatureUpdates {
     private Context mContext;
     private CarrierConfigManager mConfigManager;
     private int mPhoneId;
-    private final Object mLock = new Object();
     private AtomicReference<MmTelFeatureConnection> mMmTelConnectionRef = new AtomicReference<>();
+    // Used for debug purposes only currently
     private boolean mConfigUpdated = false;
-
+    private BinderCacheManager<ITelephony> mBinderCache;
     private ImsConfigListener mImsConfigListener;
 
     public static final String TRUE = "true";
@@ -1646,6 +1647,7 @@ public class ImsManager implements FeatureUpdates {
         mConfigManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
         mExecutor = new LazyExecutor();
+        mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // Start off with an empty MmTelFeatureConnection, which will be replaced one an
         // ImsService is available (ImsManager expects a non-null FeatureConnection)
         associate(null, null, null);
@@ -1665,6 +1667,7 @@ public class ImsManager implements FeatureUpdates {
                 Context.CARRIER_CONFIG_SERVICE);
         // Do not multithread tests
         mExecutor = Runnable::run;
+        mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // MmTelFeatureConnection should be replaced for tests with mMmTelFeatureConnectionFactory.
         associate(null, null, null);
     }
@@ -2390,7 +2393,13 @@ public class ImsManager implements FeatureUpdates {
     @Override
     public void registerFeatureCallback(int slotId, IImsServiceFeatureCallback cb) {
         try {
-            ITelephony telephony = getITelephony();
+            ITelephony telephony = mBinderCache.listenOnBinder(cb, () -> {
+                try {
+                    cb.imsFeatureRemoved(
+                            FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+                } catch (RemoteException ignore) {} // This is local.
+            });
+
             if (telephony != null) {
                 telephony.registerMmTelFeatureCallback(slotId, cb);
             } else {
@@ -2418,7 +2427,7 @@ public class ImsManager implements FeatureUpdates {
     @Override
     public void unregisterFeatureCallback(IImsServiceFeatureCallback cb) {
         try {
-            ITelephony telephony = getITelephony();
+            ITelephony telephony = mBinderCache.removeRunnable(cb);
             if (telephony != null) {
                 telephony.unregisterImsFeatureCallback(cb);
             }
@@ -2440,6 +2449,10 @@ public class ImsManager implements FeatureUpdates {
     }
 
     private ITelephony getITelephony() {
+        return mBinderCache.getBinder();
+    }
+
+    private static ITelephony getITelephonyInterface() {
         return ITelephony.Stub.asInterface(
                 TelephonyFrameworkInitializer
                         .getTelephonyServiceManager()
