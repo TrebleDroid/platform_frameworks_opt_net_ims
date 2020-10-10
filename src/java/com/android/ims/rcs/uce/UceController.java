@@ -123,8 +123,7 @@ public class UceController {
         /**
          * @return an {@link PublishController} associated with the subscription id specified.
          */
-        PublishController createPublishController(Context context, int subId,
-                UceControllerCallback c, Looper looper);
+        PublishController createPublishController(Context context, int subId, Looper looper);
 
         /**
          * @return an {@link SubscribeController} associated with the subscription id specified.
@@ -183,8 +182,7 @@ public class UceController {
     private void initControllers() {
         mEabController = mControllerFactory.createEabController(mContext, mSubId, mCtrlCallback,
                 mLooper);
-        mPublishController = mControllerFactory.createPublishController(mContext, mSubId,
-                mCtrlCallback, mLooper);
+        mPublishController = mControllerFactory.createPublishController(mContext, mSubId, mLooper);
         mSubscribeController = mControllerFactory.createSubscribeController(mContext, mSubId,
                 mCtrlCallback, mLooper);
         mOptionsController = mControllerFactory.createOptionsController(mContext, mSubId,
@@ -322,9 +320,9 @@ public class UceController {
     /**
      * Publish the device's capabilities. This request is triggered from the ImsService.
      */
-    public void onRequestPublishCapabilitiesFromService(int triggerType) {
-        logd("onRequestPublishCapabilitiesFromService: " + triggerType);
-        mPublishController.publishCapabilities(triggerType);
+    public void onRequestPublishCapabilitiesFromService() {
+        logd("onRequestPublishCapabilitiesFromService");
+        mPublishController.requestPublishCapabilitiesFromService();
     }
 
     /**
