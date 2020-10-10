@@ -16,30 +16,17 @@
 
 package com.android.ims.rcs.uce;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.TestCase.fail;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.AsyncResult;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.CapabilitiesCallback;
-import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -60,8 +47,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 
 @RunWith(AndroidJUnit4.class)
@@ -89,7 +74,7 @@ public class UceControllerTest extends ImsTestBase {
         doReturn(mEabController).when(mControllerFactory).createEabController(any(), eq(mSubId),
                 any(), any());
         doReturn(mPublishController).when(mControllerFactory).createPublishController(any(),
-                eq(mSubId), any(), any());
+                eq(mSubId), any());
         doReturn(mSubscribeController).when(mControllerFactory).createSubscribeController(any(),
                 eq(mSubId), any(), any());
         doReturn(mOptionsController).when(mControllerFactory).createOptionsController(any(),
@@ -200,9 +185,9 @@ public class UceControllerTest extends ImsTestBase {
     public void TestRequestPublishCapabilitiesFromService() throws Exception {
         UceController uceController = createUceController();
 
-        uceController.onRequestPublishCapabilitiesFromService(anyInt());
+        uceController.onRequestPublishCapabilitiesFromService();
 
-        verify(mPublishController).publishCapabilities(anyInt());
+        verify(mPublishController).requestPublishCapabilitiesFromService();
     }
 
     @Test
