@@ -24,7 +24,11 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
+import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.ConnectivityManager;
@@ -38,6 +42,7 @@ import android.test.mock.MockContext;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashSet;
+import java.util.concurrent.Executor;
 
 public class ContextFixture {
 
@@ -105,6 +110,24 @@ public class ContextFixture {
             return super.getSystemServiceName(serviceClass);
         }
 
+        @Override
+        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+            return null;
+        }
+
+        @Override
+        public void unregisterReceiver(BroadcastReceiver receiver) {
+        }
+
+        @Override
+        public ContentResolver getContentResolver() {
+            return null;
+        }
+
+        @Override
+        public Executor getMainExecutor() {
+            return Runnable::run;
+        }
     }
 
     public Context getContext() {
