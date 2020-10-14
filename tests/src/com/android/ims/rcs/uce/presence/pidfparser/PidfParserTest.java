@@ -3,7 +3,10 @@ package com.android.ims.rcs.uce.presence.pidfparser;
 import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
+import android.telephony.ims.RcsContactPresenceTuple;
+import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -34,12 +37,20 @@ public class PidfParserTest extends ImsTestBase {
     @SmallTest
     public void testConvertToPidf() throws Exception {
         Uri contact = Uri.fromParts("sip", "test", null);
-        RcsContactUceCapability.Builder builder = new RcsContactUceCapability.Builder(contact);
-        builder.add(RcsContactUceCapability.CAPABILITY_DISCOVERY_VIA_PRESENCE);
-        builder.add(RcsContactUceCapability.CAPABILITY_IP_VOICE_CALL);
-        builder.add(RcsContactUceCapability.CAPABILITY_IP_VIDEO_CALL);
+        ServiceCapabilities.Builder servCapsBuilder = new ServiceCapabilities.Builder(true, true);
+        servCapsBuilder.addSupportedDuplexMode(ServiceCapabilities.DUPLEX_MODE_FULL);
 
-        String pidfResult = PidfParser.convertToPidf(builder.build());
+        RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
+            RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
+            RcsContactPresenceTuple.SERVICE_ID_MMTEL, "1.0");
+        tupleBuilder.addContactUri(contact).addServiceCapabilities(servCapsBuilder.build());
+
+        PresenceBuilder presenceBuilder = new PresenceBuilder(contact,
+                RcsContactUceCapability.SOURCE_TYPE_CACHED,
+                RcsContactUceCapability.REQUEST_RESULT_FOUND);
+        presenceBuilder.addCapabilityTuple(tupleBuilder.build());
+
+        String pidfResult = PidfParser.convertToPidf(presenceBuilder.build());
 
         String audioSupported = "<caps:audio>true</caps:audio>";
         String videoSupported = "<caps:video>true</caps:video>";
