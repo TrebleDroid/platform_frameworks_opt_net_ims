@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 
 import android.os.Parcel;
 import android.telephony.ims.ImsService;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsConfigImplBase;
@@ -38,6 +39,9 @@ public class ImsFeatureContainerTest {
     private MmTelFeature mMmTelFeature = new MmTelFeature();
     private ImsConfigImplBase mImsConfig = new ImsConfigImplBase();
     private ImsRegistrationImplBase mImsReg = new ImsRegistrationImplBase();
+    private ISipTransport mSipTransport = new ISipTransport.Stub() {
+        // Add implementation once available
+    };
 
     @Test
     @SmallTest
@@ -45,7 +49,7 @@ public class ImsFeatureContainerTest {
         final int state = ImsFeature.STATE_READY;
         final long caps = ImsService.CAPABILITY_EMERGENCY_OVER_MMTEL;
         ImsFeatureContainer c = new ImsFeatureContainer(mMmTelFeature.getBinder().asBinder(),
-                mImsConfig.getIImsConfig(), mImsReg.getBinder(), caps);
+                mImsConfig.getIImsConfig(), mImsReg.getBinder(), mSipTransport, caps);
         c.setState(state);
 
         ImsFeatureContainer result = parcelUnparcel(c);

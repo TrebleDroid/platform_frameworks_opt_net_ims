@@ -16,10 +16,7 @@
 
 package com.android.ims;
 
-import android.os.IBinder;
 import android.telephony.ims.ImsService;
-import android.telephony.ims.aidl.IImsConfig;
-import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.feature.ImsFeature;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
@@ -50,8 +47,9 @@ public interface FeatureUpdates {
     /**
      * Associate this Manager instance with the IMS Binder interfaces specified. This is usually
      * done by creating a FeatureConnection instance with these interfaces.
+     * @param container Contains all of the related interfaces attached to a specific ImsFeature.
      */
-    void associate(IBinder feature, IImsConfig c, IImsRegistration r);
+    void associate(ImsFeatureContainer container);
 
     /**
      * Invalidate the previously associated Binder interfaces set in {@link #associate}.

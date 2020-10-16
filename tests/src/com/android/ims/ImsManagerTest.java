@@ -34,8 +34,8 @@ import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.aidl.IImsConfig;
-import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.stub.ImsConfigImplBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -75,6 +75,7 @@ public class ImsManagerTest extends ImsTestBase {
     @Mock IBinder mMmTelFeature;
     @Mock IImsConfig mImsConfig;
     @Mock IImsRegistration mImsReg;
+    @Mock ISipTransport mSipTransport;
     @Mock ImsManager.SubscriptionManagerProxy mSubscriptionManagerProxy;
 
     private final int[] mSubId = {0};
@@ -826,9 +827,11 @@ public class ImsManagerTest extends ImsTestBase {
         doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfig();
 
         ImsManager mgr = new ImsManager(mContext, mPhoneId,
-                (context, phoneId, feature, c, r) -> mMmTelFeatureConnection,
+                (context, phoneId, feature, c, r, s) -> mMmTelFeatureConnection,
                 mSubscriptionManagerProxy);
-        mgr.associate(mMmTelFeature, mImsConfig, mImsReg);
+        ImsFeatureContainer c = new ImsFeatureContainer(mMmTelFeature, mImsConfig, mImsReg,
+                mSipTransport, 0 /*caps*/);
+        mgr.associate(c);
         return mgr;
     }
 

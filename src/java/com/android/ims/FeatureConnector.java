@@ -118,7 +118,7 @@ public class FeatureConnector<U extends FeatureUpdates> {
         public void imsFeatureCreated(ImsFeatureContainer c) {
             log("imsFeatureCreated: " + c);
             synchronized (mLock) {
-                mManager.associate(c.imsFeature, c.imsConfig, c.imsRegistration);
+                mManager.associate(c);
                 mManager.updateFeatureCapabilities(c.getCapabilities());
                 mDisconnectedReason = null;
             }
