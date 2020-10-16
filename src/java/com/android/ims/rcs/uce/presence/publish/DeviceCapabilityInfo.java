@@ -22,7 +22,10 @@ import android.telecom.PhoneAccount;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.RcsContactPresenceTuple;
+import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
 import android.util.Log;
@@ -246,7 +249,7 @@ public class DeviceCapabilityInfo {
     }
 
     /**
-     * Get the device capabilities
+     * Get the device's capabilities.
      */
     public synchronized RcsContactUceCapability getDeviceCapabilities(Context context) {
         Uri uri = PublishUtils.getPublishingUri(context, mSubId);
@@ -254,14 +257,21 @@ public class DeviceCapabilityInfo {
             logw("getDeviceCapabilities: uri is empty");
             return null;
         }
-        RcsContactUceCapability.Builder builder = new RcsContactUceCapability.Builder(uri);
-        if (hasVolteCapability()) {
-            builder.add(RcsContactUceCapability.CAPABILITY_IP_VOICE_CALL);
-        }
-        if (hasVtCapability()) {
-            builder.add(RcsContactUceCapability.CAPABILITY_IP_VIDEO_CALL);
-        }
-        return builder.build();
+        ServiceCapabilities.Builder servCapsBuilder = new ServiceCapabilities.Builder(
+            hasVolteCapability(), hasVtCapability());
+        servCapsBuilder.addSupportedDuplexMode(ServiceCapabilities.DUPLEX_MODE_FULL);
+
+        RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
+                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
+                RcsContactPresenceTuple.SERVICE_ID_MMTEL, "1.0");
+        tupleBuilder.addContactUri(uri).addServiceCapabilities(servCapsBuilder.build());
+
+        PresenceBuilder presenceBuilder = new PresenceBuilder(uri,
+                RcsContactUceCapability.SOURCE_TYPE_CACHED,
+                RcsContactUceCapability.REQUEST_RESULT_FOUND);
+        presenceBuilder.addCapabilityTuple(tupleBuilder.build());
+
+        return presenceBuilder.build();
     }
 
     // Check if the device has the VoLTE capability
