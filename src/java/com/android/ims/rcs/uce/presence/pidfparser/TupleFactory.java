@@ -16,10 +16,8 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser;
 
-import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_DISCOVERY_VIA_PRESENCE;
-import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_IP_VIDEO_CALL;
-import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_IP_VOICE_CALL;
-
+import android.telephony.ims.RcsContactPresenceTuple;
+import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
 
 import com.android.ims.rcs.uce.presence.pidfparser.capabilities.Audio;
@@ -42,7 +40,7 @@ public class TupleFactory {
      */
     public static Tuple getCapabilityDiscoveryTuple(RcsContactUceCapability contactCaps) {
         // Return directly if it is not supported.
-        if (!contactCaps.isCapable(CAPABILITY_DISCOVERY_VIA_PRESENCE)) {
+        if (contactCaps == null) {
             return null;
         }
         Tuple tuple = new Tuple();
@@ -89,8 +87,8 @@ public class TupleFactory {
 
         // The service capabilities element
         ServiceCaps serviceCaps = new ServiceCaps();
-        Audio audio = new Audio(contactCaps.isCapable(CAPABILITY_IP_VOICE_CALL));
-        Video video = new Video(contactCaps.isCapable(CAPABILITY_IP_VIDEO_CALL));
+        Audio audio = new Audio(isVolteCapable(contactCaps));
+        Video video = new Video(isVtCapable(contactCaps));
         Duplex duplex = new Duplex();
         duplex.setSupportedType(Duplex.DUPLEX_FULL);
         serviceCaps.addElement(audio);
@@ -104,5 +102,29 @@ public class TupleFactory {
         tuple.setContact(contact);
 
         return tuple;
+    }
+
+    private static boolean isVolteCapable(RcsContactUceCapability capability) {
+        RcsContactPresenceTuple presenceTuple = capability.getPresenceTuple(
+                RcsContactPresenceTuple.SERVICE_ID_MMTEL);
+        if (presenceTuple != null) {
+            ServiceCapabilities serviceCaps = presenceTuple.getServiceCapabilities();
+            if (serviceCaps != null && serviceCaps.isAudioCapable()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isVtCapable(RcsContactUceCapability capability) {
+        RcsContactPresenceTuple presenceTuple = capability.getPresenceTuple(
+                RcsContactPresenceTuple.SERVICE_ID_MMTEL);
+        if (presenceTuple != null) {
+            ServiceCapabilities serviceCaps = presenceTuple.getServiceCapabilities();
+            if (serviceCaps != null && serviceCaps.isVideoCapable()) {
+                return true;
+            }
+        }
+        return false;
     }
 }
