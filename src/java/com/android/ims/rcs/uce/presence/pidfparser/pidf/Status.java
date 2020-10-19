@@ -18,6 +18,8 @@ package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
 import java.io.IOException;
@@ -26,6 +28,8 @@ import java.io.IOException;
  * The "status" element of the pidf.
  */
 public class Status extends ElementBase {
+    /** The name of this element */
+    public static final String ELEMENT_NAME = "status";
 
     // The "status" element contain one optional "basic" element.
     private Basic mBasic;
@@ -40,11 +44,15 @@ public class Status extends ElementBase {
 
     @Override
     protected String initElementName() {
-        return "status";
+        return ELEMENT_NAME;
     }
 
     public void setBasic(Basic basic) {
         mBasic = basic;
+    }
+
+    public Basic getBasic() {
+        return mBasic;
     }
 
     @Override
@@ -57,5 +65,28 @@ public class Status extends ElementBase {
         serializer.startTag(namespace, element);
         mBasic.serialize(serializer);
         serializer.endTag(namespace, element);
+    }
+
+    @Override
+    public void parse(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String namespace = parser.getNamespace();
+        String name = parser.getName();
+
+        if (!verifyParsingElement(namespace, name)) {
+            throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
+        }
+
+        // Move to the next event to get the Basic tag.
+        int eventType = parser.next();
+
+        // Get the value if the event type is text.
+        if (eventType == XmlPullParser.START_TAG) {
+            Basic basic = new Basic();
+            basic.parse(parser);
+            mBasic = basic;
+        }
+
+        // Move to the end tag.
+        moveToElementEndTag(parser, eventType);
     }
 }
