@@ -16,8 +16,12 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser.capabilities;
 
+import android.text.TextUtils;
+
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
 import java.io.IOException;
@@ -26,7 +30,13 @@ import java.io.IOException;
  * The "audio" element of the Capabilities namespace.
  */
 public class Audio extends ElementBase {
+    /** The name of this element */
+    public static final String ELEMENT_NAME = "audio";
+
     private boolean mSupported;
+
+    public Audio() {
+    }
 
     public Audio(boolean supported) {
         mSupported = supported;
@@ -39,7 +49,11 @@ public class Audio extends ElementBase {
 
     @Override
     protected String initElementName() {
-        return "audio";
+        return ELEMENT_NAME;
+    }
+
+    public boolean isAudioSupported() {
+        return mSupported;
     }
 
     @Override
@@ -47,11 +61,31 @@ public class Audio extends ElementBase {
         String namespace = getNamespace();
         String elementName = getElementName();
         serializer.startTag(namespace, elementName);
-        serializer.text(getValue());
+        serializer.text(String.valueOf(isAudioSupported()));
         serializer.endTag(namespace, elementName);
     }
 
-    private String getValue() {
-        return (mSupported) ? "true" : "false";
+    @Override
+    public void parse(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String namespace = parser.getNamespace();
+        String name = parser.getName();
+
+        if (!verifyParsingElement(namespace, name)) {
+            throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
+        }
+
+        // Move to the next event to get the value.
+        int eventType = parser.next();
+
+        // Get the value if the event type is text.
+        if (eventType == XmlPullParser.TEXT) {
+            String isSupported = parser.getText();
+            if (!TextUtils.isEmpty(isSupported)) {
+                mSupported = Boolean.parseBoolean(isSupported);
+            }
+        }
+
+        // Move to the end tag.
+        moveToElementEndTag(parser, eventType);
     }
 }
