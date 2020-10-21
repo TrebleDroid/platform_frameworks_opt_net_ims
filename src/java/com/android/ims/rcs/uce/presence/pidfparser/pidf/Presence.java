@@ -16,14 +16,18 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
-import android.telephony.ims.RcsContactUceCapability;
+import android.net.Uri;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
+import com.android.internal.annotations.VisibleForTesting;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -37,6 +41,11 @@ public class Presence extends ElementBase {
      * 3: Any number of OPTIONAL extension elements from other namespaces.
      */
 
+    /** The name of this element */
+    public static final String ELEMENT_NAME = "presence";
+
+    private static final String ATTRIBUTE_NAME_ENTITY = "entity";
+
     // The presence element must have an "entity" attribute.
     private String mEntity;
 
@@ -46,12 +55,20 @@ public class Presence extends ElementBase {
     // The presence element contains any number of <note> elements;
     private final List<Note> mNoteList = new ArrayList<>();
 
-    public Presence(RcsContactUceCapability capability) {
-        initEntity(capability);
+    public Presence() {
     }
 
-    private void initEntity(RcsContactUceCapability capability) {
-        mEntity = capability.getContactUri().toString();
+    public Presence(Uri contact) {
+        initEntity(contact);
+    }
+
+    private void initEntity(Uri contact) {
+        mEntity = contact.toString();
+    }
+
+    @VisibleForTesting
+    public void setEntity(String entity) {
+        mEntity = entity;
     }
 
     @Override
@@ -61,15 +78,27 @@ public class Presence extends ElementBase {
 
     @Override
     protected String initElementName() {
-        return "presence";
+        return ELEMENT_NAME;
+    }
+
+    public String getEntity() {
+        return mEntity;
     }
 
     public void addTuple(Tuple tuple) {
         mTupleList.add(tuple);
     }
 
+    public List<Tuple> getTupleList() {
+        return Collections.unmodifiableList(mTupleList);
+    }
+
     public void addNote(Note note) {
         mNoteList.add(note);
+    }
+
+    public List<Note> getNoteList() {
+        return Collections.unmodifiableList(mNoteList);
     }
 
     @Override
@@ -79,15 +108,68 @@ public class Presence extends ElementBase {
 
         serializer.startTag(namespace, elementName);
         // entity attribute
-        serializer.attribute("", "entity", mEntity);
-        // tuple element
+        serializer.attribute(XmlPullParser.NO_NAMESPACE, ATTRIBUTE_NAME_ENTITY, mEntity);
+
+        // tuple elements
         for (Tuple tuple : mTupleList) {
             tuple.serialize(serializer);
         }
-        // note element
+
+        // note elements
         for (Note note : mNoteList) {
             note.serialize(serializer);
         }
         serializer.endTag(namespace, elementName);
+    }
+
+    @Override
+    public void parse(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String namespace = parser.getNamespace();
+        String name = parser.getName();
+
+        if (!verifyParsingElement(namespace, name)) {
+            throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
+        }
+
+        mEntity = parser.getAttributeValue(XmlPullParser.NO_NAMESPACE, ATTRIBUTE_NAME_ENTITY);
+
+        // Move to the next event.
+        int eventType = parser.next();
+
+        while(!(eventType == XmlPullParser.END_TAG
+                && getNamespace().equals(parser.getNamespace())
+                && getElementName().equals(parser.getName()))) {
+
+            if (eventType == XmlPullParser.START_TAG) {
+                String tagName = parser.getName();
+
+                if (isTupleElement(eventType, tagName)) {
+                    Tuple tuple = new Tuple();
+                    tuple.parse(parser);
+                    mTupleList.add(tuple);
+                } else if (isNoteElement(eventType, tagName)) {
+                    Note note = new Note();
+                    note.parse(parser);
+                    mNoteList.add(note);
+                }
+            }
+
+            eventType = parser.next();
+
+            // Leave directly if the event type is the end of the document.
+            if (eventType == XmlPullParser.END_DOCUMENT) {
+                return;
+            }
+        }
+    }
+
+    private boolean isTupleElement(int eventType, String name) {
+        return (eventType == XmlPullParser.START_TAG && Tuple.ELEMENT_NAME.equals(name)) ?
+                true : false;
+    }
+
+    private boolean isNoteElement(int eventType, String name) {
+        return (eventType == XmlPullParser.START_TAG && Note.ELEMENT_NAME.equals(name)) ?
+                true : false;
     }
 }
