@@ -31,6 +31,7 @@ import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
@@ -204,8 +205,8 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
 
     public MmTelFeatureConnection(Context context, int slotId, IImsMmTelFeature f,
-            IImsConfig c, IImsRegistration r) {
-        super(context, slotId, c, r);
+            IImsConfig c, IImsRegistration r, ISipTransport s) {
+        super(context, slotId, c, r, s);
 
         setBinder((f != null) ? f.asBinder() : null);
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);

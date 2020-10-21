@@ -35,6 +35,7 @@ import android.os.IBinder;
 import android.telephony.ims.ImsService;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -57,8 +58,8 @@ public class FeatureConnectorTest extends ImsTestBase {
     private static class TestFeatureConnection extends FeatureConnection {
 
         public TestFeatureConnection(Context context, int slotId, IImsConfig c,
-                IImsRegistration r) {
-            super(context, slotId, c, r);
+                IImsRegistration r, ISipTransport s) {
+            super(context, slotId, c, r, s);
         }
 
         @Override
@@ -95,9 +96,10 @@ public class FeatureConnectorTest extends ImsTestBase {
         }
 
         @Override
-        public void associate(IBinder f, IImsConfig c, IImsRegistration r) {
-            connection = new TestFeatureConnection(mContext, mPhoneId, c, r);
-            connection.setBinder(f);
+        public void associate(ImsFeatureContainer c) {
+            connection = new TestFeatureConnection(mContext, mPhoneId, c.imsConfig,
+                    c.imsRegistration, c.sipTransport);
+            connection.setBinder(c.imsFeature);
         }
 
         @Override
@@ -123,6 +125,7 @@ public class FeatureConnectorTest extends ImsTestBase {
     @Mock private IBinder feature;
     @Mock private IImsRegistration reg;
     @Mock private IImsConfig config;
+    @Mock private ISipTransport transport;
 
     private static final int PHONE_ID = 1;
     private static final long TEST_CAPS = ImsService.CAPABILITY_EMERGENCY_OVER_MMTEL;
@@ -372,7 +375,8 @@ public class FeatureConnectorTest extends ImsTestBase {
     }
 
     private ImsFeatureContainer createContainer() {
-        ImsFeatureContainer c =  new ImsFeatureContainer(feature, config, reg, TEST_CAPS);
+        ImsFeatureContainer c =  new ImsFeatureContainer(feature, config, reg, transport,
+                TEST_CAPS);
         c.setState(ImsFeature.STATE_UNAVAILABLE);
         return c;
     }

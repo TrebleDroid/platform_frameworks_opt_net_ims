@@ -28,6 +28,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 
@@ -53,7 +54,7 @@ public class FeatureConnectionTest extends ImsTestBase {
         public long mCapabilities;
 
         TestFeatureConnection(Context context, int slotId) {
-            super(context, slotId, mConfigBinder, mRegistrationBinder);
+            super(context, slotId, mConfigBinder, mRegistrationBinder, mSipTransportBinder);
             if (!ImsManager.isImsSupportedOnDevice(context)) {
                 sImsSupportedOnDevice = false;
             }
@@ -83,6 +84,7 @@ public class FeatureConnectionTest extends ImsTestBase {
     @Mock IBinder mBinder;
     @Mock IImsRegistration mRegistrationBinder;
     @Mock IImsConfig mConfigBinder;
+    @Mock ISipTransport mSipTransportBinder;
 
     public static final int PHONE_ID = 1;
 
