@@ -16,9 +16,13 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
+import android.text.TextUtils;
+
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
+import com.android.internal.annotations.VisibleForTesting;
 
 import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
 import java.io.IOException;
@@ -27,6 +31,9 @@ import java.io.IOException;
  * The "contact" element of the pidf.
  */
 public class Contact extends ElementBase {
+    /** The name of this element */
+    public static final String ELEMENT_NAME = "contact";
+
     private Double mPriority;
     private String mContact;
 
@@ -40,15 +47,24 @@ public class Contact extends ElementBase {
 
     @Override
     protected String initElementName() {
-        return "contact";
+        return ELEMENT_NAME;
     }
 
     public void setPriority(Double priority) {
         mPriority = priority;
     }
 
+    @VisibleForTesting
+    public Double getPriority() {
+        return mPriority;
+    }
+
     public void setContact(String contact) {
         mContact = contact;
+    }
+
+    public String getContact() {
+        return mContact;
     }
 
     @Override
@@ -65,5 +81,34 @@ public class Contact extends ElementBase {
         }
         serializer.text(mContact);
         serializer.endTag(namespace, elementName);
+    }
+
+    @Override
+    public void parse(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String namespace = parser.getNamespace();
+        String name = parser.getName();
+
+        if (!verifyParsingElement(namespace, name)) {
+            throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
+        }
+
+        String priority = parser.getAttributeValue(XmlPullParser.NO_NAMESPACE, "priority");
+        if (!TextUtils.isEmpty(priority)) {
+            mPriority = Double.parseDouble(priority);
+        }
+
+        // Move to the next event to get the value.
+        int eventType = parser.next();
+
+        // Get the value if the event type is text.
+        if (eventType == XmlPullParser.TEXT) {
+            String contact = parser.getText();
+            if (!TextUtils.isEmpty(contact)) {
+                mContact = contact;
+            }
+        }
+
+        // Move to the end tag.
+        moveToElementEndTag(parser, eventType);
     }
 }

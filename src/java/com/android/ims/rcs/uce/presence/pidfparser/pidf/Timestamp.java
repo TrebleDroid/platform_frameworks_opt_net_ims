@@ -14,37 +14,34 @@
  * limitations under the License.
  */
 
-package com.android.ims.rcs.uce.presence.pidfparser.capabilities;
+package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
 import android.text.TextUtils;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
 
+import java.io.IOException;
+
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
-import java.io.IOException;
-
-/**
- * The "video" element of the Capabilities namespace.
- */
-public class Video extends ElementBase {
+public class Timestamp extends ElementBase {
     /** The name of this element */
-    public static final String ELEMENT_NAME = "video";
+    public static final String ELEMENT_NAME = "timestamp";
 
-    private boolean mSupported;
+    private String mTimestamp;
 
-    public Video() {
+    public Timestamp() {
     }
 
-    public Video(boolean supported) {
-        mSupported = supported;
+    public Timestamp(String timestamp) {
+        mTimestamp = timestamp;
     }
 
     @Override
     protected String initNamespace() {
-        return CapsConstant.NAMESPACE;
+        return PidfConstant.NAMESPACE;
     }
 
     @Override
@@ -52,17 +49,20 @@ public class Video extends ElementBase {
         return ELEMENT_NAME;
     }
 
-    public boolean isVideoSupported() {
-        return mSupported;
+    public String getValue() {
+        return mTimestamp;
     }
 
     @Override
     public void serialize(XmlSerializer serializer) throws IOException {
-        String namespace = getNamespace();
-        String elementName = getElementName();
-        serializer.startTag(namespace, elementName);
-        serializer.text(String.valueOf(isVideoSupported()));
-        serializer.endTag(namespace, elementName);
+        if (mTimestamp == null) {
+            return;
+        }
+        final String namespace = getNamespace();
+        final String element = getElementName();
+        serializer.startTag(namespace, element);
+        serializer.text(mTimestamp);
+        serializer.endTag(namespace, element);
     }
 
     @Override
@@ -79,14 +79,13 @@ public class Video extends ElementBase {
 
         // Get the value if the event type is text.
         if (eventType == XmlPullParser.TEXT) {
-            String isSupported = parser.getText();
-            if (!TextUtils.isEmpty(isSupported)) {
-                mSupported = Boolean.parseBoolean(isSupported);
+            String timestamp = parser.getText();
+            if (!TextUtils.isEmpty(timestamp)) {
+                mTimestamp = timestamp;
             }
         }
 
         // Move to the end tag.
         moveToElementEndTag(parser, eventType);
     }
-
 }
