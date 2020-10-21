@@ -17,14 +17,20 @@
 package com.android.ims.rcs.uce.presence.pidfparser.capabilities;
 
 import android.annotation.StringDef;
+import android.text.TextUtils;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
-
-import org.xmlpull.v1.XmlSerializer;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlSerializer;
 
 /**
  * The "duplex" element indicates how the communication service send and receive media. It can
@@ -33,6 +39,14 @@ import java.lang.annotation.RetentionPolicy;
  * "send-only".
  */
 public class Duplex extends ElementBase {
+    /** The name of the duplex element */
+    public static final String ELEMENT_NAME = "duplex";
+
+    /** The name of the supported element */
+    public static final String ELEMENT_SUPPORTED = "supported";
+
+    /** The name of the notsupported element */
+    public static final String ELEMENT_NOT_SUPPORTED = "notsupported";
 
     /** The device can simultaneously send and receive media */
     public static final String DUPLEX_FULL = "full";
@@ -54,8 +68,8 @@ public class Duplex extends ElementBase {
     @Retention(RetentionPolicy.SOURCE)
     public @interface DuplexType {}
 
-    private String mSupportedType;
-    private String mNotSupportedType;
+    private final List<String> mSupportedTypeList = new ArrayList<>();
+    private final List<String> mNotSupportedTypeList = new ArrayList<>();
 
     public Duplex() {
     }
@@ -67,35 +81,102 @@ public class Duplex extends ElementBase {
 
     @Override
     protected String initElementName() {
-        return "duplex";
+        return ELEMENT_NAME;
     }
 
-    public void setSupportedType(@DuplexType String type) {
-        mSupportedType = type;
+    public void addSupportedType(@DuplexType String type) {
+        mSupportedTypeList.add(type);
     }
 
-    public void setNotSupportedType(@DuplexType String type) {
-        mNotSupportedType = type;
+    public List<String> getSupportedTypes() {
+        return Collections.unmodifiableList(mSupportedTypeList);
+    }
+
+    public void addNotSupportedType(@DuplexType String type) {
+        mNotSupportedTypeList.add(type);
+    }
+
+    public List<String> getNotSupportedTypes() {
+        return Collections.unmodifiableList(mNotSupportedTypeList);
     }
 
     @Override
     public void serialize(XmlSerializer serializer) throws IOException {
-        if (mSupportedType == null && mSupportedType == null) {
+        if (mSupportedTypeList.isEmpty() && mNotSupportedTypeList.isEmpty()) {
             return;
         }
         String namespace = getNamespace();
         String elementName = getElementName();
         serializer.startTag(namespace, elementName);
-        if (mSupportedType != null) {
-            serializer.startTag(namespace, "supported");
-            serializer.text(mSupportedType);
-            serializer.endTag(namespace, "supported");
+        for (String supportedType : mSupportedTypeList) {
+            serializer.startTag(namespace, ELEMENT_SUPPORTED);
+            serializer.startTag(namespace, supportedType);
+            serializer.endTag(namespace, supportedType);
+            serializer.endTag(namespace, ELEMENT_SUPPORTED);
         }
-        if (mNotSupportedType != null) {
-            serializer.startTag(namespace, "notsupported");
-            serializer.text(mNotSupportedType);
-            serializer.endTag(namespace, "notsupported");
+        for (String notSupportedType : mNotSupportedTypeList) {
+            serializer.startTag(namespace, ELEMENT_NOT_SUPPORTED);
+            serializer.startTag(namespace, notSupportedType);
+            serializer.endTag(namespace, notSupportedType);
+            serializer.endTag(namespace, ELEMENT_NOT_SUPPORTED);
         }
         serializer.endTag(namespace, elementName);
+    }
+
+    @Override
+    public void parse(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String namespace = parser.getNamespace();
+        String name = parser.getName();
+
+        if (!verifyParsingElement(namespace, name)) {
+            throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
+        }
+
+        // Move to the next event.
+        int eventType = parser.next();
+
+        while(!(eventType == XmlPullParser.END_TAG
+                && getNamespace().equals(parser.getNamespace())
+                && getElementName().equals(parser.getName()))) {
+
+            if (eventType == XmlPullParser.START_TAG) {
+                String tagName = parser.getName();
+
+                if (ELEMENT_SUPPORTED.equals(tagName)) {
+                    String duplexType = getDuplexType(parser);
+                    if (!TextUtils.isEmpty(duplexType)) {
+                        addSupportedType(duplexType);
+                    }
+                } else if (ELEMENT_NOT_SUPPORTED.equals(tagName)) {
+                    String duplexType = getDuplexType(parser);
+                    if (!TextUtils.isEmpty(duplexType)) {
+                        addNotSupportedType(duplexType);
+                    }
+                }
+            }
+
+            eventType = parser.next();
+
+            // Leave directly if the event type is the end of the document.
+            if (eventType == XmlPullParser.END_DOCUMENT) {
+                return;
+            }
+        }
+    }
+
+    private String getDuplexType(XmlPullParser parser) throws IOException, XmlPullParserException {
+        // Move to the next event
+        int eventType = parser.next();
+
+        String name = parser.getName();
+        if (eventType == XmlPullParser.START_TAG) {
+            if (DUPLEX_FULL.equals(name) ||
+                    DUPLEX_HALF.equals(name) ||
+                    DUPLEX_RECEIVE_ONLY.equals(name) ||
+                    DUPLEX_SEND_ONLY.equals(name)) {
+                return name;
+            }
+        }
+        return null;
     }
 }
