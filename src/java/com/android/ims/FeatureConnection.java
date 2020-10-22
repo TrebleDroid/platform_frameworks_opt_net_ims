@@ -22,6 +22,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.ImsService;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.ISipTransport;
@@ -181,6 +182,14 @@ public abstract class FeatureConnection {
                 onFeatureCapabilitiesUpdated(caps);
             }
         }
+    }
+
+    public boolean isCapable(@ImsService.ImsServiceCapability long capabilities)
+            throws RemoteException {
+        if (!isBinderAlive()) {
+            throw new RemoteException("isCapable: ImsService is not alive");
+        }
+        return (getFeatureCapabilties() & capabilities) > 0;
     }
 
     /**
