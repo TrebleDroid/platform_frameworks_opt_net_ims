@@ -30,10 +30,8 @@ import android.telephony.ims.ImsException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
-import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRcsController;
 import android.telephony.ims.aidl.IImsRcsFeature;
-import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -563,9 +561,10 @@ public class RcsFeatureManager implements FeatureUpdates {
     }
 
     @Override
-    public void associate(IBinder b, IImsConfig c, IImsRegistration r) {
-        IImsRcsFeature f = IImsRcsFeature.Stub.asInterface(b);
-        mRcsFeatureConnection = new RcsFeatureConnection(mContext, mSlotId, f, c, r);
+    public void associate(ImsFeatureContainer c) {
+        IImsRcsFeature f = IImsRcsFeature.Stub.asInterface(c.imsFeature);
+        mRcsFeatureConnection = new RcsFeatureConnection(mContext, mSlotId, f, c.imsConfig,
+                c.imsRegistration, c.sipTransport);
     }
 
     @Override

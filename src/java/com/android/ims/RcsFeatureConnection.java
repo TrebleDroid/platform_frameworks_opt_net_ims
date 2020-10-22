@@ -29,6 +29,7 @@ import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 
@@ -117,8 +118,8 @@ public class RcsFeatureConnection extends FeatureConnection {
     public RegistrationCallbackManager mRegistrationCallbackManager;
 
     public RcsFeatureConnection(Context context, int slotId, IImsRcsFeature feature, IImsConfig c,
-            IImsRegistration r) {
-        super(context, slotId, c, r);
+            IImsRegistration r, ISipTransport s) {
+        super(context, slotId, c, r, s);
         setBinder(feature != null ? feature.asBinder() : null);
         mAvailabilityCallbackManager = new AvailabilityCallbackManager(mContext);
         mRegistrationCallbackManager = new RegistrationCallbackManager(mContext);

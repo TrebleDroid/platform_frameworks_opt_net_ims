@@ -24,6 +24,7 @@ import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
+import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.util.Log;
@@ -49,13 +50,16 @@ public abstract class FeatureConnection {
     protected long mFeatureCapabilities;
     private final IImsRegistration mRegistrationBinder;
     private final IImsConfig mConfigBinder;
+    private final ISipTransport mSipTransportBinder;
     protected final Object mLock = new Object();
 
-    public FeatureConnection(Context context, int slotId, IImsConfig c, IImsRegistration r) {
+    public FeatureConnection(Context context, int slotId, IImsConfig c, IImsRegistration r,
+            ISipTransport s) {
         mSlotId = slotId;
         mContext = context;
         mRegistrationBinder = r;
         mConfigBinder = c;
+        mSipTransportBinder = s;
     }
 
     protected TelephonyManager getTelephonyManager() {
@@ -122,6 +126,10 @@ public abstract class FeatureConnection {
 
     public @Nullable IImsConfig getConfig() {
         return mConfigBinder;
+    }
+
+    public @Nullable ISipTransport getSipTransport() {
+        return mSipTransportBinder;
     }
 
     @VisibleForTesting
