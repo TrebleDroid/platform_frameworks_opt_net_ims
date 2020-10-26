@@ -32,8 +32,10 @@ import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 
+import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter.PublishResponseCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
+
 import java.util.List;
 
 /**
@@ -220,6 +222,11 @@ public class RcsFeatureConnection extends FeatureConnection {
             checkServiceIsReady();
             getServiceInterface(mBinder).updateCapabilities(capabilities, taskId);
         }
+    }
+
+    public void requestPublication(String pidfXml, PublishResponseCallback responseCallback)
+            throws RemoteException {
+        // TODO: add the new API: requestPublication
     }
 
     public void requestCapabilities(List<Uri> uris, int taskId) throws RemoteException {
