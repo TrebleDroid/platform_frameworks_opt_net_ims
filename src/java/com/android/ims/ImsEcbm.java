@@ -30,6 +30,7 @@
 package com.android.ims;
 
 import android.compat.annotation.UnsupportedAppUsage;
+import android.os.Build;
 import android.os.RemoteException;
 import android.telephony.ims.ImsReasonInfo;
 
@@ -64,7 +65,7 @@ public class ImsEcbm {
         }
     }
 
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public void exitEmergencyCallbackMode() throws ImsException {
         try {
             miEcbm.exitEmergencyCallbackMode();
