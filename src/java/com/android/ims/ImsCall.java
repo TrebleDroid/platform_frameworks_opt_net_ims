@@ -19,6 +19,7 @@ package com.android.ims;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
 import android.os.Parcel;
@@ -952,7 +953,7 @@ public class ImsCall implements ICall {
      *
      * @return {@code True} if the call is a multiparty call.
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public boolean isMultiparty() {
         synchronized(mLockObj) {
             if (mSession == null) {
@@ -1217,7 +1218,7 @@ public class ImsCall implements ICall {
      * @param number number to be deflected to.
      * @throws ImsException if the IMS service fails to deflect the call
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public void deflect(String number) throws ImsException {
         logi("deflect :: session=" + mSession + ", number=" + Rlog.pii(TAG, number));
 
@@ -1243,7 +1244,7 @@ public class ImsCall implements ICall {
      * @see Listener#onCallStartFailed
      * @throws ImsException if the IMS service fails to reject the call
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public void reject(int reason) throws ImsException {
         logi("reject :: reason=" + reason);
 
@@ -1328,7 +1329,7 @@ public class ImsCall implements ICall {
      *
      * @param reason reason code to terminate a call
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public void terminate(int reason) {
         logi("terminate :: reason=" + reason);
 
