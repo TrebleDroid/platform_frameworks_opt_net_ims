@@ -20,6 +20,7 @@ import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Message;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
@@ -454,7 +455,7 @@ public class ImsManager implements FeatureUpdates {
      * @deprecated Doesn't support MSIM devices. Use
      * {@link #isEnhanced4gLteModeSettingEnabledByUser()} instead.
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public static boolean isEnhanced4gLteModeSettingEnabledByUser(Context context) {
         DefaultSubscriptionManagerProxy p = new DefaultSubscriptionManagerProxy(context);
         ImsManager mgr = ImsManager.getInstance(context, p.getDefaultVoicePhoneId());
@@ -559,7 +560,7 @@ public class ImsManager implements FeatureUpdates {
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isNonTtyOrTtyOnVolteEnabled()} instead.
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public static boolean isNonTtyOrTtyOnVolteEnabled(Context context) {
         DefaultSubscriptionManagerProxy p = new DefaultSubscriptionManagerProxy(context);
         ImsManager mgr = ImsManager.getInstance(context, p.getDefaultVoicePhoneId());
@@ -596,7 +597,7 @@ public class ImsManager implements FeatureUpdates {
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isVolteEnabledByPlatform()} instead.
      */
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public static boolean isVolteEnabledByPlatform(Context context) {
         DefaultSubscriptionManagerProxy p = new DefaultSubscriptionManagerProxy(context);
         ImsManager mgr = ImsManager.getInstance(context, p.getDefaultVoicePhoneId());
