@@ -47,6 +47,7 @@ import android.telephony.ims.stub.RcsSipOptionsImplBase;
 import android.util.Log;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
+import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter.PublishResponseCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.telephony.Rlog;
@@ -447,6 +448,11 @@ public class RcsFeatureManager implements FeatureUpdates {
     public void requestPublication(RcsContactUceCapability capabilities, int taskId)
             throws RemoteException {
         mRcsFeatureConnection.requestPublication(capabilities, taskId);
+    }
+
+    public void requestPublication(String pidfXml, PublishResponseCallback responseCallback)
+            throws RemoteException {
+        mRcsFeatureConnection.requestPublication(pidfXml, responseCallback);
     }
 
     public void requestCapabilities(List<Uri> uris, int taskId) throws RemoteException {
