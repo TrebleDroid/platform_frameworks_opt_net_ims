@@ -221,7 +221,7 @@ public class PublishProcessor {
             logi("publishCapabilities: taskId=" + taskId);
 
             // request publication
-            featureManager.requestPublication(pidfXml, requestResponse);
+            featureManager.requestPublication(pidfXml, requestResponse.getResponseCallback());
 
             // Send a request canceled timer to avoid waiting too long for the response callback.
             mPublishCtrlCallback.setupRequestCanceledTimer(taskId, RESPONSE_CALLBACK_WAITING_TIME);
