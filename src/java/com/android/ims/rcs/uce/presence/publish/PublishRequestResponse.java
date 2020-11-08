@@ -16,18 +16,17 @@
 
 package com.android.ims.rcs.uce.presence.publish;
 
-import android.telephony.ims.ImsException;
 import android.telephony.ims.RcsUceAdapter;
+import android.telephony.ims.aidl.IPublishResponseCallback;
+import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 
-import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter;
-import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter.PublishResponseCallback;
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
 
 /**
  * Receiving the result callback of the publish request.
  */
-public class PublishRequestResponse implements PublishResponseCallback {
+public class PublishRequestResponse {
 
     private final long mTaskId;
     private volatile boolean mNeedRetry;
@@ -40,6 +39,23 @@ public class PublishRequestResponse implements PublishResponseCallback {
     public PublishRequestResponse(PublishControllerCallback publishCtrlCallback, long taskId) {
         mTaskId = taskId;
         mPublishCtrlCallback = publishCtrlCallback;
+    }
+
+    // The result callback of the publish capability request.
+    private IPublishResponseCallback mResponseCallback = new IPublishResponseCallback.Stub() {
+        @Override
+        public void onCommandError(int code) {
+            PublishRequestResponse.this.onCommandError(code);
+        }
+
+        @Override
+        public void onNetworkResponse(int code, String reason) {
+            PublishRequestResponse.this.onNetworkResponse(code, reason);
+        }
+    };
+
+    public IPublishResponseCallback getResponseCallback() {
+        return mResponseCallback;
     }
 
     public long getTaskId() {
@@ -58,8 +74,7 @@ public class PublishRequestResponse implements PublishResponseCallback {
         mPublishCtrlCallback = null;
     }
 
-    @Override
-    public void onCommandError(int errorCode) throws ImsException {
+    private void onCommandError(int errorCode) {
         mCmdErrorCode = errorCode;
         updateRetryFlagByCommandError();
 
@@ -69,8 +84,7 @@ public class PublishRequestResponse implements PublishResponseCallback {
         }
     }
 
-    @Override
-    public void onNetworkResponse(int sipCode, String reason) {
+    private void onNetworkResponse(int sipCode, String reason) {
         mNetworkRespSipCode = sipCode;
         mNetworkRespReason = reason;
         updateRetryFlagByNetworkResponse();
@@ -83,10 +97,10 @@ public class PublishRequestResponse implements PublishResponseCallback {
 
     private void updateRetryFlagByCommandError() {
         switch(mCmdErrorCode) {
-            case RcsCapabilityExchangeImplAdapter.COMMAND_CODE_REQUEST_TIMEOUT:
-            case RcsCapabilityExchangeImplAdapter.COMMAND_CODE_INSUFFICIENT_MEMORY:
-            case RcsCapabilityExchangeImplAdapter.COMMAND_CODE_LOST_NETWORK_CONNECTION:
-            case RcsCapabilityExchangeImplAdapter.COMMAND_CODE_SERVICE_UNAVAILABLE:
+            case RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT:
+            case RcsCapabilityExchangeImplBase.COMMAND_CODE_INSUFFICIENT_MEMORY:
+            case RcsCapabilityExchangeImplBase.COMMAND_CODE_LOST_NETWORK_CONNECTION:
+            case RcsCapabilityExchangeImplBase.COMMAND_CODE_SERVICE_UNAVAILABLE:
                 mNeedRetry = true;
                 break;
         }
@@ -126,7 +140,7 @@ public class PublishRequestResponse implements PublishResponseCallback {
      * Convert the command error code to the publish state
      */
     public int getPublishStateByCmdErrorCode() {
-        if (RcsCapabilityExchangeImplAdapter.COMMAND_CODE_REQUEST_TIMEOUT == mCmdErrorCode) {
+        if (RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT == mCmdErrorCode) {
             return RcsUceAdapter.PUBLISH_STATE_REQUEST_TIMEOUT;
         }
         return RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
