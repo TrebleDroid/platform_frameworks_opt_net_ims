@@ -23,18 +23,16 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import android.content.Context;
 import android.net.Uri;
 import android.telephony.ims.RcsUceAdapter;
-import android.telephony.ims.RcsUceAdapter.CapabilitiesCallback;
+import android.telephony.ims.aidl.IOptionsRequestCallback;
+import android.telephony.ims.aidl.IRcsUceControllerCallback;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.ims.ImsTestBase;
 import com.android.ims.RcsFeatureManager;
-import com.android.ims.rcs.uce.CapabilityExchangeListenerAdapter.OptionsRequestCallback;
-import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.eab.EabController;
 import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.presence.publish.PublishController;
@@ -63,8 +61,8 @@ public class UceControllerTest extends ImsTestBase {
 
     @Mock RcsFeatureManager mFeatureManager;
     @Mock UceController.UceControllerCallback mCallback;
-    @Mock CapabilitiesCallback mCapabilitiesCallback;
-    @Mock OptionsRequestCallback mOptionsRequestCallback;
+    @Mock IRcsUceControllerCallback mCapabilitiesCallback;
+    @Mock IOptionsRequestCallback mOptionsRequestCallback;
 
     private int mSubId = 1;
 
@@ -185,9 +183,9 @@ public class UceControllerTest extends ImsTestBase {
     public void TestRequestPublishCapabilitiesFromService() throws Exception {
         UceController uceController = createUceController();
 
-        uceController.onRequestPublishCapabilitiesFromService();
+        uceController.onRequestPublishCapabilitiesFromService(anyInt());
 
-        verify(mPublishController).requestPublishCapabilitiesFromService();
+        verify(mPublishController).requestPublishCapabilitiesFromService(anyInt());
     }
 
     @Test

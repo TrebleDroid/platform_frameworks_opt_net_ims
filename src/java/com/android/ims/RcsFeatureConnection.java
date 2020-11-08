@@ -21,19 +21,19 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.telephony.TelephonyManager;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
+import android.telephony.ims.aidl.IPublishResponseCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 
-import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter.PublishResponseCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.telephony.Rlog;
 
@@ -225,9 +225,20 @@ public class RcsFeatureConnection extends FeatureConnection {
         }
     }
 
-    public void requestPublication(String pidfXml, PublishResponseCallback responseCallback)
+    public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
+            throws RemoteException{
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).setCapabilityExchangeEventListener(listener);
+        }
+    }
+
+    public void requestPublication(String pidfXml, IPublishResponseCallback responseCallback)
             throws RemoteException {
-        // TODO: add the new API: requestPublication
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).publishCapabilities(pidfXml, responseCallback);
+        }
     }
 
     public void requestCapabilities(List<Uri> uris, int taskId) throws RemoteException {
