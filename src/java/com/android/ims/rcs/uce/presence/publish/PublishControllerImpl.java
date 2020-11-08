@@ -247,8 +247,8 @@ public class PublishControllerImpl implements PublishController {
      * Publish the device's capabilities to the network. This method is triggered by ImsService.
      */
     @Override
-    public void requestPublishCapabilitiesFromService() {
-        logi("Receive the publish request from service");
+    public void requestPublishCapabilitiesFromService(int triggerType) {
+        logi("Receive the publish request from service: " + triggerType);
         mPublishHandler.requestPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
     }
 

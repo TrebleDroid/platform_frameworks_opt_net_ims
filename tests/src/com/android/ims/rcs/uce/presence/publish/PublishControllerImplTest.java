@@ -18,6 +18,7 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
@@ -151,7 +152,8 @@ public class PublishControllerImplTest extends ImsTestBase {
     public void testRequestPublishFromService() throws Exception {
         PublishControllerImpl publishController = createPublishController();
 
-        publishController.requestPublishCapabilitiesFromService();
+        publishController.requestPublishCapabilitiesFromService(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_IWLAN);
 
         Handler handler = publishController.getPublishHandler();
         waitForHandlerAction(handler, 1000);
