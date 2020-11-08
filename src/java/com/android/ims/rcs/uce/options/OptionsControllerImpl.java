@@ -14,51 +14,62 @@
  * limitations under the License.
  */
 
-package com.android.ims.rcs.uce;
+package com.android.ims.rcs.uce.options;
 
 import android.content.Context;
 import android.net.Uri;
 import android.os.Looper;
-import android.telephony.ims.aidl.IRcsUceControllerCallback;
+import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.aidl.IOptionsRequestCallback;
+import android.telephony.ims.aidl.IOptionsResponseCallback;
 
+import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 
 import java.util.List;
 
 /**
- * The interface of managing the capability request and the availability request.
+ * The implementation of OptionsController.
  */
-public class UceRequestTaskManager {
+public class OptionsControllerImpl implements OptionsController {
 
     private final Context mContext;
     private final int mSubId;
+    private final UceControllerCallback mCallback;
     private final Looper mLooper;
 
-    public UceRequestTaskManager(Context context, int subId, Looper looper) {
+    public OptionsControllerImpl(Context context, int subId, UceControllerCallback c,
+            Looper looper) {
         mContext = context;
         mSubId = subId;
+        mCallback = c;
         mLooper = looper;
     }
 
-    /**
-     * Trigger the capability request task.
-     */
-    public void triggerCapabilityRequestTask(UceControllerCallback controller, List<Uri> uriList,
-            IRcsUceControllerCallback callback) {
-        // TODO: Implement this method
-    }
-    /**
-     * Trigger the availability request task.
-     */
-    public void triggerAvailabilityRequestTask(UceControllerCallback controller, Uri uri,
-            IRcsUceControllerCallback callback) {
+    @Override
+    public void onRcsConnected(RcsFeatureManager manager) {
         // TODO: Implement this method
     }
 
-    /**
-     * Notify the task manager to destroy.
-     */
+    @Override
+    public void onRcsDisconnected() {
+        // TODO: Implement this method
+    }
+
+    @Override
     public void onDestroy() {
+        // TODO: Implement this method
+    }
+
+    @Override
+    public void sendCapabilitiesRequest(Uri contactUri, RcsContactUceCapability ownCapabilities,
+            IOptionsResponseCallback c) {
+        // TODO: Implement this method
+    }
+
+    @Override
+    public void retrieveCapabilitiesForRemote(Uri contactUri, List<String> remoteCapabilities,
+            IOptionsRequestCallback c) {
         // TODO: Implement this method
     }
 }

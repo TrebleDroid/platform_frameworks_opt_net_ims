@@ -21,25 +21,32 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsUceAdapter;
-import android.telephony.ims.RcsUceAdapter.CapabilitiesCallback;
 import android.telephony.ims.RcsUceAdapter.PublishState;
+import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
 import android.telephony.ims.RcsUceAdapter.PublishStateCallback;
+import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
+import android.telephony.ims.aidl.IOptionsRequestCallback;
+import android.telephony.ims.aidl.IOptionsResponseCallback;
+import android.telephony.ims.aidl.IRcsUceControllerCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.eab.EabController;
+import com.android.ims.rcs.uce.eab.EabControllerImpl;
 import com.android.ims.rcs.uce.options.OptionsController;
+import com.android.ims.rcs.uce.options.OptionsControllerImpl;
 import com.android.ims.rcs.uce.presence.publish.PublishController;
+import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
+import com.android.ims.rcs.uce.presence.subscribe.SubscribeControllerImpl;
 import com.android.internal.annotations.VisibleForTesting;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * The UceController will manage the RCS UCE requests on a per subscription basis. When it receives
@@ -80,14 +87,14 @@ public class UceController {
          */
         void requestCapabilitiesByOptions(@NonNull Uri contactUri,
                 @NonNull RcsContactUceCapability ownCapabilities,
-                @NonNull RcsCapabilityExchangeImplAdapter.OptionsResponseCallback callback);
+                @NonNull IOptionsResponseCallback callback);
 
         /**
          * The method is called when the given contacts' capabilities are expired and need to be
          * refreshed.
          */
         void refreshCapabilities(@NonNull List<Uri> contactNumbers,
-                @NonNull CapabilitiesCallback callback);
+                @NonNull IRcsUceControllerCallback callback) throws RemoteException;
 
         /**
          * The method is called when the EabController and the PublishController want to receive
@@ -108,6 +115,9 @@ public class UceController {
     public interface RequestTaskManagerFactory {
         UceRequestTaskManager createTaskManager(Context context, int subId, Looper looper);
     }
+
+    private RequestTaskManagerFactory mTaskManagerFactory = (context, subId, looper) ->
+            new UceRequestTaskManager(context, subId, looper);
 
     /**
      * Used to inject Controller instances for testing.
@@ -138,31 +148,61 @@ public class UceController {
                 UceControllerCallback c, Looper looper);
     }
 
+    private ControllerFactory mControllerFactory = new ControllerFactory() {
+        @Override
+        public EabController createEabController(Context context, int subId,
+                UceControllerCallback c, Looper looper) {
+            return new EabControllerImpl(context, subId, c, looper);
+        }
+
+        @Override
+        public PublishController createPublishController(Context context, int subId,
+                Looper looper) {
+            return new PublishControllerImpl(context, subId, looper);
+        }
+
+        @Override
+        public SubscribeController createSubscribeController(Context context, int subId,
+                UceControllerCallback c, Looper looper) {
+            return new SubscribeControllerImpl(context, subId, c, looper);
+        }
+
+        @Override
+        public OptionsController createOptionsController(Context context, int subId,
+                UceControllerCallback c, Looper looper) {
+            return new OptionsControllerImpl(context, subId, c, looper);
+        }
+    };
+
     private final int mSubId;
     private final Context mContext;
     private volatile boolean mIsRcsConnected;
     private volatile boolean mIsDestroyedFlag;
-
     private Looper mLooper;
-
-    private UceRequestTaskManager mTaskManager;
-    private final RequestTaskManagerFactory mTaskManagerFactory;
 
     private EabController mEabController;
     private PublishController mPublishController;
     private SubscribeController mSubscribeController;
     private OptionsController mOptionsController;
-    private final ControllerFactory mControllerFactory;
+    private UceRequestTaskManager mTaskManager;
 
+    public UceController(Context context, int subId) {
+        mSubId = subId;
+        mContext = context;
+        logi("create");
+
+        initLooper();
+        initRequestTaskManager();
+        initControllers();
+    }
+
+    @VisibleForTesting
     public UceController(Context context, int subId, ControllerFactory controllerFactory,
             RequestTaskManagerFactory taskManagerFactory) {
         mSubId = subId;
-        logi("create");
-
         mContext = context;
         mControllerFactory = controllerFactory;
         mTaskManagerFactory = taskManagerFactory;
-
         initLooper();
         initRequestTaskManager();
         initControllers();
@@ -200,6 +240,12 @@ public class UceController {
         mPublishController.onRcsConnected(manager);
         mSubscribeController.onRcsConnected(manager);
         mOptionsController.onRcsConnected(manager);
+
+        try {
+            manager.setCapabilityExchangeEventListener(mCapabilityEventListener);
+        } catch (RemoteException e) {
+            logw("Set capability event listener error: " + e.getMessage());
+        }
     }
 
     /**
@@ -230,7 +276,10 @@ public class UceController {
         mLooper.quit();
     }
 
-    // The implementation of the interface UceControllerCallback.
+    /*
+     * The implementation of the interface UceControllerCallback. These methods are called by other
+     * controllers.
+     */
     private UceControllerCallback mCtrlCallback = new UceControllerCallback() {
         @Override
         public EabCapabilityResult getCapabilitiesFromCache(List<Uri> uris) {
@@ -253,14 +302,15 @@ public class UceController {
         }
 
         @Override
-        public void requestCapabilitiesByOptions(Uri uri, RcsContactUceCapability ownCapabilities,
-                RcsCapabilityExchangeImplAdapter.OptionsResponseCallback callback) {
+        public void requestCapabilitiesByOptions(@NonNull Uri uri,
+                @NonNull RcsContactUceCapability ownCapabilities,
+                @NonNull IOptionsResponseCallback callback) {
             mOptionsController.sendCapabilitiesRequest(uri, ownCapabilities, callback);
         }
 
         @Override
         public void refreshCapabilities(@NonNull List<Uri> contactNumbers,
-                @NonNull CapabilitiesCallback callback) {
+                @NonNull IRcsUceControllerCallback callback) throws RemoteException{
             logd("refreshCapabilities: " + contactNumbers.size());
             UceController.this.requestCapabilities(contactNumbers, callback);
         }
@@ -283,12 +333,44 @@ public class UceController {
         mCtrlCallback = callback;
     }
 
+    /*
+     * Setup the listener to listen to the requests and updates from ImsService.
+     */
+    private ICapabilityExchangeEventListener mCapabilityEventListener =
+            new ICapabilityExchangeEventListener.Stub() {
+                @Override
+                public void onRequestPublishCapabilities(
+                        @StackPublishTriggerType int publishTriggerType) {
+                    onRequestPublishCapabilitiesFromService(publishTriggerType);
+                }
+
+                @Override
+                public void onUnpublish() {
+                    UceController.this.onUnpublish();
+                }
+
+                @Override
+                public void onRemoteCapabilityRequest(Uri contactUri,
+                        List<String> remoteCapabilities, IOptionsRequestCallback cb) {
+                    retrieveOptionsCapabilitiesForRemote(contactUri, remoteCapabilities, cb);
+                }
+            };
+
     /**
      * Request to get the contacts' capabilities. This method will retrieve the capabilities from
      * the cache If the capabilities are out of date, it will trigger another request to get the
      * latest contact's capabilities from the carrier network.
      */
-    public void requestCapabilities(@NonNull List<Uri> uriList, @NonNull CapabilitiesCallback c) {
+    public void requestCapabilities(@NonNull List<Uri> uriList,
+            @NonNull IRcsUceControllerCallback c) throws RemoteException {
+        if (uriList == null || c == null) {
+            logw("requestCapabilities: parameter is empty");
+            if (c != null) {
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            }
+            return;
+        }
+
         if (isUnavailable()) {
             logw("requestCapabilities: controller is unavailable");
             c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
@@ -296,7 +378,7 @@ public class UceController {
         }
 
         // Trigger the capabilities request task
-        logd("requestCapabilities");
+        logd("requestCapabilities: " + uriList.size());
         mTaskManager.triggerCapabilityRequestTask(mCtrlCallback, uriList, c);
     }
 
@@ -305,7 +387,16 @@ public class UceController {
      * the capability in the availability cache is expired then it will retrieve the capability
      * from the carrier network.
      */
-    public void requestAvailability(@NonNull Uri uri, @NonNull CapabilitiesCallback c) {
+    public void requestAvailability(@NonNull Uri uri, @NonNull IRcsUceControllerCallback c)
+            throws RemoteException{
+        if (uri == null || c == null) {
+            logw("requestCapabilities: parameter is empty");
+            if (c != null) {
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            }
+            return;
+        }
+
         if (isUnavailable()) {
             logw("requestAvailability: controller is unavailable");
             c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
@@ -320,9 +411,9 @@ public class UceController {
     /**
      * Publish the device's capabilities. This request is triggered from the ImsService.
      */
-    public void onRequestPublishCapabilitiesFromService() {
-        logd("onRequestPublishCapabilitiesFromService");
-        mPublishController.requestPublishCapabilitiesFromService();
+    public void onRequestPublishCapabilitiesFromService(@StackPublishTriggerType int triggerType) {
+        logd("onRequestPublishCapabilitiesFromService: " + triggerType);
+        mPublishController.requestPublishCapabilitiesFromService(triggerType);
     }
 
     /**
@@ -339,8 +430,7 @@ public class UceController {
      * capabilities to the remote side.
      */
     public void retrieveOptionsCapabilitiesForRemote(@NonNull Uri contactUri,
-            @NonNull List<String> remoteCapabilities,
-            @NonNull CapabilityExchangeListenerAdapter.OptionsRequestCallback c) {
+            @NonNull List<String> remoteCapabilities, @NonNull IOptionsRequestCallback c) {
         logd("retrieveOptionsCapabilitiesForRemote");
         mOptionsController.retrieveCapabilitiesForRemote(contactUri, remoteCapabilities, c);
     }
@@ -366,11 +456,21 @@ public class UceController {
         return mPublishController.getUcePublishState();
     }
 
+    @VisibleForTesting
+    public void setRequestTaskManagerFactory(RequestTaskManagerFactory factory) {
+        mTaskManagerFactory = factory;
+    }
+
+    @VisibleForTesting
+    public void setControllerFactory(ControllerFactory factory) {
+        mControllerFactory = factory;
+    }
+
     public int getSubId() {
         return mSubId;
     }
 
-    private boolean isUnavailable() {
+    public boolean isUnavailable() {
         if (!mIsRcsConnected || mIsDestroyedFlag) {
             return true;
         }

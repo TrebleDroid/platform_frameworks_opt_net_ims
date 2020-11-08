@@ -139,7 +139,7 @@ public interface PublishController extends ControllerBase {
     /**
      * Publish the device's capabilities to the Presence server.
      */
-    void requestPublishCapabilitiesFromService();
+    void requestPublishCapabilitiesFromService(int triggerType);
 
     /**
      * Register a {@link PublishStateCallback} to listen to the published state changed.

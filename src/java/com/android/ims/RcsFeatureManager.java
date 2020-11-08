@@ -30,10 +30,12 @@ import android.telephony.ims.ImsException;
 import android.telephony.ims.ImsService;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RegistrationManager;
+import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsRcsController;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
+import android.telephony.ims.aidl.IPublishResponseCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -47,7 +49,6 @@ import android.telephony.ims.stub.RcsSipOptionsImplBase;
 import android.util.Log;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
-import com.android.ims.rcs.uce.RcsCapabilityExchangeImplAdapter.PublishResponseCallback;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.ITelephony;
 import com.android.telephony.Rlog;
@@ -450,7 +451,12 @@ public class RcsFeatureManager implements FeatureUpdates {
         mRcsFeatureConnection.requestPublication(capabilities, taskId);
     }
 
-    public void requestPublication(String pidfXml, PublishResponseCallback responseCallback)
+    public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
+            throws RemoteException {
+        mRcsFeatureConnection.setCapabilityExchangeEventListener(listener);
+    }
+
+    public void requestPublication(String pidfXml, IPublishResponseCallback responseCallback)
             throws RemoteException {
         mRcsFeatureConnection.requestPublication(pidfXml, responseCallback);
     }
