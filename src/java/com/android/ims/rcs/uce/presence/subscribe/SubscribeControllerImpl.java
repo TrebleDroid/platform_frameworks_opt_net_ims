@@ -14,51 +14,63 @@
  * limitations under the License.
  */
 
-package com.android.ims.rcs.uce;
+package com.android.ims.rcs.uce.presence.subscribe;
 
 import android.content.Context;
 import android.net.Uri;
 import android.os.Looper;
-import android.telephony.ims.aidl.IRcsUceControllerCallback;
+import android.telephony.ims.RcsUceAdapter.CapabilitiesCallback;
 
+import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 
 import java.util.List;
 
 /**
- * The interface of managing the capability request and the availability request.
+ * The implementation of the SubscribeController.
  */
-public class UceRequestTaskManager {
+public class SubscribeControllerImpl implements SubscribeController {
 
     private final Context mContext;
     private final int mSubId;
+    private final UceControllerCallback mCallback;
     private final Looper mLooper;
 
-    public UceRequestTaskManager(Context context, int subId, Looper looper) {
+    public SubscribeControllerImpl(Context context, int subId, UceControllerCallback c,
+            Looper looper) {
         mContext = context;
         mSubId = subId;
+        mCallback = c;
         mLooper = looper;
     }
 
-    /**
-     * Trigger the capability request task.
-     */
-    public void triggerCapabilityRequestTask(UceControllerCallback controller, List<Uri> uriList,
-            IRcsUceControllerCallback callback) {
-        // TODO: Implement this method
-    }
-    /**
-     * Trigger the availability request task.
-     */
-    public void triggerAvailabilityRequestTask(UceControllerCallback controller, Uri uri,
-            IRcsUceControllerCallback callback) {
+    @Override
+    public void onRcsConnected(RcsFeatureManager manager) {
         // TODO: Implement this method
     }
 
-    /**
-     * Notify the task manager to destroy.
-     */
+    @Override
+    public void onRcsDisconnected() {
+        // TODO: Implement this method
+    }
+
+    @Override
     public void onDestroy() {
+        // TODO: Implement this method
+    }
+
+    @Override
+    public void setUceRequestCallback(UceControllerCallback c) {
+        // TODO: Implement this method
+    }
+
+    @Override
+    public void requestCapabilities(List<Uri> contactUris, CapabilitiesCallback c) {
+        // TODO: Implement this method
+    }
+
+    @Override
+    public void requestAvailability(Uri uri, CapabilitiesCallback c) {
         // TODO: Implement this method
     }
 }
