@@ -16,38 +16,85 @@
 
 package com.android.ims.rcs.uce.eab;
 
+import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.net.Uri;
 import android.telephony.ims.RcsContactUceCapability;
 
-import java.util.List;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  * The result class of retrieving capabilities from cache.
  */
 public class EabCapabilityResult {
-    private final List<RcsContactUceCapability> mContactCapabilities;
-    private final List<Uri> mExpiredContacts;
 
-    public EabCapabilityResult(List<RcsContactUceCapability> capabilities,
-            List<Uri> expiredContacts) {
+    /**
+     * Query successful.
+     */
+    public static final int EAB_QUERY_SUCCESSFUL = 0;
+
+    /**
+     * The {@link EabControllerImpl} has been destroyed.
+     */
+    public static final int EAB_CONTROLLER_DESTROYED_FAILURE = 1;
+
+    /**
+     * The contact's capabilities expired.
+     */
+    public static final int EAB_CONTACT_EXPIRED_FAILURE = 2;
+
+    /**
+     * The contact cannot be found in the contact provider.
+     */
+    public static final int EAB_CONTACT_NOT_FOUND_FAILURE = 3;
+
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(prefix = "EAB_", value = {
+            EAB_QUERY_SUCCESSFUL,
+            EAB_CONTROLLER_DESTROYED_FAILURE,
+            EAB_CONTACT_EXPIRED_FAILURE,
+            EAB_CONTACT_NOT_FOUND_FAILURE
+    })
+    public @interface QueryResult {}
+
+    private final @QueryResult int mStatus;
+    private final Uri mContactUri;
+    private final RcsContactUceCapability mContactCapabilities;
+
+    public EabCapabilityResult(@QueryResult Uri contactUri, int status,
+            RcsContactUceCapability capabilities) {
+        mStatus = status;
+        mContactUri = contactUri;
         mContactCapabilities = capabilities;
-        mExpiredContacts = expiredContacts;
+    }
+
+    /**
+     * Return the status of query. The possible values are
+     * {@link EabCapabilityResult#EAB_QUERY_SUCCESSFUL},
+     * {@link EabCapabilityResult#EAB_CONTROLLER_DESTROYED_FAILURE},
+     * {@link EabCapabilityResult#EAB_CONTACT_EXPIRED_FAILURE},
+     * {@link EabCapabilityResult#EAB_CONTACT_NOT_FOUND_FAILURE}.
+     *
+     */
+    public @NonNull int getStatus() {
+        return mStatus;
+    }
+
+    /**
+     * Return the contact uri.
+     */
+    public @NonNull Uri getContact() {
+        return mContactUri;
     }
 
     /**
      * Return the contacts capabilities which are cached in the EAB database and
      * are not expired.
      */
-    public @NonNull List<RcsContactUceCapability> getContactCapabilities() {
+    public @Nullable RcsContactUceCapability getContactCapabilities() {
         return mContactCapabilities;
-    }
-
-    /**
-     * Return the expired contacts which are required to refresh the capabilities
-     * from the carrier network.
-     */
-    public @NonNull List<Uri> getExpiredContacts() {
-        return mExpiredContacts;
     }
 }

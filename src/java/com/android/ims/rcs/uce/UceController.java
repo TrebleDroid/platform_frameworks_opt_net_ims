@@ -65,7 +65,7 @@ public class UceController {
         /**
          * Retrieve the capabilities associated with the given uris from the cache.
          */
-        EabCapabilityResult getCapabilitiesFromCache(@NonNull List<Uri> uris);
+        List<EabCapabilityResult> getCapabilitiesFromCache(@NonNull List<Uri> uris);
 
         /**
          * Retrieve the contact's capabilities from the availability cache.
@@ -282,7 +282,7 @@ public class UceController {
      */
     private UceControllerCallback mCtrlCallback = new UceControllerCallback() {
         @Override
-        public EabCapabilityResult getCapabilitiesFromCache(List<Uri> uris) {
+        public List<EabCapabilityResult> getCapabilitiesFromCache(List<Uri> uris) {
             return mEabController.getCapabilities(uris);
         }
 
