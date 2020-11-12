@@ -24,6 +24,7 @@ import android.os.RemoteException;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsService;
+import android.telephony.ims.RtpHeaderExtensionType;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsConfigCallback;
@@ -43,6 +44,9 @@ import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
 import com.android.telephony.Rlog;
+
+import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * A container of the IImsServiceController binder, which implements all of the ImsFeatures that
@@ -339,6 +343,15 @@ public class MmTelFeatureConnection extends FeatureConnection {
         synchronized (mLock) {
             checkServiceIsReady();
             return getServiceInterface(mBinder).createCallProfile(callServiceType, callType);
+        }
+    }
+
+    public void changeOfferedRtpHeaderExtensionTypes(Set<RtpHeaderExtensionType> types)
+            throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).changeOfferedRtpHeaderExtensionTypes(
+                    new ArrayList<>(types));
         }
     }
 
