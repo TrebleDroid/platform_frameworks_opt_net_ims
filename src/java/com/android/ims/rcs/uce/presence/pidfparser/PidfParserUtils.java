@@ -38,9 +38,19 @@ import com.android.ims.rcs.uce.presence.pidfparser.pidf.Status;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Timestamp;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Tuple;
 
+import java.util.Arrays;
 import java.util.List;
 
+/**
+ * The utils to help the PIDF parsing process.
+ */
 public class PidfParserUtils {
+
+    /*
+     * The resource terminated reason with NOT FOUND
+     */
+    private static String[] REQUEST_RESULT_REASON_NOT_FOUND = { "noresource", "rejected" };
+
     /**
      * Convert the giving class RcsContactUceCapability to the class Presence.
      */
@@ -269,5 +279,21 @@ public class PidfParserUtils {
             return timestamp.getValue();
         }
         return null;
+    }
+
+    /**
+     * Get the terminated capability which disable all the capabilities.
+     */
+    public static RcsContactUceCapability getTerminatedCapability(Uri contact, String reason) {
+        if (reason == null) reason = "";
+        int requestResult = (Arrays.stream(REQUEST_RESULT_REASON_NOT_FOUND)
+                    .anyMatch(reason::equalsIgnoreCase) == true) ?
+                            RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND :
+                                    RcsContactUceCapability.REQUEST_RESULT_UNKNOWN;
+
+        RcsContactUceCapability.PresenceBuilder builder =
+                new RcsContactUceCapability.PresenceBuilder(
+                        contact, RcsContactUceCapability.SOURCE_TYPE_NETWORK, requestResult);
+        return builder.build();
     }
 }
