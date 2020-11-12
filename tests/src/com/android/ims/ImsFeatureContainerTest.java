@@ -19,7 +19,12 @@ package com.android.ims;
 import static org.junit.Assert.assertEquals;
 
 import android.os.Parcel;
+import android.os.RemoteException;
+import android.telephony.ims.DelegateRequest;
 import android.telephony.ims.ImsService;
+import android.telephony.ims.aidl.ISipDelegate;
+import android.telephony.ims.aidl.ISipDelegateMessageCallback;
+import android.telephony.ims.aidl.ISipDelegateStateCallback;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
@@ -40,7 +45,14 @@ public class ImsFeatureContainerTest {
     private ImsConfigImplBase mImsConfig = new ImsConfigImplBase();
     private ImsRegistrationImplBase mImsReg = new ImsRegistrationImplBase();
     private ISipTransport mSipTransport = new ISipTransport.Stub() {
-        // Add implementation once available
+        @Override
+        public void createSipDelegate(DelegateRequest request, ISipDelegateStateCallback dc,
+                ISipDelegateMessageCallback mc) {
+        }
+
+        @Override
+        public void destroySipDelegate(ISipDelegate delegate, int reason) {
+        }
     };
 
     @Test
