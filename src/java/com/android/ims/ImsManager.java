@@ -16,6 +16,7 @@
 
 package com.android.ims;
 
+import android.annotation.NonNull;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
@@ -41,6 +42,7 @@ import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsService;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RegistrationManager;
+import android.telephony.ims.RtpHeaderExtensionType;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsConfigCallback;
@@ -66,6 +68,7 @@ import com.android.telephony.Rlog;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -2025,6 +2028,27 @@ public class ImsManager implements FeatureUpdates {
             return c.createCallProfile(serviceType, callType);
         } catch (RemoteException e) {
             throw new ImsException("createCallProfile()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Informs the {@link ImsService} of the {@link RtpHeaderExtensionType}s which the framework
+     * intends to use for incoming and outgoing calls.
+     * <p>
+     * See {@link RtpHeaderExtensionType} for more information.
+     * @param types The RTP header extension types to use for incoming and outgoing calls, or
+     *              empty list if none defined.
+     * @throws ImsException
+     */
+    public void setOfferedRtpHeaderExtensionTypes(@NonNull Set<RtpHeaderExtensionType> types)
+            throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+
+        try {
+            c.changeOfferedRtpHeaderExtensionTypes(types);
+        } catch (RemoteException e) {
+            throw new ImsException("setOfferedRtpHeaderExtensionTypes()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
     }
