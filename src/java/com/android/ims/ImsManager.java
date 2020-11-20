@@ -1084,12 +1084,16 @@ public class ImsManager implements FeatureUpdates {
                     + "invalid sub id, can not set Cross SIM setting in siminfo db; subId="
                     + subId);
         }
-        if (isCrossSimCallingEnabled()) {
-            changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, true);
-        } else {
-            changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, false);
+        try {
+            if (isCrossSimCallingEnabled()) {
+                changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, true);
+            } else {
+                changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, false);
+            }
+        } catch (ImsException e) {
+            loge("setCrossSimCallingEnabled(): ", e);
         }
     }
 
@@ -1425,6 +1429,19 @@ public class ImsManager implements FeatureUpdates {
                 isGbaValid();
     }
 
+    /**
+     * Returns a platform configuration for Cross SIM which may override the user
+     * setting per slot. Note: Cross SIM presumes that VoLTE is enabled (these are
+     * configuration settings which must be done correctly).
+     */
+    public boolean isCrossSimEnabledByPlatform() {
+        if (isWfcEnabledByPlatform()) {
+            return getBooleanCarrierConfig(
+                    CarrierConfigManager.KEY_CARRIER_CROSS_SIM_IMS_AVAILABLE_BOOL);
+        }
+        return false;
+    }
+
     public boolean isSuppServicesOverUtEnabledByPlatform() {
         TelephonyManager manager = (TelephonyManager) mContext.getSystemService(
                 Context.TELEPHONY_SERVICE);
@@ -1533,6 +1550,7 @@ public class ImsManager implements FeatureUpdates {
             CapabilityChangeRequest request = new CapabilityChangeRequest();
             updateVolteFeatureValue(request);
             updateWfcFeatureAndProvisionedValues(request);
+            updateCrossSimFeatureAndProvisionedValues(request);
             updateVideoCallFeatureValue(request);
             updateCallComposerFeatureValue(request);
             // Only turn on IMS for RTT if there's an active subscription present. If not, the
@@ -1671,6 +1689,21 @@ public class ImsManager implements FeatureUpdates {
         }
         setWfcModeInternal(mode);
         setWfcRoamingSettingInternal(roaming);
+    }
+
+    /**
+     * Update Cross SIM config
+     */
+    private void updateCrossSimFeatureAndProvisionedValues(CapabilityChangeRequest request) {
+        if (isCrossSimCallingEnabled()) {
+            request.addCapabilitiesToEnableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM);
+        } else {
+            request.addCapabilitiesToDisableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM);
+        }
     }
 
 
