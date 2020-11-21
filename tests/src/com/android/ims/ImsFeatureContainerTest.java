@@ -46,8 +46,8 @@ public class ImsFeatureContainerTest {
     private ImsRegistrationImplBase mImsReg = new ImsRegistrationImplBase();
     private ISipTransport mSipTransport = new ISipTransport.Stub() {
         @Override
-        public void createSipDelegate(DelegateRequest request, ISipDelegateStateCallback dc,
-                ISipDelegateMessageCallback mc) {
+        public void createSipDelegate(int subId, DelegateRequest request,
+                ISipDelegateStateCallback dc, ISipDelegateMessageCallback mc) {
         }
 
         @Override
