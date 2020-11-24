@@ -1034,6 +1034,66 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * @return true if the user's setting for Voice over Cross SIM is enabled and
+     * false if it is not
+     */
+    public boolean isCrossSimCallingEnabledByUser() {
+        int setting = mSubscriptionManagerProxy.getIntegerSubscriptionProperty(
+                getSubId(), SubscriptionManager.CROSS_SIM_CALLING_ENABLED,
+                SUB_PROPERTY_NOT_INITIALIZED);
+
+        // SUB_PROPERTY_NOT_INITIALIZED indicates it's never set in sub db.
+        if (setting == SUB_PROPERTY_NOT_INITIALIZED) {
+            return false;
+        } else {
+            return setting == ProvisioningManager.PROVISIONING_VALUE_ENABLED;
+        }
+    }
+
+    /**
+     * @return true if Voice over Cross SIM is provisioned and enabled by user and platform.
+     * false if any of them is not true
+     */
+    public boolean isCrossSimCallingEnabled() {
+        boolean userEnabled = isCrossSimCallingEnabledByUser();
+        boolean platformEnabled = isCrossSimEnabledByPlatform();
+        boolean isProvisioned = isWfcProvisionedOnDevice();
+
+        log("isCrossSimCallingEnabled: platformEnabled = " + platformEnabled
+                + ", provisioned = " + isProvisioned
+                + ", userEnabled = " + userEnabled);
+        return userEnabled && platformEnabled && isProvisioned;
+    }
+
+    /**
+     * Sets the user's setting for whether or not Voice over Cross SIM is enabled.
+     */
+    public void setCrossSimCallingEnabled(boolean enabled) {
+        if (enabled && !isWfcProvisionedOnDevice()) {
+            log("setCrossSimCallingEnabled: Not possible to enable WFC due to provisioning.");
+            return;
+        }
+
+        int subId = getSubId();
+        if (isSubIdValid(subId)) {
+            mSubscriptionManagerProxy.setSubscriptionProperty(subId,
+                    SubscriptionManager.CROSS_SIM_CALLING_ENABLED,
+                    booleanToPropertyString(enabled));
+        } else {
+            loge("setCrossSimCallingEnabled: "
+                    + "invalid sub id, can not set Cross SIM setting in siminfo db; subId="
+                    + subId);
+        }
+        if (isCrossSimCallingEnabled()) {
+            changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, true);
+        } else {
+            changeMmTelCapability(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, false);
+        }
+    }
+
+    /**
      * Non-persistently change WFC enabled setting and WFC mode for slot
      *
      * @param enabled If true, WFC and WFC while roaming will be enabled for the associated
