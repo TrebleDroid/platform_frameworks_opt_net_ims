@@ -366,14 +366,14 @@ public class UceController {
         if (uriList == null || c == null) {
             logw("requestCapabilities: parameter is empty");
             if (c != null) {
-                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             }
             return;
         }
 
         if (isUnavailable()) {
             logw("requestCapabilities: controller is unavailable");
-            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             return;
         }
 
@@ -392,14 +392,14 @@ public class UceController {
         if (uri == null || c == null) {
             logw("requestCapabilities: parameter is empty");
             if (c != null) {
-                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             }
             return;
         }
 
         if (isUnavailable()) {
             logw("requestAvailability: controller is unavailable");
-            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             return;
         }
 
