@@ -32,7 +32,7 @@ public interface EabController extends ControllerBase {
     /**
      * Retrieve the contacts' capabilities from the EAB database.
      */
-    @NonNull EabCapabilityResult getCapabilities(@NonNull List<Uri> uris);
+    @NonNull List<EabCapabilityResult> getCapabilities(@NonNull List<Uri> uris);
 
     /**
      * Retrieve the contact's capabilities from the availability cache.
