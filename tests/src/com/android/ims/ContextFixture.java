@@ -37,6 +37,7 @@ import android.telecom.TelecomManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.test.mock.MockContentResolver;
 import android.test.mock.MockContext;
 
 import org.mockito.stubbing.Answer;
@@ -56,6 +57,7 @@ public class ContextFixture {
 
     private final PersistableBundle mBundle = new PersistableBundle();
     private final HashSet<String> mSystemFeatures = new HashSet<>();
+    private final MockContentResolver mMockContentResolver = new MockContentResolver();
 
     public ContextFixture() throws Exception {
         doReturn(mBundle).when(mCarrierConfigManager).getConfigForSubId(anyInt());
@@ -121,7 +123,7 @@ public class ContextFixture {
 
         @Override
         public ContentResolver getContentResolver() {
-            return null;
+            return mMockContentResolver;
         }
 
         @Override
