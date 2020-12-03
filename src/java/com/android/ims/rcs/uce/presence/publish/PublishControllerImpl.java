@@ -30,6 +30,7 @@ import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.internal.annotations.VisibleForTesting;
 
 public class PublishControllerImpl implements PublishController {
@@ -58,6 +59,7 @@ public class PublishControllerImpl implements PublishController {
     private final Context mContext;
     private PublishHandler mPublishHandler;
     private volatile boolean mIsDestroyedFlag;
+    private final UceControllerCallback mUceCtrlCallback;
 
     // The device publish state
     private @PublishState int mPublishState;
@@ -81,19 +83,23 @@ public class PublishControllerImpl implements PublishController {
             (context, subId, capInfo, callback, looper)
                     -> new DeviceCapabilityListener(context, subId, capInfo, callback, looper);
 
-    public PublishControllerImpl(Context context, int subId, Looper looper) {
+    public PublishControllerImpl(Context context, int subId, UceControllerCallback callback,
+            Looper looper) {
         mSubId = subId;
         mContext = context;
+        mUceCtrlCallback = callback;
         logi("create");
         initPublishController(looper);
     }
 
     @VisibleForTesting
-    public PublishControllerImpl(Context context, int subId, Looper looper,
-            DeviceCapListenerFactory listenerFactory, PublishProcessorFactory processorFactory) {
+    public PublishControllerImpl(Context context, int subId, UceControllerCallback c,
+            Looper looper, DeviceCapListenerFactory deviceCapFactory,
+            PublishProcessorFactory processorFactory) {
         mSubId = subId;
         mContext = context;
-        mDeviceCapListenerFactory = listenerFactory;
+        mUceCtrlCallback = c;
+        mDeviceCapListenerFactory = deviceCapFactory;
         mPublishProcessorFactory = processorFactory;
         initPublishController(looper);
     }
@@ -400,6 +406,10 @@ public class PublishControllerImpl implements PublishController {
 
     public void handleRequestPublishMessage(@PublishTriggerType int type) {
         if (mIsDestroyedFlag) return;
+        if (mUceCtrlCallback.isRequestForbiddenByNetwork()) {
+            logd("handleRequestPublishMessage: UCE request is forbidden by the network");
+            return;
+        }
         mPublishProcessor.doPublish(type);
     }
 
