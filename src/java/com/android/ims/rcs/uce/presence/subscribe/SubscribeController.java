@@ -18,10 +18,10 @@ package com.android.ims.rcs.uce.presence.subscribe;
 
 import android.annotation.NonNull;
 import android.net.Uri;
-import android.telephony.ims.RcsUceAdapter.CapabilitiesCallback;
+import android.os.RemoteException;
+import android.telephony.ims.aidl.ISubscribeResponseCallback;
 
 import com.android.ims.rcs.uce.ControllerBase;
-import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 
 import java.util.List;
 
@@ -33,16 +33,6 @@ public interface SubscribeController extends ControllerBase {
      * Request the cached capabilities for the requested contacts if they exist. If not, perform
      * a capability request on the network for the capabilities of these contacts.
      */
-    void requestCapabilities(@NonNull List<Uri> contactUris, @NonNull CapabilitiesCallback c);
-
-    /**
-     * Request the cached availability for the requested contacts if they exist. If
-     * not, perform a availability request on the network for the capabilities of these contacts.
-     */
-    void requestAvailability(@NonNull Uri uri, @NonNull CapabilitiesCallback c);
-
-    /**
-     * Set the UceRequestCallback for sending the request back to UceController.
-     */
-    void setUceRequestCallback(@NonNull UceControllerCallback c);
+    void requestCapabilities(@NonNull List<Uri> contactUris, @NonNull ISubscribeResponseCallback c)
+            throws RemoteException;
 }
