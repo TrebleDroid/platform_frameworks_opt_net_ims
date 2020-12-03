@@ -38,6 +38,7 @@ import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IPublishResponseCallback;
 import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.aidl.ISipTransport;
+import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.RcsFeature;
@@ -461,8 +462,9 @@ public class RcsFeatureManager implements FeatureUpdates {
         mRcsFeatureConnection.requestPublication(pidfXml, responseCallback);
     }
 
-    public void requestCapabilities(List<Uri> uris, int taskId) throws RemoteException {
-        mRcsFeatureConnection.requestCapabilities(uris, taskId);
+    public void requestCapabilities(List<Uri> uris, ISubscribeResponseCallback c)
+            throws RemoteException {
+        mRcsFeatureConnection.requestCapabilities(uris, c);
     }
 
     /**

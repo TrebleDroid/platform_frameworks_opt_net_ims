@@ -44,8 +44,12 @@ import com.android.ims.rcs.uce.presence.publish.PublishController;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeControllerImpl;
+import com.android.ims.rcs.uce.request.UceRequestManager;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -59,7 +63,7 @@ public class UceController {
 
     /**
      * The callback interface is called by the internal controllers to receive information from
-     * others controllers
+     * others controllers.
      */
     public interface UceControllerCallback {
         /**
@@ -81,6 +85,25 @@ public class UceController {
          * Retrieve the device's capabilities.
          */
         RcsContactUceCapability getDeviceCapabilities();
+
+        /**
+         * The network reply that the request is forbidden.
+         * @param isForbidden If UCE requests are forbidden by the network.
+         * @param retryAfterMillis The time to wait for the retry.
+         */
+        void updateRequestForbidden(boolean isForbidden, long retryAfterMillis);
+
+        /**
+         * Check if UCE request is forbidden by the network.
+         * @return true when the UCE is forbidden by the network
+         */
+        boolean isRequestForbiddenByNetwork();
+
+        /**
+         * Get the milliseconds need to wait for retry.
+         * @return The milliseconds need to wait
+         */
+        long getRetryAfterMillis();
 
         /**
          * Trigger the capabilities request with OPTIONS
@@ -109,15 +132,16 @@ public class UceController {
     }
 
     /**
-     * Used to inject RequestTaskManger instances for testing.
+     * Used to inject RequestManger instances for testing.
      */
     @VisibleForTesting
-    public interface RequestTaskManagerFactory {
-        UceRequestTaskManager createTaskManager(Context context, int subId, Looper looper);
+    public interface RequestManagerFactory {
+        UceRequestManager createRequestManager(Context context, int subId, Looper looper,
+                UceControllerCallback callback);
     }
 
-    private RequestTaskManagerFactory mTaskManagerFactory = (context, subId, looper) ->
-            new UceRequestTaskManager(context, subId, looper);
+    private RequestManagerFactory mRequestManagerFactory = (context, subId, looper, callback) ->
+            new UceRequestManager(context, subId, looper, callback);
 
     /**
      * Used to inject Controller instances for testing.
@@ -133,13 +157,13 @@ public class UceController {
         /**
          * @return an {@link PublishController} associated with the subscription id specified.
          */
-        PublishController createPublishController(Context context, int subId, Looper looper);
+        PublishController createPublishController(Context context, int subId,
+                UceControllerCallback c, Looper looper);
 
         /**
          * @return an {@link SubscribeController} associated with the subscription id specified.
          */
-        SubscribeController createSubscribeController(Context context, int subId,
-                UceControllerCallback c, Looper looper);
+        SubscribeController createSubscribeController(Context context, int subId);
 
         /**
          * @return an {@link OptionsController} associated with the subscription id specified.
@@ -157,14 +181,13 @@ public class UceController {
 
         @Override
         public PublishController createPublishController(Context context, int subId,
-                Looper looper) {
-            return new PublishControllerImpl(context, subId, looper);
+                UceControllerCallback c, Looper looper) {
+            return new PublishControllerImpl(context, subId, c, looper);
         }
 
         @Override
-        public SubscribeController createSubscribeController(Context context, int subId,
-                UceControllerCallback c, Looper looper) {
-            return new SubscribeControllerImpl(context, subId, c, looper);
+        public SubscribeController createSubscribeController(Context context, int subId) {
+            return new SubscribeControllerImpl(context, subId);
         }
 
         @Override
@@ -184,28 +207,33 @@ public class UceController {
     private PublishController mPublishController;
     private SubscribeController mSubscribeController;
     private OptionsController mOptionsController;
-    private UceRequestTaskManager mTaskManager;
+    private UceRequestManager mRequestManager;
+
+    // The server state for UCE requests.
+    private ServerState mServerState;
 
     public UceController(Context context, int subId) {
         mSubId = subId;
         mContext = context;
+        mServerState = new ServerState();
         logi("create");
 
         initLooper();
-        initRequestTaskManager();
         initControllers();
+        initRequestManager();
     }
 
     @VisibleForTesting
-    public UceController(Context context, int subId, ControllerFactory controllerFactory,
-            RequestTaskManagerFactory taskManagerFactory) {
+    public UceController(Context context, int subId, ServerState serverState,
+            ControllerFactory controllerFactory, RequestManagerFactory requestManagerFactory) {
         mSubId = subId;
         mContext = context;
+        mServerState = serverState;
         mControllerFactory = controllerFactory;
-        mTaskManagerFactory = taskManagerFactory;
+        mRequestManagerFactory = requestManagerFactory;
         initLooper();
-        initRequestTaskManager();
         initControllers();
+        initRequestManager();
     }
 
     private void initLooper() {
@@ -215,18 +243,20 @@ public class UceController {
         mLooper = handlerThread.getLooper();
     }
 
-    private void initRequestTaskManager() {
-        mTaskManager = mTaskManagerFactory.createTaskManager(mContext, mSubId, mLooper);
-    }
-
     private void initControllers() {
         mEabController = mControllerFactory.createEabController(mContext, mSubId, mCtrlCallback,
                 mLooper);
-        mPublishController = mControllerFactory.createPublishController(mContext, mSubId, mLooper);
-        mSubscribeController = mControllerFactory.createSubscribeController(mContext, mSubId,
+        mPublishController = mControllerFactory.createPublishController(mContext, mSubId,
                 mCtrlCallback, mLooper);
+        mSubscribeController = mControllerFactory.createSubscribeController(mContext, mSubId);
         mOptionsController = mControllerFactory.createOptionsController(mContext, mSubId,
                 mCtrlCallback, mLooper);
+    }
+
+    private void initRequestManager() {
+        mRequestManager = mRequestManagerFactory.createRequestManager(mContext, mSubId, mLooper,
+                mCtrlCallback);
+        mRequestManager.setSubscribeController(mSubscribeController);
     }
 
     /**
@@ -267,12 +297,11 @@ public class UceController {
     public void onDestroy() {
         logi("onDestroy");
         mIsDestroyedFlag = true;
-        mTaskManager.onDestroy();
+        mRequestManager.onDestroy();
         mEabController.onDestroy();
         mPublishController.onDestroy();
         mSubscribeController.onDestroy();
         mOptionsController.onDestroy();
-
         mLooper.quit();
     }
 
@@ -299,6 +328,21 @@ public class UceController {
         @Override
         public RcsContactUceCapability getDeviceCapabilities() {
             return mPublishController.getDeviceCapabilities();
+        }
+
+        @Override
+        public void updateRequestForbidden(boolean isForbidden, long retryAfterMillis) {
+            onRequestForbidden(isForbidden, retryAfterMillis);
+        }
+
+        @Override
+        public boolean isRequestForbiddenByNetwork() {
+            return mServerState.isRequestForbidden();
+        }
+
+        @Override
+        public long getRetryAfterMillis() {
+            return mServerState.getRetryAfterMillis();
         }
 
         @Override
@@ -359,7 +403,7 @@ public class UceController {
     /**
      * Request to get the contacts' capabilities. This method will retrieve the capabilities from
      * the cache If the capabilities are out of date, it will trigger another request to get the
-     * latest contact's capabilities from the carrier network.
+     * latest contact's capabilities from the network.
      */
     public void requestCapabilities(@NonNull List<Uri> uriList,
             @NonNull IRcsUceControllerCallback c) throws RemoteException {
@@ -377,20 +421,28 @@ public class UceController {
             return;
         }
 
+        // Check if UCE requests are forbidden by the network.
+        if (mServerState.isRequestForbidden()) {
+            long retryAfter = mServerState.getRetryAfterMillis();
+            logw("requestCapabilities: The request is forbidden, retryAfter=" + retryAfter);
+            c.onError(RcsUceAdapter.ERROR_FORBIDDEN, retryAfter);
+            return;
+        }
+
         // Trigger the capabilities request task
         logd("requestCapabilities: " + uriList.size());
-        mTaskManager.triggerCapabilityRequestTask(mCtrlCallback, uriList, c);
+        mRequestManager.sendCapabilityRequest(uriList, c);
     }
 
     /**
      * Request to get the contact's capabilities. It will check the availability cache first. If
      * the capability in the availability cache is expired then it will retrieve the capability
-     * from the carrier network.
+     * from the network.
      */
     public void requestAvailability(@NonNull Uri uri, @NonNull IRcsUceControllerCallback c)
-            throws RemoteException{
+            throws RemoteException {
         if (uri == null || c == null) {
-            logw("requestCapabilities: parameter is empty");
+            logw("requestAvailability: parameter is empty");
             if (c != null) {
                 c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             }
@@ -403,9 +455,17 @@ public class UceController {
             return;
         }
 
+        // Check if UCE requests are forbidden by the network.
+        if (mServerState.isRequestForbidden()) {
+            long retryAfter = mServerState.getRetryAfterMillis();
+            logw("requestAvailability: The request is forbidden, retryAfter=" + retryAfter);
+            c.onError(RcsUceAdapter.ERROR_FORBIDDEN, retryAfter);
+            return;
+        }
+
         // Trigger the availability request task
         logd("requestAvailability");
-        mTaskManager.triggerAvailabilityRequestTask(mCtrlCallback, uri, c);
+        mRequestManager.sendAvailabilityRequest(uri, c);
     }
 
     /**
@@ -421,7 +481,7 @@ public class UceController {
      * capabilities has been unpublished from the network.
      */
     public void onUnpublish() {
-        logd("onUnpublish");
+        logi("onUnpublish");
         mPublishController.onUnpublish();
     }
 
@@ -431,8 +491,16 @@ public class UceController {
      */
     public void retrieveOptionsCapabilitiesForRemote(@NonNull Uri contactUri,
             @NonNull List<String> remoteCapabilities, @NonNull IOptionsRequestCallback c) {
-        logd("retrieveOptionsCapabilitiesForRemote");
+        logi("retrieveOptionsCapabilitiesForRemote");
         mOptionsController.retrieveCapabilitiesForRemote(contactUri, remoteCapabilities, c);
+    }
+
+    /**
+     * Update the Request forbidden state.
+     */
+    public void onRequestForbidden(boolean isForbidden, long retryAfterMillis) {
+        logi("onRequestForbidden: forbidden=" + isForbidden + ", retry=" + retryAfterMillis);
+        mServerState.forbidUceRequest(isForbidden, retryAfterMillis);
     }
 
     /**
@@ -456,25 +524,79 @@ public class UceController {
         return mPublishController.getUcePublishState();
     }
 
-    @VisibleForTesting
-    public void setRequestTaskManagerFactory(RequestTaskManagerFactory factory) {
-        mTaskManagerFactory = factory;
-    }
-
-    @VisibleForTesting
-    public void setControllerFactory(ControllerFactory factory) {
-        mControllerFactory = factory;
-    }
-
+    /**
+     * Get the subscription ID.
+     */
     public int getSubId() {
         return mSubId;
     }
 
+    /**
+     * Check if the UceController is available.
+     * @return true if the RCS is connected without destroyed.
+     */
     public boolean isUnavailable() {
         if (!mIsRcsConnected || mIsDestroyedFlag) {
             return true;
         }
         return false;
+    }
+
+    /**
+     * The internal class to store the server state which sent from the network. It will help to
+     * check if the network allows the UCE request.
+     */
+    @VisibleForTesting
+    public static class ServerState {
+        // If UCE requests are forbidden by the network.
+        private boolean mIsForbidden;
+
+        // The timestamp when the network allows the UCE requests. This value may be null if the
+        // network doesn't specified any retryAfter info.
+        private Instant mAllowedTimestamp;
+
+        private final Object mNetworkStateLock = new Object();
+
+        public ServerState() {
+            mIsForbidden = false;
+            mAllowedTimestamp = null;
+        }
+
+        public void forbidUceRequest(boolean isForbidden, long retryAfterMillis) {
+            synchronized (mNetworkStateLock) {
+                mIsForbidden = isForbidden;
+                if (!mIsForbidden) {
+                    mAllowedTimestamp = null;
+                } else {
+                    mAllowedTimestamp = Instant.now().plus(retryAfterMillis, ChronoUnit.MILLIS);
+                }
+                Log.d(LOG_TAG, "forbidUceRequest: " + mIsForbidden
+                        + ", time=" + mAllowedTimestamp);
+            }
+        }
+
+        public boolean isRequestForbidden() {
+            synchronized (mNetworkStateLock) {
+                if (mIsForbidden && mAllowedTimestamp != null) {
+                    return Instant.now().isBefore(mAllowedTimestamp);
+                }
+                return mIsForbidden;
+            }
+        }
+
+        public long getRetryAfterMillis() {
+            synchronized (mNetworkStateLock) {
+                if (!mIsForbidden || mAllowedTimestamp == null) {
+                    return 0L;
+                }
+                Duration duration = Duration.between(Instant.now(), mAllowedTimestamp);
+                long retryAfterMillis = duration.toMillis();
+                if (retryAfterMillis < 0) {
+                    return 0L;
+                }
+                return retryAfterMillis;
+            }
+        }
     }
 
     private void logd(String log) {

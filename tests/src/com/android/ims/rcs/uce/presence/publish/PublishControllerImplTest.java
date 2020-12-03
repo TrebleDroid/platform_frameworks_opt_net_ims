@@ -33,6 +33,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapListenerFactory;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
 import com.android.ims.ImsTestBase;
@@ -51,6 +52,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Mock PublishProcessorFactory mPublishProcessorFactory;
     @Mock DeviceCapabilityListener mDeviceCapListener;
     @Mock DeviceCapListenerFactory mDeviceCapListenerFactory;
+    @Mock UceController.UceControllerCallback mUceCtrlCallback;
     @Mock RemoteCallbackList<IRcsUcePublishStateCallback> mPublishStateCallbacks;
 
     private int mSubId = 1;
@@ -162,7 +164,8 @@ public class PublishControllerImplTest extends ImsTestBase {
 
     private PublishControllerImpl createPublishController() {
         PublishControllerImpl publishController = new PublishControllerImpl(mContext, mSubId,
-                Looper.getMainLooper(), mDeviceCapListenerFactory, mPublishProcessorFactory);
+                mUceCtrlCallback, Looper.getMainLooper(), mDeviceCapListenerFactory,
+                mPublishProcessorFactory);
         publishController.setPublishStateCallback(mPublishStateCallbacks);
         return publishController;
     }
