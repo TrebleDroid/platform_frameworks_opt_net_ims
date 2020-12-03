@@ -3755,8 +3755,7 @@ public class ImsCall implements ICall {
      * @param profile The current {@link ImsCallProfile} for the call.
      */
     private void trackVideoStateHistory(ImsCallProfile profile) {
-        mWasVideoCall = mWasVideoCall
-                || profile != null ? profile.isVideoCall() : false;
+        mWasVideoCall = mWasVideoCall || ( profile != null && profile.isVideoCall());
     }
 
     /**
