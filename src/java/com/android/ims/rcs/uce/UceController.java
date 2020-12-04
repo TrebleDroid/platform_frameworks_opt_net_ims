@@ -203,6 +203,7 @@ public class UceController {
     private volatile boolean mIsDestroyedFlag;
     private Looper mLooper;
 
+    private RcsFeatureManager mRcsFeatureManager;
     private EabController mEabController;
     private PublishController mPublishController;
     private SubscribeController mSubscribeController;
@@ -270,12 +271,9 @@ public class UceController {
         mPublishController.onRcsConnected(manager);
         mSubscribeController.onRcsConnected(manager);
         mOptionsController.onRcsConnected(manager);
-
-        try {
-            manager.setCapabilityExchangeEventListener(mCapabilityEventListener);
-        } catch (RemoteException e) {
-            logw("Set capability event listener error: " + e.getMessage());
-        }
+        // Listen to the capability exchange event which is triggered by the ImsService
+        mRcsFeatureManager = manager;
+        mRcsFeatureManager.addCapabilityEventCallback(mCapabilityEventListener);
     }
 
     /**
@@ -284,6 +282,11 @@ public class UceController {
     public void onRcsDisconnected() {
         logi("onRcsDisconnected");
         mIsRcsConnected = false;
+        // Remove the listener because RCS is disconnected.
+        if (mRcsFeatureManager != null) {
+            mRcsFeatureManager.removeCapabilityEventCallback(mCapabilityEventListener);
+            mRcsFeatureManager = null;
+        }
         // Notify each controllers that RCS is disconnected.
         mEabController.onRcsDisconnected();
         mPublishController.onRcsDisconnected();
@@ -297,6 +300,12 @@ public class UceController {
     public void onDestroy() {
         logi("onDestroy");
         mIsDestroyedFlag = true;
+        // Remove the listener because the UceController instance is destroyed.
+        if (mRcsFeatureManager != null) {
+            mRcsFeatureManager.removeCapabilityEventCallback(mCapabilityEventListener);
+            mRcsFeatureManager = null;
+        }
+        // Destroy all the controllers
         mRequestManager.onDestroy();
         mEabController.onDestroy();
         mPublishController.onDestroy();
@@ -380,8 +389,8 @@ public class UceController {
     /*
      * Setup the listener to listen to the requests and updates from ImsService.
      */
-    private ICapabilityExchangeEventListener mCapabilityEventListener =
-            new ICapabilityExchangeEventListener.Stub() {
+    private RcsFeatureManager.CapabilityExchangeEventCallback mCapabilityEventListener =
+            new RcsFeatureManager.CapabilityExchangeEventCallback() {
                 @Override
                 public void onRequestPublishCapabilities(
                         @StackPublishTriggerType int publishTriggerType) {
