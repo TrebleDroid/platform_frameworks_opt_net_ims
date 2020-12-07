@@ -32,6 +32,7 @@ import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsCallSession;
+import android.telephony.ims.ImsCallSessionListener;
 import android.telephony.ims.ImsConferenceState;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsStreamMediaProfile;
@@ -94,11 +95,21 @@ public class ImsCall implements ICall {
      */
     public static class Listener {
         /**
-         * Called when a request is sent out to initiate a new call
-         * and 1xx response is received from the network.
+         * Called after the network first begins to establish the call session and is now connecting
+         * to the remote party.
          * The default implementation calls {@link #onCallStateChanged}.
-         *
-         * @param call the call object that carries out the IMS call
+         * <p/>
+         * see: {@link ImsCallSessionListener#callSessionInitiating}
+         */
+        public void onCallInitiating(ImsCall call) {
+            onCallStateChanged(call);
+        }
+
+        /**
+         * Called after the network has contacted the remote party.
+         * The default implementation calls {@link #onCallStateChanged}.
+         * <p/>
+         * see: {@link ImsCallSessionListener#callSessionProgressing}
          */
         public void onCallProgressing(ImsCall call) {
             onCallStateChanged(call);
@@ -2435,6 +2446,32 @@ public class ImsCall implements ICall {
 
     @VisibleForTesting
     public class ImsCallSessionListenerProxy extends ImsCallSession.Listener {
+        @Override
+        public void callSessionInitiating(ImsCallSession session, ImsCallProfile profile) {
+            logi("callSessionInitiating :: session=" + session + " profile=" + profile);
+            if (isTransientConferenceSession(session)) {
+                // If it is a transient (conference) session, there is no action for this signal.
+                logi("callSessionInitiating :: not supported for transient conference session=" +
+                        session);
+                return;
+            }
+
+            ImsCall.Listener listener;
+
+            synchronized(ImsCall.this) {
+                listener = mListener;
+                setCallProfile(profile);
+            }
+
+            if (listener != null) {
+                try {
+                    listener.onCallInitiating(ImsCall.this);
+                } catch (Throwable t) {
+                    loge("callSessionInitiating :: ", t);
+                }
+            }
+        }
+
         @Override
         public void callSessionProgressing(ImsCallSession session, ImsStreamMediaProfile profile) {
             logi("callSessionProgressing :: session=" + session + " profile=" + profile);
