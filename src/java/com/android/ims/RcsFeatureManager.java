@@ -28,15 +28,15 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyFrameworkInitializer;
 import android.telephony.ims.ImsException;
 import android.telephony.ims.ImsService;
-import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsRcsController;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
+import android.telephony.ims.aidl.IOptionsRequestCallback;
 import android.telephony.ims.aidl.IPublishResponseCallback;
-import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -44,14 +44,10 @@ import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
-import android.telephony.ims.stub.RcsCapabilityExchange;
-import android.telephony.ims.stub.RcsPresenceExchangeImplBase;
-import android.telephony.ims.stub.RcsSipOptionsImplBase;
 import android.util.Log;
 
 import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.ITelephony;
 import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
@@ -77,91 +73,55 @@ public class RcsFeatureManager implements FeatureUpdates {
     private static final int CAPABILITY_PRESENCE = RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE;
 
     /**
-     * Callbacks from the RcsFeature, which have an empty default implementation and can be
-     * overridden for each Feature.
+     * The capability exchange event callbacks from the RcsFeature.
      */
-    public static class RcsFeatureCallbacks {
-        /** See {@link RcsCapabilityExchange#onCommandUpdate(int, int)} */
-        @VisibleForTesting
-        public void onCommandUpdate(int commandCode, int operationToken) {}
-
-        /** See {@link RcsPresenceExchangeImplBase#onNetworkResponse(int, String, int)} */
-        public void onNetworkResponse(int code, String reason, int operationToken) {}
-
-        /** See {@link RcsPresenceExchangeImplBase#onCapabilityRequestResponse(List, int)} */
-        public void onCapabilityRequestResponsePresence(List<RcsContactUceCapability> infos,
-                int operationToken) {}
-
-        /** See {@link RcsPresenceExchangeImplBase#onNotifyUpdateCapabilites(int)} */
-        public void onNotifyUpdateCapabilities(int publishTriggerType) {}
-
-        /** See {@link RcsPresenceExchangeImplBase#onUnpublish()} */
-        public void onUnpublish() {}
+    public interface CapabilityExchangeEventCallback {
+        /**
+         * Triggered by RcsFeature to publish the device's capabilities to the network.
+         */
+        void onRequestPublishCapabilities(@StackPublishTriggerType int publishTriggerType);
 
         /**
-         * See {@link RcsSipOptionsImplBase#onCapabilityRequestResponse(int,String,
-         * RcsContactUceCapability, int)}
+         * Notify that the devices is unpublished.
          */
-        public void onCapabilityRequestResponseOptions(int code, String reason,
-                RcsContactUceCapability info, int operationToken) {}
+        void onUnpublish();
 
         /**
-         * See {@link RcsSipOptionsImplBase#onRemoteCapabilityRequest(Uri, RcsContactUceCapability,
-         * int)}
+         * Receive a capabilities request from the remote client.
          */
-        public void onRemoteCapabilityRequest(Uri contactUri, RcsContactUceCapability remoteInfo,
-                int operationToken) {}
+        void onRemoteCapabilityRequest(Uri contactUri,
+                List<String> remoteCapabilities, IOptionsRequestCallback cb);
     }
 
-    private final IRcsFeatureListener mRcsFeatureCallbackAdapter = new IRcsFeatureListener.Stub() {
-        @Override
-        public void onCommandUpdate(int commandCode, int operationToken) {
-            mRcsFeatureCallbacks.forEach(listener-> listener.onCommandUpdate(commandCode,
-                    operationToken));
-        }
+    /*
+     * Setup the listener to listen to the requests and updates from ImsService.
+     */
+    private ICapabilityExchangeEventListener mCapabilityEventListener =
+            new ICapabilityExchangeEventListener.Stub() {
+                @Override
+                public void onRequestPublishCapabilities(@StackPublishTriggerType int type) {
+                    mCapabilityEventCallback.forEach(
+                            callback -> callback.onRequestPublishCapabilities(type));
+                }
 
-        @Override
-        public void onNetworkResponse(int code, String reason, int operationToken) {
-            mRcsFeatureCallbacks.forEach(listener-> listener.onNetworkResponse(code, reason,
-                    operationToken));
-        }
+                @Override
+                public void onUnpublish() {
+                    mCapabilityEventCallback.forEach(callback -> callback.onUnpublish());
+                }
 
-        @Override
-        public void onCapabilityRequestResponsePresence(List<RcsContactUceCapability> infos,
-                int operationToken) {
-            mRcsFeatureCallbacks.forEach(listener-> listener.onCapabilityRequestResponsePresence(
-                    infos, operationToken));
-        }
-
-        @Override
-        public void onNotifyUpdateCapabilities(int publishTriggerType) {
-            mRcsFeatureCallbacks.forEach(listener-> listener.onNotifyUpdateCapabilities(
-                    publishTriggerType));
-        }
-
-        @Override
-        public void onUnpublish() {
-            mRcsFeatureCallbacks.forEach(listener-> listener.onUnpublish());
-        }
-
-        @Override
-        public void onCapabilityRequestResponseOptions(int code, String reason,
-                RcsContactUceCapability info, int operationToken) {
-            mRcsFeatureCallbacks.forEach(listener -> listener.onCapabilityRequestResponseOptions(
-                    code, reason, info, operationToken));
-        }
-
-        @Override
-        public void onRemoteCapabilityRequest(Uri contactUri, RcsContactUceCapability remoteInfo,
-                int operationToken) {
-            mRcsFeatureCallbacks.forEach(listener -> listener.onRemoteCapabilityRequest(
-                    contactUri, remoteInfo, operationToken));
-        }
-    };
+                @Override
+                public void onRemoteCapabilityRequest(Uri contactUri,
+                        List<String> remoteCapabilities, IOptionsRequestCallback cb) {
+                    mCapabilityEventCallback.forEach(
+                            callback -> callback.onRemoteCapabilityRequest(
+                                    contactUri, remoteCapabilities, cb));
+                }
+            };
 
     private final int mSlotId;
     private final Context mContext;
-    private final Set<RcsFeatureCallbacks> mRcsFeatureCallbacks = new CopyOnWriteArraySet<>();
+    private final Set<CapabilityExchangeEventCallback> mCapabilityEventCallback
+            = new CopyOnWriteArraySet<>();
     private final BinderCacheManager<IImsRcsController> mBinderCache
             = new BinderCacheManager<>(RcsFeatureManager::getIImsRcsControllerInterface);
 
@@ -205,7 +165,7 @@ public class RcsFeatureManager implements FeatureUpdates {
      */
     public void openConnection() throws android.telephony.ims.ImsException {
         try {
-            mRcsFeatureConnection.setRcsFeatureListener(mRcsFeatureCallbackAdapter);
+            mRcsFeatureConnection.setCapabilityExchangeEventListener(mCapabilityEventListener);
         } catch (RemoteException e){
             throw new android.telephony.ims.ImsException("Service is not available.",
                     android.telephony.ims.ImsException.CODE_ERROR_SERVICE_UNAVAILABLE);
@@ -218,27 +178,27 @@ public class RcsFeatureManager implements FeatureUpdates {
      */
     public void releaseConnection() {
         try {
-            mRcsFeatureConnection.setRcsFeatureListener(null);
+            mRcsFeatureConnection.setCapabilityExchangeEventListener(null);
         } catch (RemoteException e){
             // Connection may not be available at this point.
         }
         mRcsFeatureConnection.close();
-        mRcsFeatureCallbacks.clear();
+        mCapabilityEventCallback.clear();
     }
 
     /**
-     * Adds a callback for {@link RcsFeatureCallbacks}.
+     * Adds a callback for {@link CapabilityExchangeEventCallback}.
      * Note: These callbacks will be sent on the binder thread used to notify the callback.
      */
-    public void addFeatureListenerCallback(RcsFeatureCallbacks listener) {
-        mRcsFeatureCallbacks.add(listener);
+    public void addCapabilityEventCallback(CapabilityExchangeEventCallback listener) {
+        mCapabilityEventCallback.add(listener);
     }
 
     /**
-     * Removes an existing {@link RcsFeatureCallbacks}.
+     * Removes an existing {@link CapabilityExchangeEventCallback}.
      */
-    public void removeFeatureListenerCallback(RcsFeatureCallbacks listener) {
-        mRcsFeatureCallbacks.remove(listener);
+    public void removeCapabilityEventCallback(CapabilityExchangeEventCallback listener) {
+        mCapabilityEventCallback.remove(listener);
     }
 
     /**
@@ -366,6 +326,7 @@ public class RcsFeatureManager implements FeatureUpdates {
         }
         return mRcsFeatureConnection.getSipTransport();
     }
+
     /**
      * Query for the specific capability.
      */
@@ -445,16 +406,6 @@ public class RcsFeatureManager implements FeatureUpdates {
                 ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
         request.addCapabilitiesToEnableForTech(capability,
                 ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
-    }
-
-    public void requestPublication(RcsContactUceCapability capabilities, int taskId)
-            throws RemoteException {
-        mRcsFeatureConnection.requestPublication(capabilities, taskId);
-    }
-
-    public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
-            throws RemoteException {
-        mRcsFeatureConnection.setCapabilityExchangeEventListener(listener);
     }
 
     public void requestPublication(String pidfXml, IPublishResponseCallback responseCallback)
