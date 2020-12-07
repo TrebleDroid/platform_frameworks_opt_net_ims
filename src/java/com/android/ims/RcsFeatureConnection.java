@@ -21,7 +21,6 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
@@ -29,7 +28,6 @@ import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IPublishResponseCallback;
-import android.telephony.ims.aidl.IRcsFeatureListener;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -128,7 +126,7 @@ public class RcsFeatureConnection extends FeatureConnection {
     }
 
     public void close() {
-        removeRcsFeatureListener();
+        removeCapabilityExchangeEventListener();
         mAvailabilityCallbackManager.close();
         mRegistrationCallbackManager.close();
     }
@@ -139,16 +137,17 @@ public class RcsFeatureConnection extends FeatureConnection {
         super.onRemovedOrDied();
     }
 
-    public void setRcsFeatureListener(IRcsFeatureListener listener) throws RemoteException {
+    public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
+            throws RemoteException {
         synchronized (mLock) {
             checkServiceIsReady();
-            getServiceInterface(mBinder).setListener(listener);
+            getServiceInterface(mBinder).setCapabilityExchangeEventListener(listener);
         }
     }
 
-    public void removeRcsFeatureListener() {
+    public void removeCapabilityExchangeEventListener() {
         try {
-            setRcsFeatureListener(null);
+            setCapabilityExchangeEventListener(null);
         } catch (RemoteException e) {
             // If we are not still connected, there is no need to fail removing.
         }
@@ -214,22 +213,6 @@ public class RcsFeatureConnection extends FeatureConnection {
         synchronized (mLock) {
             checkServiceIsReady();
             getServiceInterface(mBinder).changeCapabilitiesConfiguration(request, callback);
-        }
-    }
-
-    public void requestPublication(RcsContactUceCapability capabilities, int taskId)
-            throws RemoteException {
-        synchronized (mLock) {
-            checkServiceIsReady();
-            getServiceInterface(mBinder).updateCapabilities(capabilities, taskId);
-        }
-    }
-
-    public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
-            throws RemoteException{
-        synchronized (mLock) {
-            checkServiceIsReady();
-            getServiceInterface(mBinder).setCapabilityExchangeEventListener(listener);
         }
     }
 

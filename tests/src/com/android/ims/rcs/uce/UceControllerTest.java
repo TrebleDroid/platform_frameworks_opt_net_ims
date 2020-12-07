@@ -101,7 +101,7 @@ public class UceControllerTest extends ImsTestBase {
         verify(mPublishController).onRcsConnected(mFeatureManager);
         verify(mSubscribeController).onRcsConnected(mFeatureManager);
         verify(mOptionsController).onRcsConnected(mFeatureManager);
-        verify(mFeatureManager).setCapabilityExchangeEventListener(any());
+        verify(mFeatureManager).addCapabilityEventCallback(any());
     }
 
     @Test
@@ -112,6 +112,7 @@ public class UceControllerTest extends ImsTestBase {
 
         uceController.onRcsDisconnected();
 
+        verify(mFeatureManager).removeCapabilityEventCallback(any());
         verify(mEabController).onRcsDisconnected();
         verify(mPublishController).onRcsDisconnected();
         verify(mSubscribeController).onRcsDisconnected();
