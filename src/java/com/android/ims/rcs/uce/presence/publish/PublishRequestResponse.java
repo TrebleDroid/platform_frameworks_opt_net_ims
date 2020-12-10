@@ -16,12 +16,15 @@
 
 package com.android.ims.rcs.uce.presence.publish;
 
+import android.annotation.Nullable;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IPublishResponseCallback;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
+
+import java.time.Instant;
 
 /**
  * Receiving the result callback of the publish request.
@@ -35,6 +38,9 @@ public class PublishRequestResponse {
     private int mCmdErrorCode;
     private int mNetworkRespSipCode;
     private String mNetworkRespReason;
+
+    // The timestamp when receive the response from the network.
+    private Instant mResponseTimestamp;
 
     public PublishRequestResponse(PublishControllerCallback publishCtrlCallback, long taskId) {
         mTaskId = taskId;
@@ -70,11 +76,16 @@ public class PublishRequestResponse {
         return mNetworkRespSipCode;
     }
 
+    public @Nullable Instant getResponseTimestamp() {
+        return mResponseTimestamp;
+    }
+
     public void onDestroy() {
         mPublishCtrlCallback = null;
     }
 
     private void onCommandError(int errorCode) {
+        mResponseTimestamp = Instant.now();
         mCmdErrorCode = errorCode;
         updateRetryFlagByCommandError();
 
@@ -85,6 +96,7 @@ public class PublishRequestResponse {
     }
 
     private void onNetworkResponse(int sipCode, String reason) {
+        mResponseTimestamp = Instant.now();
         mNetworkRespSipCode = sipCode;
         mNetworkRespReason = reason;
         updateRetryFlagByNetworkResponse();
@@ -150,10 +162,14 @@ public class PublishRequestResponse {
      * Convert the network sip code to the publish state
      */
     public int getPublishStateByNetworkResponse() {
-        if (NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT == mNetworkRespSipCode) {
-            return RcsUceAdapter.PUBLISH_STATE_REQUEST_TIMEOUT;
+        switch (mNetworkRespSipCode) {
+            case NetworkSipCode.SIP_CODE_OK:
+                return RcsUceAdapter.PUBLISH_STATE_OK;
+            case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
+                return RcsUceAdapter.PUBLISH_STATE_REQUEST_TIMEOUT;
+            default:
+                return RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
         }
-        return RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
     }
 
     /**
@@ -163,9 +179,10 @@ public class PublishRequestResponse {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("taskId=").append(mTaskId)
-                .append(", mCmdErrorCode=").append(mCmdErrorCode)
-                .append(", onNetworkResponse=").append(mNetworkRespSipCode)
-                .append(", mNetworkResponseReason=").append(mNetworkRespReason)
+                .append(", CmdErrorCode=").append(mCmdErrorCode)
+                .append(", NetworkResponse=").append(mNetworkRespSipCode)
+                .append(", NetworkResponseReason=").append(mNetworkRespReason)
+                .append(", ResponseTimestamp=").append(mResponseTimestamp)
                 .append(", isRequestSuccess=").append(isRequestSuccess())
                 .append(", needRetry=").append(mNeedRetry);
         return builder.toString();

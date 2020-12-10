@@ -140,7 +140,8 @@ public class RcsFeatureConnection extends FeatureConnection {
     public void setCapabilityExchangeEventListener(ICapabilityExchangeEventListener listener)
             throws RemoteException {
         synchronized (mLock) {
-            checkServiceIsReady();
+            // Only check if service is alive. The feature status may not be READY.
+            checkServiceIsAlive();
             getServiceInterface(mBinder).setCapabilityExchangeEventListener(listener);
         }
     }
@@ -150,6 +151,15 @@ public class RcsFeatureConnection extends FeatureConnection {
             setCapabilityExchangeEventListener(null);
         } catch (RemoteException e) {
             // If we are not still connected, there is no need to fail removing.
+        }
+    }
+
+    private void checkServiceIsAlive() throws RemoteException {
+        if (!sImsSupportedOnDevice) {
+            throw new RemoteException("IMS is not supported on this device.");
+        }
+        if (!isBinderAlive()) {
+            throw new RemoteException("ImsServiceProxy is not alive.");
         }
     }
 
