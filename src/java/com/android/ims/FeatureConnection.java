@@ -32,6 +32,8 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.util.NoSuchElementException;
+
 /**
  * Base class of MmTelFeatureConnection and RcsFeatureConnection.
  */
@@ -79,7 +81,8 @@ public abstract class FeatureConnection {
                     mBinder.linkToDeath(mDeathRecipient, 0);
                 }
             } catch (RemoteException e) {
-                // No need to do anything if the binder is already dead.
+                Log.w(TAG, "setBinder: linkToDeath on already dead Binder, setting null");
+                mBinder = null;
             }
         }
     }
@@ -103,8 +106,12 @@ public abstract class FeatureConnection {
         synchronized (mLock) {
             if (mIsAvailable) {
                 mIsAvailable = false;
-                if (mBinder != null) {
-                    mBinder.unlinkToDeath(mDeathRecipient, 0);
+                try {
+                    if (mBinder != null) {
+                        mBinder.unlinkToDeath(mDeathRecipient, 0);
+                    }
+                } catch (NoSuchElementException e) {
+                    Log.w(TAG, "onRemovedOrDied: unlinkToDeath called on unlinked Binder.");
                 }
             }
         }
