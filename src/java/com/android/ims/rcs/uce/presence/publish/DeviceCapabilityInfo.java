@@ -208,11 +208,13 @@ public class DeviceCapabilityInfo {
         boolean oldVoWifiAvailable = isVoWifiAvailable(mMmtelNetworkRegType, mMmTelCapabilities);
         boolean oldVtAvailable = isVtAvailable(mMmtelNetworkRegType, mMmTelCapabilities);
         boolean oldViWifiAvailable = isViWifiAvailable(mMmtelNetworkRegType, mMmTelCapabilities);
+        boolean oldCallComposerAvailable = isCallComposerAvailable(mMmTelCapabilities);
 
         boolean volteAvailable = isVolteAvailable(mMmtelNetworkRegType, capabilities);
         boolean voWifiAvailable = isVoWifiAvailable(mMmtelNetworkRegType, capabilities);
         boolean vtAvailable = isVtAvailable(mMmtelNetworkRegType, capabilities);
         boolean viWifiAvailable = isViWifiAvailable(mMmtelNetworkRegType, capabilities);
+        boolean callComposerAvailable = isCallComposerAvailable(capabilities);
 
         logd("updateMmtelCapabilitiesChanged: from " + mMmTelCapabilities + " to " + capabilities);
 
@@ -222,7 +224,8 @@ public class DeviceCapabilityInfo {
         if (oldVolteAvailable != volteAvailable
                 || oldVoWifiAvailable != voWifiAvailable
                 || oldVtAvailable != vtAvailable
-                || oldViWifiAvailable != viWifiAvailable) {
+                || oldViWifiAvailable != viWifiAvailable
+                || oldCallComposerAvailable != callComposerAvailable) {
             return true;
         }
         return false;
@@ -248,6 +251,11 @@ public class DeviceCapabilityInfo {
                 && capabilities.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO);
     }
 
+    private boolean isCallComposerAvailable(MmTelCapabilities capabilities) {
+        return capabilities.isCapable(
+                MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER);
+    }
+
     /**
      * Get the device's capabilities.
      */
@@ -266,10 +274,20 @@ public class DeviceCapabilityInfo {
                 RcsContactPresenceTuple.SERVICE_ID_MMTEL, "1.0");
         tupleBuilder.addContactUri(uri).addServiceCapabilities(servCapsBuilder.build());
 
+        RcsContactPresenceTuple.Builder callComposerTupleBuilder =
+                new RcsContactPresenceTuple.Builder(
+                        hasCallComposerCapability() ?
+                                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN :
+                                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_CLOSED,
+                        RcsContactPresenceTuple.SERVICE_ID_CALL_COMPOSER, "1.0");
+        callComposerTupleBuilder.addContactUri(uri).addServiceCapabilities(
+                servCapsBuilder.build());
+
         PresenceBuilder presenceBuilder = new PresenceBuilder(uri,
                 RcsContactUceCapability.SOURCE_TYPE_CACHED,
                 RcsContactUceCapability.REQUEST_RESULT_FOUND);
         presenceBuilder.addCapabilityTuple(tupleBuilder.build());
+        presenceBuilder.addCapabilityTuple(callComposerTupleBuilder.build());
 
         return presenceBuilder.build();
     }
@@ -292,6 +310,15 @@ public class DeviceCapabilityInfo {
         return false;
     }
 
+    // Check if the device has the Call Composer capability
+    private synchronized boolean hasCallComposerCapability() {
+        if (mMmTelCapabilities != null && mMmTelCapabilities.isCapable(
+                MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER)) {
+            return true;
+        }
+        return false;
+    }
+
     private synchronized MmTelCapabilities deepCopyCapabilities(MmTelCapabilities capabilities) {
         MmTelCapabilities mmTelCapabilities = new MmTelCapabilities();
         if (capabilities.isCapable(MmTelCapabilities.CAPABILITY_TYPE_VOICE)) {
@@ -305,6 +332,9 @@ public class DeviceCapabilityInfo {
         }
         if (capabilities.isCapable(MmTelCapabilities.CAPABILITY_TYPE_SMS)) {
             mmTelCapabilities.addCapabilities(MmTelCapabilities.CAPABILITY_TYPE_SMS);
+        }
+        if (capabilities.isCapable(MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER)) {
+            mmTelCapabilities.addCapabilities(MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER);
         }
         return mmTelCapabilities;
     }
