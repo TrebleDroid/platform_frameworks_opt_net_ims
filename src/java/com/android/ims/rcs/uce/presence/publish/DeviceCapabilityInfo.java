@@ -276,10 +276,8 @@ public class DeviceCapabilityInfo {
 
         RcsContactPresenceTuple.Builder callComposerTupleBuilder =
                 new RcsContactPresenceTuple.Builder(
-                        hasCallComposerCapability() ?
-                                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN :
-                                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_CLOSED,
-                        RcsContactPresenceTuple.SERVICE_ID_CALL_COMPOSER, "1.0");
+                        RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
+                        RcsContactPresenceTuple.SERVICE_ID_CALL_COMPOSER, "2.0");
         callComposerTupleBuilder.addContactUri(uri).addServiceCapabilities(
                 servCapsBuilder.build());
 
@@ -287,7 +285,9 @@ public class DeviceCapabilityInfo {
                 RcsContactUceCapability.SOURCE_TYPE_CACHED,
                 RcsContactUceCapability.REQUEST_RESULT_FOUND);
         presenceBuilder.addCapabilityTuple(tupleBuilder.build());
-        presenceBuilder.addCapabilityTuple(callComposerTupleBuilder.build());
+        if (hasCallComposerCapability()) {
+            presenceBuilder.addCapabilityTuple(callComposerTupleBuilder.build());
+        }
 
         return presenceBuilder.build();
     }
