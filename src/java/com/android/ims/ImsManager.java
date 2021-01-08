@@ -866,6 +866,14 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * Returns whether the user sets call composer setting per sub.
+     */
+    public boolean isCallComposerEnabledByUser() {
+        return new TelephonyManager(mContext, getSubId()).getCallComposerStatus() ==
+                TelephonyManager.CALL_COMPOSER_STATUS_ON;
+    }
+
+    /**
      * Change persistent VT enabled setting
      *
      * @deprecated Does not support MSIM devices. Please use {@link #setVtSetting(boolean)} instead.
@@ -1466,6 +1474,7 @@ public class ImsManager implements FeatureUpdates {
             updateVolteFeatureValue(request);
             updateWfcFeatureAndProvisionedValues(request);
             updateVideoCallFeatureValue(request);
+            updateCallComposerFeatureValue(request);
             // Only turn on IMS for RTT if there's an active subscription present. If not, the
             // modem will be in emergency-call-only mode and will use separate signaling to
             // establish an RTT emergency call.
@@ -1639,6 +1648,31 @@ public class ImsManager implements FeatureUpdates {
             request.addCapabilitiesToDisableForTech(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
                     ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+        }
+    }
+
+    /**
+     * Update call composer capability
+     */
+    private void updateCallComposerFeatureValue(CapabilityChangeRequest request) {
+        boolean isUserSetEnabled = isCallComposerEnabledByUser();
+        boolean isCarrierConfigEnabled = getBooleanCarrierConfig(
+                CarrierConfigManager.KEY_SUPPORTS_CALL_COMPOSER_BOOL);
+
+        boolean isFeatureOn = isUserSetEnabled && isCarrierConfigEnabled;
+
+        log("updateCallComposerFeatureValue: isUserSetEnabled = " + isUserSetEnabled
+                + ", isCarrierConfigEnabled = " + isCarrierConfigEnabled
+                        + ", isFeatureOn = " + isFeatureOn);
+
+        if (isFeatureOn) {
+            request.addCapabilitiesToEnableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER,
+                            ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+        } else {
+            request.addCapabilitiesToDisableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER,
+                            ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
         }
     }
 
