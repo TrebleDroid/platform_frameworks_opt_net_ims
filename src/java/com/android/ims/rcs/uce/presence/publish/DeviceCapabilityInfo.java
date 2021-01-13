@@ -18,10 +18,8 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import android.content.Context;
 import android.net.Uri;
-import android.telecom.PhoneAccount;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
-import android.telephony.TelephonyManager;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
@@ -30,11 +28,13 @@ import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.util.UceUtils;
+
 /**
  * Stores the device's capabilities information.
  */
 public class DeviceCapabilityInfo {
-    private static final String LOG_TAG = "DeviceCapabilityInfo";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "DeviceCapabilityInfo";
 
     private final int mSubId;
 

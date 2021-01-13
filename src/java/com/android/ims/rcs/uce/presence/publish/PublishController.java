@@ -26,6 +26,7 @@ import com.android.ims.rcs.uce.ControllerBase;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.time.Instant;
 
 /**
  * The interface related to the PUBLISH request.
@@ -118,7 +119,7 @@ public interface PublishController extends ControllerBase {
         /**
          * Update the publish request result.
          */
-        void updatePublishRequestResult(int publishState);
+        void updatePublishRequestResult(int publishState, Instant updatedTimestamp);
     }
 
     /**
