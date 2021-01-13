@@ -57,15 +57,20 @@ public class EabControllerImpl implements EabController {
 
     private final Context mContext;
     private final int mSubId;
+    private final EabBulkCapabilityUpdater mEabBulkCapabilityUpdater;
+
     private UceControllerCallback mUceControllerCallback;
-    private final Looper mLooper;
     private volatile boolean mIsSetDestroyedFlag = false;
 
     public EabControllerImpl(Context context, int subId, UceControllerCallback c, Looper looper) {
         mContext = context;
         mSubId = subId;
         mUceControllerCallback = c;
-        mLooper = looper;
+        mEabBulkCapabilityUpdater = new EabBulkCapabilityUpdater(mContext, mSubId,
+                this,
+                new EabContactSyncController(),
+                mUceControllerCallback,
+                looper);
     }
 
     @Override
@@ -80,6 +85,7 @@ public class EabControllerImpl implements EabController {
     public void onDestroy() {
         Log.d(TAG, "onDestroy");
         mIsSetDestroyedFlag = true;
+        mEabBulkCapabilityUpdater.onDestroy();
     }
 
     /**
@@ -93,6 +99,7 @@ public class EabControllerImpl implements EabController {
             return;
         }
         mUceControllerCallback = c;
+        mEabBulkCapabilityUpdater.setUceRequestCallback(c);
     }
 
     /**
@@ -148,7 +155,8 @@ public class EabControllerImpl implements EabController {
         for (RcsContactUceCapability capability : contactCapabilities) {
             String phoneNumber = getNumberFromUri(capability.getContactUri());
             Cursor c = mContext.getContentResolver().query(
-                    EabProvider.CONTACT_URI, null, EabProvider.ContactColumns.PHONE_NUMBER + "=?",
+                    EabProvider.CONTACT_URI, null,
+                    EabProvider.ContactColumns.PHONE_NUMBER + "=?",
                     new String[]{phoneNumber}, null);
 
             if (c != null && c.moveToNext()) {
@@ -176,6 +184,8 @@ public class EabControllerImpl implements EabController {
                 c.close();
             }
         }
+
+        mEabBulkCapabilityUpdater.updateExpiredTimeAlert();
     }
 
     private List<EabCapabilityResult> generateDestroyedResult(List<Uri> contactUri) {
@@ -335,7 +345,7 @@ public class EabControllerImpl implements EabController {
         if (requestTimeStamp != null) {
             Instant expiredTimestamp = Instant
                     .ofEpochSecond(Long.parseLong(requestTimeStamp))
-                    .plus(getCapabilityCacheExpiration(), ChronoUnit.SECONDS);
+                    .plus(getCapabilityCacheExpiration(mSubId), ChronoUnit.SECONDS);
             expired = expiredTimestamp.isBefore(Instant.now());
             Log.d(TAG, "Capability expiredTimestamp: "
                     + expiredTimestamp.getEpochSecond() + ", expired:" + expired);
@@ -352,7 +362,7 @@ public class EabControllerImpl implements EabController {
         if (requestTimeStamp != null) {
             Instant expiredTimestamp = Instant
                     .ofEpochSecond(Long.parseLong(requestTimeStamp))
-                    .plus(getAvailabilityCacheExpiration(), ChronoUnit.SECONDS);
+                    .plus(getAvailabilityCacheExpiration(mSubId), ChronoUnit.SECONDS);
             expired = expiredTimestamp.isBefore(Instant.now());
             Log.d(TAG, "Availability insertedTimestamp: "
                     + expiredTimestamp.getEpochSecond() + ", expired:" + expired);
@@ -375,10 +385,10 @@ public class EabControllerImpl implements EabController {
         return expiredTimestamp;
     }
 
-    private long getCapabilityCacheExpiration() {
+    protected static long getCapabilityCacheExpiration(int subId) {
         long value = -1;
         try {
-            ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(mSubId);
+            ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
             value = pm.getProvisioningIntValue(
                     ProvisioningManager.KEY_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC);
         } catch (Exception ex) {
@@ -392,10 +402,10 @@ public class EabControllerImpl implements EabController {
         return value;
     }
 
-    private long getAvailabilityCacheExpiration() {
+    protected static long getAvailabilityCacheExpiration(int subId) {
         long value = -1;
         try {
-            ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(mSubId);
+            ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
             value = pm.getProvisioningIntValue(
                     ProvisioningManager.KEY_RCS_AVAILABILITY_CACHE_EXPIRATION_SEC);
         } catch (Exception ex) {
@@ -424,10 +434,13 @@ public class EabControllerImpl implements EabController {
                 new String[]{String.valueOf(id)}, null);
 
         if (c != null && c.getCount() > 0) {
-            int commonId = c.getInt(c.getColumnIndex(EabProvider.EabCommonColumns._ID));
-            mContext.getContentResolver().delete(
-                    EabProvider.PRESENCE_URI, EabProvider.PresenceTupleColumns.EAB_COMMON_ID + "=?",
-                    new String[]{String.valueOf(commonId)});
+            while(c.moveToNext()) {
+                int commonId = c.getInt(c.getColumnIndex(EabProvider.EabCommonColumns._ID));
+                mContext.getContentResolver().delete(
+                        EabProvider.PRESENCE_URI,
+                        EabProvider.PresenceTupleColumns.EAB_COMMON_ID + "=?",
+                        new String[]{String.valueOf(commonId)});
+            }
         }
 
         if (c != null) {
@@ -508,10 +521,13 @@ public class EabControllerImpl implements EabController {
                 new String[]{String.valueOf(contactId)}, null);
 
         if (c != null && c.getCount() > 0) {
-            int commonId = c.getInt(c.getColumnIndex(EabProvider.EabCommonColumns._ID));
-            mContext.getContentResolver().delete(
-                    EabProvider.OPTIONS_URI, EabProvider.OptionsColumns.EAB_COMMON_ID + "=?",
-                    new String[]{String.valueOf(commonId)});
+            while(c.moveToNext()) {
+                int commonId = c.getInt(c.getColumnIndex(EabProvider.EabCommonColumns._ID));
+                mContext.getContentResolver().delete(
+                        EabProvider.OPTIONS_URI,
+                        EabProvider.OptionsColumns.EAB_COMMON_ID + "=?",
+                        new String[]{String.valueOf(commonId)});
+            }
         }
 
         if (c != null) {

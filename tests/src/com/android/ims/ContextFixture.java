@@ -37,6 +37,7 @@ import android.telecom.TelecomManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.ImsManager;
 import android.test.mock.MockContentResolver;
 import android.test.mock.MockContext;
 
@@ -50,9 +51,11 @@ public class ContextFixture {
     private final Context mContext = spy(new FakeContext());
 
     private final TelephonyManager mTelephonyManager = mock(TelephonyManager.class);
+    private final ConnectivityManager mConnectivityManager = mock(ConnectivityManager.class);
     private final CarrierConfigManager mCarrierConfigManager = mock(CarrierConfigManager.class);
     private final PackageManager mPackageManager = mock(PackageManager.class);
     private final SubscriptionManager mSubscriptionManager = mock(SubscriptionManager.class);
+    private final ImsManager mImsManager = mock(ImsManager.class);
     private final Resources mResources = mock(Resources.class);
 
     private final PersistableBundle mBundle = new PersistableBundle();
@@ -91,8 +94,12 @@ public class ContextFixture {
                     return mTelephonyManager;
                 case Context.CARRIER_CONFIG_SERVICE:
                     return mCarrierConfigManager;
+                case Context.CONNECTIVITY_SERVICE:
+                    return mConnectivityManager;
                 case Context.TELEPHONY_SUBSCRIPTION_SERVICE:
                     return mSubscriptionManager;
+                case Context.TELEPHONY_IMS_SERVICE:
+                    return mImsManager;
                 default:
                     return null;
             }
@@ -108,6 +115,10 @@ public class ContextFixture {
                 return Context.CONNECTIVITY_SERVICE;
             } else if (serviceClass == TelephonyManager.class) {
                 return Context.TELEPHONY_SERVICE;
+            } else if (serviceClass == ImsManager.class) {
+                return Context.TELEPHONY_IMS_SERVICE;
+            } else if (serviceClass == CarrierConfigManager.class) {
+                return Context.CARRIER_CONFIG_SERVICE;
             }
             return super.getSystemServiceName(serviceClass);
         }
