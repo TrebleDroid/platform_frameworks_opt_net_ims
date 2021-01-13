@@ -50,7 +50,6 @@ import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
-import android.telephony.ims.aidl.IRcsConfigCallback;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
@@ -2954,47 +2953,6 @@ public class ImsManager implements FeatureUpdates {
                 ProvisioningManager.PROVISIONING_VALUE_DISABLED;
         setProvisionedBoolNoException(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED,
                 provisionStatus);
-    }
-
-    /**
-     * Adds a callback of RCS provisioning for a specified subscription.
-     * @param callback A {@link android.telephony.ims.aidl.IRcsConfigCallback}
-     *         for RCS provisioning change.
-     * @param subId The subscription that is associated with the callback.
-     * @throws IllegalStateException when the {@link ImsService} connection is not available.
-     * @throws IllegalArgumentException when the {@link IRcsConfigCallback} argument is null.
-     */
-    public void addRcsProvisioningCallbackForSubscription(IRcsConfigCallback callback, int subId) {
-        if (callback == null) {
-            throw new IllegalArgumentException("provisioning callback can't be null");
-        }
-
-        mMmTelConnectionRef.get().addRcsProvisioningCallbackForSubscription(callback, subId);
-        log("Capability Callback registered for subscription.");
-    }
-
-    /**
-     * Removes a previously registered {@link android.telephony.ims.aidl.IRcsConfigCallback}.
-     * @throws IllegalStateException when the {@link ImsService} connection is not available.
-     * @throws IllegalArgumentException when the {@link IRcsConfigCallback} argument is null.
-     */
-    public void removeRcsProvisioningCallbackForSubscription(
-            IRcsConfigCallback callback, int subId) {
-        if (callback == null) {
-            throw new IllegalArgumentException("provisioning callback can't be null");
-        }
-
-        mMmTelConnectionRef.get().removeRcsProvisioningCallbackForSubscription(callback, subId);
-    }
-
-    /**
-     * Removes all RCS provisioning callbacks
-     *
-     * <p>This method is called when default message application change or some other event
-     * which need force to remove all RCS provisioning callbacks.
-     */
-    public void clearRcsProvisioningCallbacks() {
-        mMmTelConnectionRef.get().clearRcsProvisioningCallbacks();
     }
 
     private boolean isDataEnabled() {

@@ -32,7 +32,6 @@ import android.telephony.ims.aidl.IImsMmTelFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
-import android.telephony.ims.aidl.IRcsConfigCallback;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
@@ -198,52 +197,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    private class RcsProvisioningCallbackManager
-            extends ImsCallbackAdapterManager<IRcsConfigCallback> {
-        public RcsProvisioningCallbackManager (Context context, Object lock) {
-            super(context, lock, mSlotId);
-        }
-
-        @Override
-        public void registerCallback(IRcsConfigCallback localCallback) {
-            IImsConfig binder = getConfig();
-            if (binder == null) {
-                // Config interface is not currently available.
-                Log.w(TAG + " [" + mSlotId + "]",
-                        "RcsProvisioningCallbackManager - couldn't register,"
-                        + " binder is null.");
-                throw new IllegalStateException("RcsConfig is not available!");
-            }
-            try {
-                binder.addRcsConfigCallback(localCallback);
-            }catch (RemoteException e) {
-                throw new IllegalStateException("ImsService is not available!");
-            }
-        }
-
-        @Override
-        public void unregisterCallback(IRcsConfigCallback localCallback) {
-            IImsConfig binder = getConfig();
-            if (binder != null) {
-                try {
-                    binder.removeRcsConfigCallback(localCallback);
-                } catch (RemoteException e) {
-                    Log.w(TAG + " [" + mSlotId + "]", "RcsProvisioningCallbackManager - couldn't"
-                            + " unregister, binder is dead.");
-                }
-            } else {
-                Log.w(TAG + " [" + mSlotId + "]", "RcsProvisioningCallbackManager - couldn't"
-                        + " unregister, binder is null.");
-            }
-            try {
-                localCallback.onRemoved();
-            } catch (RemoteException e) {
-                Log.w(TAG + " [" + mSlotId + "]", "RcsProvisioningCallbackManager - couldn't"
-                        + " notify onRemoved, binder is dead.");
-            }
-        }
-    }
-
     // Updated by IImsServiceFeatureCallback when FEATURE_EMERGENCY_MMTEL is sent.
     private boolean mSupportsEmergencyCalling = false;
     // MMTEL specific binder Interfaces
@@ -254,7 +207,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private final ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
     private final CapabilityCallbackManager mCapabilityCallbackManager;
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
-    private final RcsProvisioningCallbackManager mRcsProvisioningCallbackManager;
 
     public MmTelFeatureConnection(Context context, int slotId, IImsMmTelFeature f,
             IImsConfig c, IImsRegistration r, ISipTransport s) {
@@ -264,7 +216,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);
         mCapabilityCallbackManager = new CapabilityCallbackManager(context, mLock);
         mProvisioningCallbackManager = new ProvisioningCallbackManager(context, mLock);
-        mRcsProvisioningCallbackManager = new RcsProvisioningCallbackManager(context, mLock);
     }
 
     @Override
@@ -511,20 +462,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
             checkServiceIsReady();
             return getServiceInterface(mBinder).shouldProcessCall(numbers);
         }
-    }
-
-    public void addRcsProvisioningCallbackForSubscription(IRcsConfigCallback callback,
-            int subId) {
-        mRcsProvisioningCallbackManager.addCallbackForSubscription(callback, subId);
-    }
-
-    public void removeRcsProvisioningCallbackForSubscription(IRcsConfigCallback callback,
-            int subId) {
-        mRcsProvisioningCallbackManager.removeCallbackForSubscription(callback , subId);
-    }
-
-    public void clearRcsProvisioningCallbacks() {
-        mRcsProvisioningCallbackManager.close();
     }
 
     @Override
