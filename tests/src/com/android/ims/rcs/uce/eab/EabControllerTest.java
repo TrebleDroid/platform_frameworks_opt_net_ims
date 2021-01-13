@@ -25,6 +25,7 @@ import static java.time.temporal.ChronoUnit.DAYS;
 
 import android.content.ContentValues;
 import android.net.Uri;
+import android.os.Looper;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactUceCapability;
 import android.test.mock.MockContentResolver;
@@ -69,7 +70,8 @@ public class EabControllerTest extends ImsTestBase {
         mockContentResolver.addProvider(EabProvider.AUTHORITY, mEabProviderTestable);
 
         insertContactInfoToDB();
-        mEabController = new EabControllerImpl(mContext, TEST_SUB_ID, null, null);
+        mEabController = new EabControllerImpl(
+                mContext, TEST_SUB_ID, null, Looper.getMainLooper());
     }
 
     @After
