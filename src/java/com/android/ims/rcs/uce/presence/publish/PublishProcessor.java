@@ -31,13 +31,14 @@ import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.PrintWriter;
+import java.time.Instant;
 
 /**
  * Send the publish request and handle the response of the publish request result.
  */
 public class PublishProcessor {
 
-    private static final String LOG_TAG = "PublishProcessor";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "PublishProcessor";
 
     // The length of time waiting for the response callback.
     private static final long RESPONSE_CALLBACK_WAITING_TIME = 60000L;
@@ -265,7 +266,8 @@ public class PublishProcessor {
         } else {
             // Update the publish state if the request is failed and doesn't need to retry.
             int publishState = requestResponse.getPublishStateByCmdErrorCode();
-            mPublishCtrlCallback.updatePublishRequestResult(publishState);
+            Instant responseTimestamp = requestResponse.getResponseTimestamp();
+            mPublishCtrlCallback.updatePublishRequestResult(publishState, responseTimestamp);
 
             // Check if there is a pending request
             checkAndSendPendingRequest();
@@ -309,7 +311,8 @@ public class PublishProcessor {
             }
             // Update the publish state if the request doesn't need to retry.
             int publishResult = requestResponse.getPublishStateByNetworkResponse();
-            mPublishCtrlCallback.updatePublishRequestResult(publishResult);
+            Instant responseTimestamp = requestResponse.getResponseTimestamp();
+            mPublishCtrlCallback.updatePublishRequestResult(publishResult, responseTimestamp);
 
             // Check if there is a pending request
             checkAndSendPendingRequest();

@@ -25,9 +25,18 @@ import android.util.Log;
 
 public class UceUtils {
 
+    private static final String LOG_PREFIX = "RcsUce.";
+
     private static final String LOG_TAG = "UceUtils";
 
     private static long TASK_ID = 0L;
+
+    /**
+     * Get the log prefix of RCS UCE
+     */
+    public static String getLogPrefix() {
+        return LOG_PREFIX;
+    }
 
     /**
      * Generate the unique UCE request task id.

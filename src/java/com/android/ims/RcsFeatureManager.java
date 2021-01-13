@@ -161,8 +161,7 @@ public class RcsFeatureManager implements FeatureUpdates {
 
     /**
      * Opens a persistent connection to the RcsFeature. This must be called before the RcsFeature
-     * can be used to communicate. Triggers a {@link RcsFeature#onFeatureReady()} call on the
-     * service side.
+     * can be used to communicate.
      */
     public void openConnection() throws android.telephony.ims.ImsException {
         try {

@@ -144,7 +144,7 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
 
         verify(mDeviceCapability).updateImsMmtelRegistered(anyInt());
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED, 0L);
+                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED, 500L);
     }
 
     @Test
@@ -171,7 +171,7 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
 
         verify(mDeviceCapability).updateImsRcsRegistered(anyInt());
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_RCS_REGISTERED, 0L);
+                PublishController.PUBLISH_TRIGGER_RCS_REGISTERED, 500L);
     }
 
     @Test

@@ -26,7 +26,6 @@ import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
-import android.telephony.ims.RcsUceAdapter.PublishStateCallback;
 import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IOptionsRequestCallback;
 import android.telephony.ims.aidl.IOptionsResponseCallback;
@@ -45,6 +44,7 @@ import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeControllerImpl;
 import com.android.ims.rcs.uce.request.UceRequestManager;
+import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.time.Duration;
@@ -59,7 +59,7 @@ import java.util.List;
  */
 public class UceController {
 
-    private static final String LOG_TAG = "UceController";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "UceController";
 
     /**
      * The callback interface is called by the internal controllers to receive information from
@@ -579,8 +579,7 @@ public class UceController {
                 } else {
                     mAllowedTimestamp = Instant.now().plus(retryAfterMillis, ChronoUnit.MILLIS);
                 }
-                Log.d(LOG_TAG, "forbidUceRequest: " + mIsForbidden
-                        + ", time=" + mAllowedTimestamp);
+                Log.d(LOG_TAG, "forbidUceRequest: " + mIsForbidden + ",time=" + mAllowedTimestamp);
             }
         }
 
