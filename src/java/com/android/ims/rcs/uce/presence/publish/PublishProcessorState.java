@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class PublishProcessorState {
 
-    private static final String LOG_TAG = "PublishProcessorState";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "PublishProcessorState";
 
     // The waiting period before the first retry.
     private static final int RETRY_BASE_PERIOD = 1;   // minute
@@ -129,7 +129,7 @@ public class PublishProcessorState {
     // Adjust the timestamp to allow request PUBLISH with the specific delay time
     private void adjustAllowedPublishTimestamp() {
         synchronized (mLock) {
-            Log.v(LOG_TAG, "adjustAllowedPublishTimestamp: retry=" + mRetryCount);
+            Log.d(LOG_TAG, "adjustAllowedPublishTimestamp: retry=" + mRetryCount);
             if (mAllowedTimestamp == null) {
                 // Now for the initialization.
                 mAllowedTimestamp = Instant.now();
@@ -137,7 +137,7 @@ public class PublishProcessorState {
                 long nextRetryDuration = getNextRetryDuration();
                 mAllowedTimestamp = Instant.now().plus(Duration.ofMillis(nextRetryDuration));
             }
-            Log.v(LOG_TAG, "adjustAllowedPublishTimestamp: timestamp="
+            Log.d(LOG_TAG, "adjustAllowedPublishTimestamp: timestamp="
                     + mAllowedTimestamp.toString());
         }
     }
@@ -145,11 +145,13 @@ public class PublishProcessorState {
     // Return the milliseconds of the next retry delay.
     private long getNextRetryDuration() {
         synchronized (mLock) {
-            int power = mRetryCount - 1;
-            if (power < 0) {
-                power = 0;
+            // If the current retry count is zero, the duration is also zero.
+            if (mRetryCount == 0) {
+                return 0L;
             }
+
             // Next retry duration (minute)
+            int power = mRetryCount - 1;
             Double retryDuration = RETRY_BASE_PERIOD * Math.pow(2, power);
 
             // Convert to millis

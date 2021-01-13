@@ -40,6 +40,7 @@ import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
+import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.util.HandlerExecutor;
 
@@ -49,7 +50,11 @@ import com.android.internal.telephony.util.HandlerExecutor;
  */
 public class DeviceCapabilityListener {
 
-    private static final String LOG_TAG = "DeviceCapListener";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "DeviceCapListener";
+
+    // Delay to send the registered changed because the registered state changed of MMTEL and RCS
+    // may be called at the same time.
+    private static final long DELAY_SEND_IMS_REGISTERED_CHANGED_MSG = 500L;
 
     /**
      * Used to inject ImsMmTelManager instances for testing.
@@ -477,7 +482,8 @@ public class DeviceCapabilityListener {
     private void handleImsMmtelRegistered(int imsTransportType) {
         mCapabilityInfo.updateImsMmtelRegistered(imsTransportType);
         mCallback.requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED, 0L);
+                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED,
+                DELAY_SEND_IMS_REGISTERED_CHANGED_MSG);
     }
 
     /*
@@ -490,8 +496,8 @@ public class DeviceCapabilityListener {
     }
 
     private void handleMmtelCapabilitiesStatusChanged(MmTelCapabilities capabilities) {
-        logi("MMTel capabilities status changed");
         boolean isChanged = mCapabilityInfo.updateMmtelCapabilitiesChanged(capabilities);
+        logi("MMTel capabilities status changed: isChanged=" + isChanged);
         if (isChanged) {
             mCallback.requestPublishFromInternal(
                     PublishController.PUBLISH_TRIGGER_MMTEL_CAPABILITY_CHANGE, 0L);
@@ -503,7 +509,9 @@ public class DeviceCapabilityListener {
      */
     private void handleImsRcsRegistered(int imsTransportType) {
         mCapabilityInfo.updateImsRcsRegistered(imsTransportType);
-        mCallback.requestPublishFromInternal(PublishController.PUBLISH_TRIGGER_RCS_REGISTERED, 0L);
+        mCallback.requestPublishFromInternal(
+                PublishController.PUBLISH_TRIGGER_RCS_REGISTERED,
+                DELAY_SEND_IMS_REGISTERED_CHANGED_MSG);
     }
 
     /*
