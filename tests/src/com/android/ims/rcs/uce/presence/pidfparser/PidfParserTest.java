@@ -93,6 +93,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("service_id_01", presenceTuple1.getServiceId());
         assertEquals("1.0", presenceTuple1.getServiceVersion());
         assertEquals("description_test1", presenceTuple1.getServiceDescription());
+        assertEquals("2001-01-01T01:00:000Z", presenceTuple1.getTimestamp());
         assertEquals(Uri.fromParts("sip", "test", null), presenceTuple1.getContactUri());
         assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
         assertTrue(presenceTuple1.getServiceCapabilities().isVideoCapable());
@@ -101,6 +102,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("service_id_02", presenceTuple2.getServiceId());
         assertEquals("1.0", presenceTuple2.getServiceVersion());
         assertEquals("description_test2", presenceTuple2.getServiceDescription());
+        assertEquals("2001-02-02T01:00:000Z", presenceTuple2.getTimestamp());
         assertEquals(Uri.fromParts("sip", "test", null), presenceTuple2.getContactUri());
         assertTrue(presenceTuple2.getServiceCapabilities().isAudioCapable());
         assertFalse(presenceTuple2.getServiceCapabilities().isVideoCapable());
@@ -185,6 +187,7 @@ public class PidfParserTest extends ImsTestBase {
                 .append("<caps:video>true</caps:video>")
                 .append("</caps:servcaps>")
                 .append("<contact>sip:test</contact>")
+                .append("<timestamp>2001-01-01T01:00:000Z</timestamp>")
                 .append("</tuple>")
                 // tuple 2
                 .append("<tuple id=\"tid1\"><status><basic>open</basic></status>")
@@ -200,6 +203,7 @@ public class PidfParserTest extends ImsTestBase {
                 .append("<caps:video>false</caps:video>")
                 .append("</caps:servcaps>")
                 .append("<contact>sip:test</contact>")
+                .append("<timestamp>2001-02-02T01:00:000Z</timestamp>")
                 .append("</tuple></presence>");
 
         return pidfBuilder.toString();
