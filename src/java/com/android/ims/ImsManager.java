@@ -2309,10 +2309,20 @@ public class ImsManager implements FeatureUpdates {
                 getBooleanCarrierConfig(CarrierConfigManager.KEY_RTT_SUPPORTED_BOOL)
                 || !isActiveSubscriptionPresent;
 
-        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.RTT_CALLING_MODE, 0) != 0;
+        int defaultRttMode =
+                getIntCarrierConfig(CarrierConfigManager.KEY_DEFAULT_RTT_MODE_INT);
+        int rttMode = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE, defaultRttMode);
+        logi("defaultRttMode = " + defaultRttMode + " rttMode = " + rttMode);
         boolean isRttAlwaysOnCarrierConfig = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_IGNORE_RTT_MODE_SETTING_BOOL);
+        if (isRttAlwaysOnCarrierConfig && rttMode == defaultRttMode) {
+            Settings.Secure.putInt(mContext.getContentResolver(),
+                    Settings.Secure.RTT_CALLING_MODE, defaultRttMode);
+        }
+
+        boolean isRttUiSettingEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.RTT_CALLING_MODE, 0) != 0;
 
         boolean shouldImsRttBeOn = isRttUiSettingEnabled || isRttAlwaysOnCarrierConfig;
         logi("update RTT: settings value: " + isRttUiSettingEnabled + " always-on carrierconfig: "
