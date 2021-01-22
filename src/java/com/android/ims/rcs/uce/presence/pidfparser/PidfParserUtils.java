@@ -144,11 +144,13 @@ public class PidfParserUtils {
         }
 
         // Add the Service Description element into the tuple
-        if (serviceIdElement != null && versionElement != null && descriptionElement != null) {
+        if (serviceIdElement != null && versionElement != null) {
             ServiceDescription serviceDescription = new ServiceDescription();
             serviceDescription.setServiceId(serviceIdElement);
             serviceDescription.setVersion(versionElement);
-            serviceDescription.setDescription(descriptionElement);
+            if (descriptionElement != null) {
+                serviceDescription.setDescription(descriptionElement);
+            }
             tupleElement.setServiceDescription(serviceDescription);
         }
     }

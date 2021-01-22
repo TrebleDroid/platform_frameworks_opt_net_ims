@@ -191,6 +191,12 @@ public class PidfParser {
             builder.addContactUri(Uri.parse(contact));
         }
 
+        // Timestamp
+        String timestamp = PidfParserUtils.getTupleTimestamp(tuple);
+        if (!TextUtils.isEmpty(timestamp)) {
+            builder.addTimeStamp(timestamp);
+        }
+
         // Service description
         if (!TextUtils.isEmpty(description)) {
             builder.addDescription(description);
@@ -227,7 +233,7 @@ public class PidfParser {
                 }
 
                 if (notSupportedTypes != null && !notSupportedTypes.isEmpty()) {
-                    for (String notSupportedType : supportedTypes) {
+                    for (String notSupportedType : notSupportedTypes) {
                         capabilitiesBuilder.addUnsupportedDuplexMode(notSupportedType);
                     }
                 }
