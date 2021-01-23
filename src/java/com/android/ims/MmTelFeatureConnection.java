@@ -16,12 +16,12 @@
 
 package com.android.ims;
 
-import android.annotation.NonNull;
 import android.content.Context;
+import android.os.Binder;
 import android.os.IBinder;
+import android.os.IInterface;
 import android.os.Message;
 import android.os.RemoteException;
-import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsService;
 import android.telephony.ims.RtpHeaderExtensionType;
@@ -34,8 +34,8 @@ import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.CapabilityChangeRequest;
-import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.stub.ImsEcbmImplBase;
 import android.telephony.ims.stub.ImsSmsImplBase;
 import android.util.Log;
 
@@ -43,9 +43,9 @@ import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
 import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
-import com.android.telephony.Rlog;
 
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -197,12 +197,54 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
+    private static final class BinderAccessState<T> {
+        /**
+         * We have not tried to get the interface yet.
+         */
+        static final int STATE_NOT_SET = 0;
+        /**
+         * We have tried to get the interface, but it is not supported.
+         */
+        static final int STATE_NOT_SUPPORTED = 1;
+        /**
+         * The interface is available from the service.
+         */
+        static final int STATE_AVAILABLE = 2;
+
+        public static <T> BinderAccessState<T> of(T value) {
+            return new BinderAccessState<>(value);
+        }
+
+        private final int mState;
+        private final T mInterface;
+
+        public BinderAccessState(int state) {
+            mState = state;
+            mInterface = null;
+        }
+
+        public BinderAccessState(T binderInterface) {
+            mState = STATE_AVAILABLE;
+            mInterface = binderInterface;
+        }
+
+        public int getState() {
+            return mState;
+        }
+
+        public T getInterface() {
+            return mInterface;
+        }
+    }
+
     // Updated by IImsServiceFeatureCallback when FEATURE_EMERGENCY_MMTEL is sent.
     private boolean mSupportsEmergencyCalling = false;
-    // MMTEL specific binder Interfaces
+    private BinderAccessState<ImsEcbm> mEcbm =
+            new BinderAccessState<>(BinderAccessState.STATE_NOT_SET);
+    private BinderAccessState<ImsMultiEndpoint> mMultiEndpoint =
+            new BinderAccessState<>(BinderAccessState.STATE_NOT_SET);
+    private MmTelFeature.Listener mMmTelFeatureListener;
     private ImsUt mUt;
-    private ImsEcbm mEcbm;
-    private ImsMultiEndpoint mMultiEndpoint;
 
     private final ImsRegistrationCallbackAdapter mRegistrationCallbackManager;
     private final CapabilityCallbackManager mCapabilityCallbackManager;
@@ -220,8 +262,22 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     @Override
     protected void onRemovedOrDied() {
-        closeConnection();
-        super.onRemovedOrDied();
+        // Release all callbacks being tracked and unregister them from the connected MmTelFeature.
+        mRegistrationCallbackManager.close();
+        mCapabilityCallbackManager.close();
+        mProvisioningCallbackManager.close();
+        // Close mUt interface separately from other listeners, as it is not tied directly to
+        // calling. There is still a limitation currently that only one UT listener can be set
+        // (through ImsPhoneCallTracker), but this could be relaxed in the future via the ability
+        // to register multiple callbacks.
+        synchronized (mLock) {
+            if (mUt != null) {
+                mUt.close();
+                mUt = null;
+            }
+            closeConnection();
+            super.onRemovedOrDied();
+        }
     }
 
     public boolean isEmergencyMmTelAvailable() {
@@ -232,37 +288,45 @@ public class MmTelFeatureConnection extends FeatureConnection {
      * Opens the connection to the {@link MmTelFeature} and establishes a listener back to the
      * framework. Calling this method multiple times will reset the listener attached to the
      * {@link MmTelFeature}.
-     * @param listener A {@link MmTelFeature.Listener} that will be used by the {@link MmTelFeature}
-     * to notify the framework of updates.
+     * @param mmTelListener A {@link MmTelFeature.Listener} that will be used by the
+     *         {@link MmTelFeature} to notify the framework of mmtel calling updates.
+     * @param ecbmListener Listener used to listen for ECBM updates from {@link ImsEcbmImplBase}
+     *         implementation.
      */
-    public void openConnection(MmTelFeature.Listener listener) throws RemoteException {
+    public void openConnection(MmTelFeature.Listener mmTelListener,
+            ImsEcbmStateListener ecbmListener,
+            ImsExternalCallStateListener multiEndpointListener) throws RemoteException {
         synchronized (mLock) {
             checkServiceIsReady();
-            getServiceInterface(mBinder).setListener(listener);
+            mMmTelFeatureListener = mmTelListener;
+            getServiceInterface(mBinder).setListener(mmTelListener);
+            setEcbmInterface(ecbmListener);
+            setMultiEndpointInterface(multiEndpointListener);
         }
     }
 
     /**
-     * Clean up all caches as well as any callbacks that are currently associated with the
-     * MmTelFeature.
+     * Closes the connection to the {@link MmTelFeature} if it was previously opened via
+     * {@link #openConnection} by removing all listeners.
      */
     public void closeConnection() {
-        mRegistrationCallbackManager.close();
-        mCapabilityCallbackManager.close();
-        mProvisioningCallbackManager.close();
         synchronized (mLock) {
-            if (mUt != null) {
-                mUt.close();
-                mUt = null;
-            }
-            mEcbm = null;
-            mMultiEndpoint = null;
+            if (!isBinderAlive()) return;
             try {
-                if (isBinderAlive()) {
+                if (mMmTelFeatureListener != null) {
+                    mMmTelFeatureListener = null;
                     getServiceInterface(mBinder).setListener(null);
                 }
+                if (mEcbm.getState() == BinderAccessState.STATE_AVAILABLE) {
+                    mEcbm.getInterface().setEcbmStateListener(null);
+                    mEcbm = new BinderAccessState<>(BinderAccessState.STATE_NOT_SET);
+                }
+                if (mMultiEndpoint.getState() == BinderAccessState.STATE_AVAILABLE) {
+                    mMultiEndpoint.getInterface().setExternalCallStateListener(null);
+                    mMultiEndpoint = new BinderAccessState<>(BinderAccessState.STATE_NOT_SET);
+                }
             } catch (RemoteException e) {
-                Log.w(TAG + " [" + mSlotId + "]", "closeConnection: couldn't remove listener!");
+                Log.w(TAG + " [" + mSlotId + "]", "closeConnection: couldn't remove listeners!");
             }
         }
     }
@@ -363,25 +427,45 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    public ImsUt getUtInterface() throws RemoteException {
+    public ImsUt createOrGetUtInterface() throws RemoteException {
         synchronized (mLock) {
             if (mUt != null) return mUt;
 
             checkServiceIsReady();
             IImsUt imsUt = getServiceInterface(mBinder).getUtInterface();
+            // This will internally set up a listener on the ImsUtImplBase interface, and there is
+            // a limitation that there can only be one. If multiple connections try to create this
+            // UT interface, it will throw an IllegalStateException.
             mUt = (imsUt != null) ? new ImsUt(imsUt) : null;
             return mUt;
         }
     }
 
-    public ImsEcbm getEcbmInterface() throws RemoteException {
+    private void setEcbmInterface(ImsEcbmStateListener ecbmListener) throws RemoteException {
         synchronized (mLock) {
-            if (mEcbm != null) return mEcbm;
+            if (mEcbm.getState() != BinderAccessState.STATE_NOT_SET) {
+                throw new IllegalStateException("ECBM interface already open");
+            }
 
             checkServiceIsReady();
             IImsEcbm imsEcbm = getServiceInterface(mBinder).getEcbmInterface();
-            mEcbm = (imsEcbm != null) ? new ImsEcbm(imsEcbm) : null;
-            return mEcbm;
+            mEcbm = (imsEcbm != null) ? BinderAccessState.of(new ImsEcbm(imsEcbm)) :
+                    new BinderAccessState<>(BinderAccessState.STATE_NOT_SUPPORTED);
+            if (mEcbm.getState() == BinderAccessState.STATE_AVAILABLE) {
+                // May throw an IllegalStateException if a listener already exists.
+                mEcbm.getInterface().setEcbmStateListener(ecbmListener);
+            }
+        }
+    }
+
+    public ImsEcbm getEcbmInterface() {
+        synchronized (mLock) {
+            if (mEcbm.getState() == BinderAccessState.STATE_NOT_SET) {
+                throw new IllegalStateException("ECBM interface has not been opened");
+            }
+
+            return mEcbm.getState() == BinderAccessState.STATE_AVAILABLE ?
+                    mEcbm.getInterface() : null;
         }
     }
 
@@ -393,14 +477,22 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
-    public ImsMultiEndpoint getMultiEndpointInterface() throws RemoteException {
+    private void setMultiEndpointInterface(ImsExternalCallStateListener listener)
+            throws RemoteException {
         synchronized (mLock) {
-            if(mMultiEndpoint != null) return mMultiEndpoint;
+            if (mMultiEndpoint.getState() != BinderAccessState.STATE_NOT_SET) {
+                throw new IllegalStateException("multiendpoint interface is already open");
+            }
 
             checkServiceIsReady();
             IImsMultiEndpoint imEndpoint = getServiceInterface(mBinder).getMultiEndpointInterface();
-            mMultiEndpoint = (imEndpoint != null) ? new ImsMultiEndpoint(imEndpoint) : null;
-            return mMultiEndpoint;
+            mMultiEndpoint = (imEndpoint != null)
+                    ? BinderAccessState.of(new ImsMultiEndpoint(imEndpoint)) :
+                    new BinderAccessState<>(BinderAccessState.STATE_NOT_SUPPORTED);
+            if (mMultiEndpoint.getState() == BinderAccessState.STATE_AVAILABLE) {
+                // May throw an IllegalStateException if a listener already exists.
+                mMultiEndpoint.getInterface().setExternalCallStateListener(listener);
+            }
         }
     }
 
