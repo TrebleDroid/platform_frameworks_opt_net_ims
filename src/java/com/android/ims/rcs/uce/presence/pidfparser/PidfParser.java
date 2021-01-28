@@ -16,6 +16,7 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser;
 
+import android.annotation.Nullable;
 import android.net.Uri;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
@@ -34,6 +35,7 @@ import com.android.ims.rcs.uce.presence.pidfparser.pidf.Basic;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.PidfConstant;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Presence;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Tuple;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -51,7 +53,7 @@ import org.xmlpull.v1.XmlSerializer;
  */
 public class PidfParser {
 
-    private static final String LOG_TAG = "PidfParser";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "PidfParser";
 
     /**
      * Convert the RcsContactUceCapability to the string of pidf.
@@ -89,9 +91,9 @@ public class PidfParser {
     }
 
     /**
-     * Convert the pidf data to the class RcsContactUceCapability.
+     * Get the RcsContactUceCapability from the given PIDF xml format.
      */
-    public static RcsContactUceCapability convertToRcsContactUceCapability(String pidf) {
+    public static @Nullable RcsContactUceCapability getRcsContactUceCapability(String pidf) {
         if (TextUtils.isEmpty(pidf)) {
             return null;
         }
@@ -107,8 +109,8 @@ public class PidfParser {
             // Start parsing
             Presence presence = parsePidf(parser);
 
-            // Convert to the class RcsContactUceCapability
-            return convert(presence);
+            // Convert from the Presence to the RcsContactUceCapability
+            return convertToRcsContactUceCapability(presence);
 
         } catch (XmlPullParserException | IOException e) {
             e.printStackTrace();
@@ -127,7 +129,6 @@ public class PidfParser {
     private static Presence parsePidf(XmlPullParser parser) throws IOException,
             XmlPullParserException {
         Presence presence = null;
-
         int nextType = parser.next();
         do {
             // Find the Presence start tag
@@ -143,31 +144,37 @@ public class PidfParser {
         return presence;
     }
 
-    private static RcsContactUceCapability convert(Presence presence) {
+    /*
+     * Convert the given Presence to the RcsContactUceCapability
+     */
+    private static RcsContactUceCapability convertToRcsContactUceCapability(Presence presence) {
         if (presence == null) {
+            Log.w(LOG_TAG, "convertToRcsContactUceCapability: The presence is null");
+            return null;
+        }
+        if (TextUtils.isEmpty(presence.getEntity())) {
+            Log.w(LOG_TAG, "convertToRcsContactUceCapability: The entity is empty");
             return null;
         }
 
-        PresenceBuilder builder = new PresenceBuilder(Uri.parse(presence.getEntity()),
+        PresenceBuilder presenceBuilder = new PresenceBuilder(Uri.parse(presence.getEntity()),
                 RcsContactUceCapability.SOURCE_TYPE_NETWORK,
                 RcsContactUceCapability.REQUEST_RESULT_FOUND);
 
-        List<Tuple> tupleList = presence.getTupleList();
-        if (tupleList == null || tupleList.isEmpty()) {
-            Log.w(LOG_TAG, "convert: tuple list is empty");
-            return builder.build();
-        }
-
-        for (Tuple tuple : tupleList) {
+        // Add all the capability tuples of this contact
+        presence.getTupleList().forEach(tuple -> {
             RcsContactPresenceTuple capabilityTuple = getRcsContactPresenceTuple(tuple);
             if (capabilityTuple != null) {
-                builder.addCapabilityTuple(capabilityTuple);
+                presenceBuilder.addCapabilityTuple(capabilityTuple);
             }
-        }
-        return builder.build();
+        });
+
+        return presenceBuilder.build();
     }
 
-    // Get the RcsContactPresenceTuple from the giving tuple element.
+    /*
+     * Get the RcsContactPresenceTuple from the giving tuple element.
+     */
     private static RcsContactPresenceTuple getRcsContactPresenceTuple(Tuple tuple) {
         if (tuple == null) {
             return null;
@@ -180,29 +187,29 @@ public class PidfParser {
 
         String serviceId = PidfParserUtils.getTupleServiceId(tuple);
         String serviceVersion = PidfParserUtils.getTupleServiceVersion(tuple);
-        String description = PidfParserUtils.getTupleServiceDescription(tuple);
+        String serviceDescription = PidfParserUtils.getTupleServiceDescription(tuple);
 
         RcsContactPresenceTuple.Builder builder = new RcsContactPresenceTuple.Builder(status,
                 serviceId, serviceVersion);
 
-        // Contact information
+        // Set contact uri
         String contact = PidfParserUtils.getTupleContact(tuple);
         if (!TextUtils.isEmpty(contact)) {
-            builder.addContactUri(Uri.parse(contact));
+            builder.setContactUri(Uri.parse(contact));
         }
 
         // Timestamp
         String timestamp = PidfParserUtils.getTupleTimestamp(tuple);
         if (!TextUtils.isEmpty(timestamp)) {
-            builder.addTimeStamp(timestamp);
+            builder.setTimestamp(timestamp);
         }
 
-        // Service description
-        if (!TextUtils.isEmpty(description)) {
-            builder.addDescription(description);
+        // Set service description
+        if (!TextUtils.isEmpty(serviceDescription)) {
+            builder.setServiceDescription(serviceDescription);
         }
 
-        // Service capabilities
+        // Set service capabilities
         ServiceCaps serviceCaps = tuple.getServiceCaps();
         if (serviceCaps != null) {
             List<ElementBase> serviceCapsList = serviceCaps.getElements();
@@ -237,7 +244,7 @@ public class PidfParser {
                         capabilitiesBuilder.addUnsupportedDuplexMode(notSupportedType);
                     }
                 }
-                builder.addServiceCapabilities(capabilitiesBuilder.build());
+                builder.setServiceCapabilities(capabilitiesBuilder.build());
             }
         }
         return builder.build();
