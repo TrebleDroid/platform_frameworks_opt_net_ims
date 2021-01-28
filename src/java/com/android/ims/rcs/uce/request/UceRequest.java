@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public abstract class UceRequest {
 
-    private static final String LOG_TAG = "UceRequest";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "UceRequest";
 
     /** The request type: CAPABILITY */
     public static final int REQUEST_TYPE_CAPABILITY = 1;
@@ -66,6 +66,7 @@ public abstract class UceRequest {
 
     protected List<Uri> mUriList;
     protected volatile boolean mIsFinished;
+    protected volatile boolean mSkipGettingFromCache;
 
     public UceRequest(int subId, @UceRequestType int type, RequestManagerCallback callback) {
         mSubId = subId;
@@ -114,6 +115,24 @@ public abstract class UceRequest {
     }
 
     /**
+     * Set to check if this request should be getting the capabilities from the cache. The flag is
+     * set when the request is triggered by the capability polling service. The contacts from the
+     * capability polling service are already expired, skip checking from the cache.
+     */
+    public void setSkipGettingFromCache(boolean skipFromCache) {
+        mSkipGettingFromCache = skipFromCache;
+    }
+
+    /**
+     * Return if the capabilities request should skip getting from the cache. The flag is set when
+     * the request is triggered by the capability polling service and the request doesn't need to
+     * check the cache again.
+     */
+    private boolean isSkipGettingFromCache() {
+        return mSkipGettingFromCache;
+    }
+
+    /**
      * Start executing this request.
      */
     public void executeRequest() {
@@ -125,9 +144,10 @@ public abstract class UceRequest {
         }
 
         // Get the capabilities from the cache.
-        final List<RcsContactUceCapability> cachedCapabilityList = getCapabilitiesFromCache();
+        final List<RcsContactUceCapability> cachedCapabilityList
+                = isSkipGettingFromCache() ? Collections.EMPTY_LIST : getCapabilitiesFromCache();
 
-        logd("executeRequest: cached capabilities=" + cachedCapabilityList.size());
+        logd("executeRequest: cached capabilities size=" + cachedCapabilityList.size());
 
         // Trigger the callback for those capabilities from the cache.
         if (!handleCachedCapabilities(cachedCapabilityList)) {
@@ -166,9 +186,8 @@ public abstract class UceRequest {
         }
 
         if (mRequestManagerCallback.isRequestForbidden()) {
-            long retryAfter = mRequestManagerCallback.getRetryAfterMillis();
-            logw("isRequestAllowed: The request is forbidden, retry=" + retryAfter);
-            mRequestResponse.setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN, retryAfter);
+            logw("isRequestAllowed: The request is forbidden");
+            mRequestResponse.setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
             return false;
         }
         return true;
@@ -190,6 +209,7 @@ public abstract class UceRequest {
             return Collections.emptyList();
         }
         return resultList.stream()
+                .filter(Objects::nonNull)
                 .filter(result -> result.getStatus() == EabCapabilityResult.EAB_QUERY_SUCCESSFUL)
                 .map(EabCapabilityResult::getContactCapabilities)
                 .filter(Objects::nonNull)
@@ -198,10 +218,9 @@ public abstract class UceRequest {
 
     /**
      * Get the contact uris which cannot retrieve capabilities from the cache.
-     * @para cachedCapabilityList The capabilities which are already stored in the cache.
+     * @param cachedCapabilityList The capabilities which are already stored in the cache.
      */
-    @VisibleForTesting
-    public List<Uri> getRequestingFromNetworkUris(
+    private List<Uri> getRequestingFromNetworkUris(
             List<RcsContactUceCapability> cachedCapabilityList) {
         return mUriList.stream()
                 .filter(uri -> cachedCapabilityList.stream()
@@ -275,15 +294,15 @@ public abstract class UceRequest {
     }
 
     private void checkRequestForbidden() {
-        final int networkResp = mRequestResponse.getNetworkResponseCode();
-        if (networkResp == NetworkSipCode.SIP_CODE_FORBIDDEN) {
+        if (mRequestResponse.getNetworkResponseCode() == NetworkSipCode.SIP_CODE_FORBIDDEN) {
+            int errorCode = mRequestResponse.getErrorCode();
             long retryAfter = mRequestResponse.getRetryAfterMillis();
-            mRequestManagerCallback.onRequestForbidden(true, retryAfter);
+            mRequestManagerCallback.onRequestForbidden(true, errorCode, retryAfter);
         }
     }
 
     /**
-     * Send the onComplete callback to end this request.
+     * Send the onComplete callback to finish this request.
      */
     public void handleRequestCompleted(boolean notifyRequestManager) {
         logd("handleRequestCompleted: notify=" + notifyRequestManager);
@@ -296,6 +315,10 @@ public abstract class UceRequest {
         }
     }
 
+    /*
+     * Requests capabilities from IMS. The inherited request is required to override this method
+     * to define the behavior of requesting capabilities.
+     */
     protected abstract void requestCapabilities(List<Uri> requestCapUris);
 
     protected void logd(String log) {

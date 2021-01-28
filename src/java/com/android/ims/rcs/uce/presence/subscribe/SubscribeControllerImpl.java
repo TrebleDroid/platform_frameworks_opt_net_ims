@@ -24,6 +24,7 @@ import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.List;
 
@@ -32,7 +33,7 @@ import java.util.List;
  */
 public class SubscribeControllerImpl implements SubscribeController {
 
-    private static final String LOG_TAG = "SubscribeController";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "SubscribeController";
 
     private final int mSubId;
     private final Context mContext;

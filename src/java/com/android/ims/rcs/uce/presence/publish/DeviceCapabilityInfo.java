@@ -272,13 +272,13 @@ public class DeviceCapabilityInfo {
         RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
                 RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
                 RcsContactPresenceTuple.SERVICE_ID_MMTEL, "1.0");
-        tupleBuilder.addContactUri(uri).addServiceCapabilities(servCapsBuilder.build());
+        tupleBuilder.setContactUri(uri).setServiceCapabilities(servCapsBuilder.build());
 
         RcsContactPresenceTuple.Builder callComposerTupleBuilder =
                 new RcsContactPresenceTuple.Builder(
                         RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
                         RcsContactPresenceTuple.SERVICE_ID_CALL_COMPOSER, "2.0");
-        callComposerTupleBuilder.addContactUri(uri).addServiceCapabilities(
+        callComposerTupleBuilder.setContactUri(uri).setServiceCapabilities(
                 servCapsBuilder.build());
 
         PresenceBuilder presenceBuilder = new PresenceBuilder(uri,

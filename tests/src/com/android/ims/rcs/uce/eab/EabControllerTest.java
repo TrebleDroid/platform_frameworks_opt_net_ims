@@ -134,18 +134,18 @@ public class EabControllerTest extends ImsTestBase {
         RcsContactPresenceTuple tupleWithServiceCapabilities =
                 new RcsContactPresenceTuple.Builder(TEST_SERVICE_STATUS, TEST_SERVICE_SERVICE_ID,
                         TEST_SERVICE_VERSION)
-                        .addDescription(TEST_SERVICE_DESCRIPTION)
-                        .addContactUri(TEST_CONTACT_URI)
-                        .addServiceCapabilities(serviceCapabilitiesBuilder.build())
-                        .addTimeStamp(String.valueOf(timeStamp))
+                        .setServiceDescription(TEST_SERVICE_DESCRIPTION)
+                        .setContactUri(TEST_CONTACT_URI)
+                        .setServiceCapabilities(serviceCapabilitiesBuilder.build())
+                        .setTimestamp(String.valueOf(timeStamp))
                         .build();
 
         RcsContactPresenceTuple tupleWithEmptyServiceCapabilities =
                 new RcsContactPresenceTuple.Builder(TEST_SERVICE_STATUS, TEST_SERVICE_SERVICE_ID,
                         TEST_SERVICE_VERSION)
-                        .addDescription(TEST_SERVICE_DESCRIPTION)
-                        .addContactUri(TEST_CONTACT_URI)
-                        .addTimeStamp(String.valueOf(timeStamp))
+                        .setServiceDescription(TEST_SERVICE_DESCRIPTION)
+                        .setContactUri(TEST_CONTACT_URI)
+                        .setTimestamp(String.valueOf(timeStamp))
                         .build();
 
         RcsContactUceCapability.PresenceBuilder builder =
