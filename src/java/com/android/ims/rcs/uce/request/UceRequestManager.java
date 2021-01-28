@@ -33,6 +33,7 @@ import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,13 +44,19 @@ import java.util.Map;
  */
 public class UceRequestManager {
 
-    private static final String LOG_TAG = "UceRequestManager";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "UceRequestManager";
 
     /**
      * Testing interface used to mock UceUtils in testing.
      */
     @VisibleForTesting
     public interface UceUtilsProxy {
+        /**
+         * The interface for {@link UceUtils#isPresenceCapExchangeEnabled(Context, int)} used for
+         * testing.
+         */
+        boolean isPresenceCapExchangeEnabled(Context context, int subId);
+
         /**
          * The interface for {@link UceUtils#isPresenceSupported(Context, int)} used for testing.
          */
@@ -62,6 +69,11 @@ public class UceRequestManager {
     }
 
     private static UceUtilsProxy sUceUtilsProxy = new UceUtilsProxy() {
+        @Override
+        public boolean isPresenceCapExchangeEnabled(Context context, int subId) {
+            return UceUtils.isPresenceCapExchangeEnabled(context, subId);
+        }
+
         @Override
         public boolean isPresenceSupported(Context context, int subId) {
             return UceUtils.isPresenceSupported(context, subId);
@@ -141,7 +153,7 @@ public class UceRequestManager {
         /**
          * Notify UceController that the UCE request is forbidden.
          */
-        void onRequestForbidden(boolean isForbidden, long retryAfterMillis);
+        void onRequestForbidden(boolean isForbidden, Integer errorCode, long retryAfterMillis);
     }
 
     private RequestManagerCallback mRequestMgrCallback = new RequestManagerCallback() {
@@ -196,8 +208,9 @@ public class UceRequestManager {
         }
 
         @Override
-        public void onRequestForbidden(boolean isForbidden, long retryAfterMillis) {
-            mControllerCallback.updateRequestForbidden(isForbidden, retryAfterMillis);
+        public void onRequestForbidden(boolean isForbidden, Integer errorCode,
+                long retryAfterMillis) {
+            mControllerCallback.updateRequestForbidden(isForbidden, errorCode, retryAfterMillis);
         }
     };
 
@@ -221,8 +234,8 @@ public class UceRequestManager {
         mContext = context;
         mControllerCallback = c;
         mRequestCollection = new HashMap<>();
-        mHandler = new UceRequestHandler(looper);
-        logi("create: " + mSubId);
+        mHandler = new UceRequestHandler(this, looper);
+        logi("create");
     }
 
     @VisibleForTesting
@@ -232,7 +245,7 @@ public class UceRequestManager {
         mContext = context;
         mControllerCallback = c;
         mRequestCollection = collection;
-        mHandler = new UceRequestHandler(looper);
+        mHandler = new UceRequestHandler(this, looper);
     }
 
     /**
@@ -246,7 +259,7 @@ public class UceRequestManager {
      * Notify that the request manager is destroyed.
      */
     public void onDestroy() {
-        logi("onDestroy: " + mSubId);
+        logi("onDestroy");
         mIsDestroyed = true;
         mHandler.onDestroy();
         synchronized (mLock) {
@@ -258,13 +271,13 @@ public class UceRequestManager {
     /**
      * Send a new capability request. It is called by UceController.
      */
-    public void sendCapabilityRequest(List<Uri> uriList, IRcsUceControllerCallback callback)
-            throws RemoteException {
+    public void sendCapabilityRequest(List<Uri> uriList, boolean skipFromCache,
+            IRcsUceControllerCallback callback) throws RemoteException {
         if (mIsDestroyed) {
             callback.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
             return;
         }
-        sendRequestInternal(UceRequest.REQUEST_TYPE_CAPABILITY, uriList, callback);
+        sendRequestInternal(UceRequest.REQUEST_TYPE_CAPABILITY, uriList, skipFromCache, callback);
     }
 
     /**
@@ -277,17 +290,18 @@ public class UceRequestManager {
             return;
         }
         sendRequestInternal(UceRequest.REQUEST_TYPE_AVAILABILITY,
-                Collections.singletonList(uri), callback);
+                Collections.singletonList(uri), false /* skipFromCache */, callback);
     }
 
     private void sendRequestInternal(@UceRequest.UceRequestType int type, List<Uri> uriList,
-            IRcsUceControllerCallback callback) throws RemoteException {
+            boolean skipFromCache, IRcsUceControllerCallback callback) throws RemoteException {
         UceRequest request = null;
-        if (sUceUtilsProxy.isPresenceSupported(mContext, mSubId)) {
+        if (sUceUtilsProxy.isPresenceCapExchangeEnabled(mContext, mSubId) &&
+                sUceUtilsProxy.isPresenceSupported(mContext, mSubId)) {
             request = new SubscribeRequest(mSubId, type, mRequestMgrCallback, mSubscribeCtrl);
             request.setContactUri(uriList);
+            request.setSkipGettingFromCache(skipFromCache);
             request.setCapabilitiesCallback(callback);
-
         } else if (sUceUtilsProxy.isSipOptionsSupported(mContext, mSubId)) {
             // TODO: Implement the OPTIONS request
         }
@@ -330,7 +344,7 @@ public class UceRequestManager {
         return mHandler;
     }
 
-    private class UceRequestHandler extends Handler {
+    private static class UceRequestHandler extends Handler {
         private static final int EVENT_REQUEST_CAPABILITIES = 1;
         private static final int EVENT_REQUEST_FAILED = 2;
         private static final int EVENT_REQUEST_SUCCESS = 3;
@@ -338,15 +352,18 @@ public class UceRequestManager {
         private static final int EVENT_RESOURCE_TERMINATED = 5;
         private static final int EVENT_CAPABILITIES_UPDATE = 6;
 
-        public UceRequestHandler(Looper looper) {
+        private final WeakReference<UceRequestManager> mUceRequestMgrRef;
+
+        public UceRequestHandler(UceRequestManager requestManager, Looper looper) {
             super(looper);
+            mUceRequestMgrRef = new WeakReference<>(requestManager);
         }
 
         /**
          * Send the capabilities request message.
          */
         public void sendRequestMessage(Long taskId) {
-            Message message = mHandler.obtainMessage();
+            Message message = obtainMessage();
             message.what = EVENT_REQUEST_CAPABILITIES;
             message.obj = taskId;
             sendMessage(message);
@@ -357,7 +374,7 @@ public class UceRequestManager {
          */
         public void sendRequestFinishedMessage(Long taskId) {
             if (!hasMessages(EVENT_REQUEST_FINISHED, taskId)) {
-                Message message = mHandler.obtainMessage();
+                Message message = obtainMessage();
                 message.what = EVENT_REQUEST_FINISHED;
                 message.obj = taskId;
                 sendMessage(message);
@@ -369,7 +386,7 @@ public class UceRequestManager {
          */
         public void sendRequestFailedMessage(Long taskId) {
             if (!hasMessages(EVENT_REQUEST_FAILED, taskId)) {
-                Message message = mHandler.obtainMessage();
+                Message message = obtainMessage();
                 message.what = EVENT_REQUEST_FAILED;
                 message.obj = taskId;
                 sendMessage(message);
@@ -381,7 +398,7 @@ public class UceRequestManager {
          */
         public void sendRequestSuccessMessage(Long taskId) {
             if (!hasMessages(EVENT_REQUEST_SUCCESS, taskId)) {
-                Message message = mHandler.obtainMessage();
+                Message message = obtainMessage();
                 message.what = EVENT_REQUEST_SUCCESS;
                 message.obj = taskId;
                 sendMessage(message);
@@ -393,7 +410,7 @@ public class UceRequestManager {
          */
         public void sendResourceTerminatedMessage(Long taskId) {
             if (!hasMessages(EVENT_RESOURCE_TERMINATED, taskId)) {
-                Message message = mHandler.obtainMessage();
+                Message message = obtainMessage();
                 message.what = EVENT_RESOURCE_TERMINATED;
                 message.obj = taskId;
                 sendMessage(message);
@@ -405,7 +422,7 @@ public class UceRequestManager {
          */
         public void sendCapabilitiesUpdateMessage(Long taskId) {
             if (!hasMessages(EVENT_CAPABILITIES_UPDATE, taskId)) {
-                Message message = mHandler.obtainMessage();
+                Message message = obtainMessage();
                 message.what = EVENT_CAPABILITIES_UPDATE;
                 message.obj = taskId;
                 sendMessage(message);
@@ -416,24 +433,23 @@ public class UceRequestManager {
          * Remove all the messages from the handler
          */
         public void onDestroy() {
-            removeMessages(EVENT_REQUEST_CAPABILITIES);
-            removeMessages(EVENT_REQUEST_FAILED);
-            removeMessages(EVENT_REQUEST_SUCCESS);
-            removeMessages(EVENT_REQUEST_FINISHED);
-            removeMessages(EVENT_RESOURCE_TERMINATED);
-            removeMessages(EVENT_CAPABILITIES_UPDATE);
+            removeCallbacksAndMessages(null);
         }
 
         @Override
         public void handleMessage(Message msg) {
+            UceRequestManager requestManager = mUceRequestMgrRef.get();
+            if (requestManager == null) {
+                return;
+            }
             final Long taskId = (Long) msg.obj;
-            logd("handleMessage: " + msg.what + ", taskId=" + taskId);
-
+            requestManager.logd("handleMessage: " + EVENT_DESCRIPTION.get(msg.what)
+                + ", taskId=" + taskId);
             switch (msg.what) {
                 case EVENT_REQUEST_CAPABILITIES: {
-                    UceRequest request = getRequestFromCollection(taskId);
+                    UceRequest request = requestManager.getRequestFromCollection(taskId);
                     if (request == null) {
-                        logw("handleMessage: cannot find request, taskId=" + taskId);
+                        requestManager.logw("handleMessage: cannot find request,taskId=" + taskId);
                         return;
                     }
                     request.executeRequest();
@@ -441,9 +457,9 @@ public class UceRequestManager {
                 }
                 case EVENT_REQUEST_FAILED: {
                     // Trigger the onError callback and terminate this request.
-                    UceRequest request = removeRequestFromCollection(taskId);
+                    UceRequest request = requestManager.removeRequestFromCollection(taskId);
                     if (request == null) {
-                        logw("handleMessage: cannot find request, taskId=" + taskId);
+                        requestManager.logw("handleMessage: cannot find request,taskId=" + taskId);
                         return;
                     }
                     request.handleRequestFailed(false);
@@ -452,9 +468,9 @@ public class UceRequestManager {
                 }
                 case EVENT_REQUEST_SUCCESS: {
                     // Trigger the onComplete callback and finish this request.
-                    UceRequest request = removeRequestFromCollection(taskId);
+                    UceRequest request = requestManager.removeRequestFromCollection(taskId);
                     if (request == null) {
-                        logw("handleMessage: cannot find request, taskId=" + taskId);
+                        requestManager.logw("handleMessage: cannot find request,taskId=" + taskId);
                         return;
                     }
                     request.handleRequestCompleted(false);
@@ -463,7 +479,7 @@ public class UceRequestManager {
                 }
                 case EVENT_REQUEST_FINISHED: {
                     // Terminate this request internally. It doesn't trigger any callbacks.
-                    UceRequest request = removeRequestFromCollection(taskId);
+                    UceRequest request = requestManager.removeRequestFromCollection(taskId);
                     if (request == null) {
                         return;
                     }
@@ -471,32 +487,32 @@ public class UceRequestManager {
                     break;
                 }
                 case EVENT_RESOURCE_TERMINATED: {
-                    UceRequest request = getRequestFromCollection(taskId);
+                    UceRequest request = requestManager.getRequestFromCollection(taskId);
                     if (request == null) {
-                        logw("handleMessage: cannot find request, taskId=" + taskId);
+                        requestManager.logw("handleMessage: cannot find request,taskId=" + taskId);
                         return;
                     }
                     boolean result = request.handleResourceTerminated();
                     if (!result) {
                         // Terminate the request if triggering capabilities callback failed.
-                        logd("Handle resource terminated failed, taskId=" + taskId);
-                        removeRequestFromCollection(taskId);
+                        requestManager.logd("Handle resource terminated failed, taskId=" + taskId);
+                        requestManager.removeRequestFromCollection(taskId);
                         request.handleRequestFailed(false);
                         request.onFinish();
                     }
                     break;
                 }
                 case EVENT_CAPABILITIES_UPDATE: {
-                    UceRequest request = getRequestFromCollection(taskId);
+                    UceRequest request = requestManager.getRequestFromCollection(taskId);
                     if (request == null) {
-                        logw("handleMessage: cannot find request, taskId=" + taskId);
+                        requestManager.logw("handleMessage: cannot find request,taskId=" + taskId);
                         return;
                     }
                     boolean result = request.handleCapabilitiesUpdated();
                     if (!result) {
                         // Terminate the request if triggering capabilities callback failed.
-                        logd("Handle capabilities update failed, taskId=" + taskId);
-                        removeRequestFromCollection(taskId);
+                        requestManager.logd("Handle capabilities update failed, taskId=" + taskId);
+                        requestManager.removeRequestFromCollection(taskId);
                         request.handleRequestFailed(false);
                         request.onFinish();
                     }
@@ -506,10 +522,20 @@ public class UceRequestManager {
                     break;
             }
         }
+
+        private static Map<Integer, String> EVENT_DESCRIPTION = new HashMap<>();
+        static {
+            EVENT_DESCRIPTION.put(EVENT_REQUEST_CAPABILITIES, "REQUEST_CAPABILITIES");
+            EVENT_DESCRIPTION.put(EVENT_REQUEST_FAILED, "REQUEST_FAILED");
+            EVENT_DESCRIPTION.put(EVENT_REQUEST_SUCCESS, "REQUEST_SUCCESS");
+            EVENT_DESCRIPTION.put(EVENT_REQUEST_FINISHED, "REQUEST_FINISHED");
+            EVENT_DESCRIPTION.put(EVENT_RESOURCE_TERMINATED, "RESOURCE_TERMINATED");
+            EVENT_DESCRIPTION.put(EVENT_CAPABILITIES_UPDATE, "CAPABILITIES_UPDATE");
+        }
     }
 
     private void logi(String log) {
-        Log.i(LOG_TAG, log);
+        Log.i(LOG_TAG, getLogPrefix().append(log).toString());
     }
 
     private void logd(String log) {
