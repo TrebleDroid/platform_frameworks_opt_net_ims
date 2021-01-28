@@ -16,6 +16,7 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
+import android.annotation.NonNull;
 import android.net.Uri;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
@@ -58,7 +59,7 @@ public class Presence extends ElementBase {
     public Presence() {
     }
 
-    public Presence(Uri contact) {
+    public Presence(@NonNull Uri contact) {
         initEntity(contact);
     }
 
@@ -85,19 +86,19 @@ public class Presence extends ElementBase {
         return mEntity;
     }
 
-    public void addTuple(Tuple tuple) {
+    public void addTuple(@NonNull Tuple tuple) {
         mTupleList.add(tuple);
     }
 
-    public List<Tuple> getTupleList() {
+    public @NonNull List<Tuple> getTupleList() {
         return Collections.unmodifiableList(mTupleList);
     }
 
-    public void addNote(Note note) {
+    public void addNote(@NonNull Note note) {
         mNoteList.add(note);
     }
 
-    public List<Note> getNoteList() {
+    public @NonNull List<Note> getNoteList() {
         return Collections.unmodifiableList(mNoteList);
     }
 

@@ -75,10 +75,10 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testSendCapabilityRequest() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, false));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, false));
 
         List<Uri> uriList = new ArrayList<>();
-        requestManager.sendCapabilityRequest(uriList, mCapabilitiesCallback);
+        requestManager.sendCapabilityRequest(uriList, false, mCapabilitiesCallback);
 
         Handler handler = requestManager.getUceRequestHandler();
         waitForHandlerAction(handler, 500L);
@@ -90,7 +90,7 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testSendAvailabilityRequest() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, false));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, false));
 
         Uri uri = Uri.fromParts("sip", "test", null);
         requestManager.sendAvailabilityRequest(uri, mCapabilitiesCallback);
@@ -105,12 +105,12 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testRequestDestroyed() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, true));
 
         requestManager.onDestroy();
 
         List<Uri> uriList = new ArrayList<>();
-        requestManager.sendCapabilityRequest(uriList, mCapabilitiesCallback);
+        requestManager.sendCapabilityRequest(uriList, false, mCapabilitiesCallback);
 
         Handler handler = requestManager.getUceRequestHandler();
         waitForHandlerAction(handler, 500L);
@@ -123,7 +123,7 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testCapabilitiesAccessFromCache() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, true));
         RequestManagerCallback requestMgrCallback = requestManager.getRequestManagerCallback();
 
         Uri contact = Uri.fromParts("sip", "test", null);
@@ -145,7 +145,7 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testRequestUpdate() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, true));
         Handler handler = requestManager.getUceRequestHandler();
         RequestManagerCallback requestMgrCallback = requestManager.getRequestManagerCallback();
 
@@ -176,7 +176,7 @@ public class UceRequestManagerTest extends ImsTestBase {
     @SmallTest
     public void testRequestForbidden() throws Exception {
         UceRequestManager requestManager = getUceRequestManager();
-        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true));
+        requestManager.setsUceUtilsProxy(getUceUtilsProxy(true, true, true));
         RequestManagerCallback requestMgrCallback = requestManager.getRequestManagerCallback();
 
         requestMgrCallback.isRequestForbidden();
@@ -187,8 +187,9 @@ public class UceRequestManagerTest extends ImsTestBase {
 
         boolean isForbidden = true;
         long retryAfter = 3000L;
-        requestMgrCallback.onRequestForbidden(isForbidden, retryAfter);
-        verify(mCallback).updateRequestForbidden(isForbidden, retryAfter);
+        Integer errorCode = RcsUceAdapter.ERROR_NOT_AUTHORIZED;
+        requestMgrCallback.onRequestForbidden(isForbidden, errorCode, retryAfter);
+        verify(mCallback).updateRequestForbidden(isForbidden, errorCode, retryAfter);
     }
 
     private UceRequestManager getUceRequestManager() {
@@ -197,8 +198,14 @@ public class UceRequestManagerTest extends ImsTestBase {
         return manager;
     }
 
-    private UceUtilsProxy getUceUtilsProxy(boolean supportPresence, boolean supportOptions) {
+    private UceUtilsProxy getUceUtilsProxy(boolean presenceCapEnabled, boolean supportPresence,
+            boolean supportOptions) {
         return new UceUtilsProxy() {
+            @Override
+            public boolean isPresenceCapExchangeEnabled(Context context, int subId) {
+                return presenceCapEnabled;
+            }
+
             @Override
             public boolean isPresenceSupported(Context context, int subId) {
                 return supportPresence;

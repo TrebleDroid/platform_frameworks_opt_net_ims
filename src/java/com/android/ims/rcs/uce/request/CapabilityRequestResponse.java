@@ -27,6 +27,7 @@ import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,31 +40,34 @@ import java.util.stream.Collectors;
  */
 public class CapabilityRequestResponse {
 
-    private static final String LOG_TAG = "CapRequestResponse";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "CapRequestResponse";
 
-    // The command error code of the request.
+    // The command error code of the request. It is assigned by the callback "onCommandError"
     private @CommandCode Integer mCommandError;
 
-    // The SIP code of the network response.
+    // The SIP code of the network response. It is assigned by the callback "onNetworkResponse"
     private int mNetworkResponseCode;
 
-    // The reason of the network response.
+    // The reason of the network response. It is assigned by the callback "onNetworkResponse"
     private String mNetworkResponseReason;
 
-    // The reason why the this request was terminated.
+    // The reason why the this request was terminated. This value is assigned by the callback
+    // "onTerminated"
     private String mTerminatedReason;
 
-    // How long after this request can be retried.
+    // How long after this request can be retried. This value is assigned by the callback
+    // "onTerminated"
     private long mRetryAfterMillis = 0L;
 
     // The error code of this request.
     private @RcsUceAdapter.ErrorCode Integer mErrorCode;
 
-    // The list of the updated capabilities from the network.
-    private final List<RcsContactUceCapability> mUpdatedCapabilityList;
-
-    // The list of the terminated resource
+    // The list of the terminated resource. This is assigned by the callback "onResourceTerminated"
     private final List<RcsContactUceCapability> mTerminatedResource;
+
+    // The list of the updated capabilities. This is assigned by the callback
+    // "onNotifyCapabilitiesUpdate"
+    private final List<RcsContactUceCapability> mUpdatedCapabilityList;
 
     // The callback to notify the result of this request.
     public IRcsUceControllerCallback mCapabilitiesCallback;
@@ -85,14 +89,6 @@ public class CapabilityRequestResponse {
      */
     public void setErrorCode(@RcsUceAdapter.ErrorCode int errorCode) {
         mErrorCode = errorCode;
-    }
-
-    /**
-     * Set the error code and retryAfter when the request is failed.
-     */
-    public void setErrorCode(@RcsUceAdapter.ErrorCode int errorCode, long retryAfterMillis) {
-        mErrorCode = errorCode;
-        mRetryAfterMillis = retryAfterMillis;
     }
 
     /**
@@ -219,6 +215,14 @@ public class CapabilityRequestResponse {
      */
     public boolean triggerCachedCapabilitiesCallback(
             List<RcsContactUceCapability> cachedCapabilities) {
+
+        if (cachedCapabilities == null || cachedCapabilities.isEmpty()) {
+            // Return if there's no cached capabilities.
+            return true;
+        }
+
+        Log.d(LOG_TAG, "triggerCachedCapabilitiesCallback: size=" + cachedCapabilities.size());
+
         try {
             mCapabilitiesCallback.onCapabilitiesReceived(
                     Collections.unmodifiableList(cachedCapabilities));
@@ -265,7 +269,7 @@ public class CapabilityRequestResponse {
     }
 
     /**
-     * Trigger the onComplete callback to notify the request is success.
+     * Trigger the onComplete callback to notify the request is completed.
      */
     public void triggerCompletedCallback() {
         try {
@@ -299,9 +303,11 @@ public class CapabilityRequestResponse {
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_INVALID_PARAM:
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_FETCH_ERROR:
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_SUPPORTED:
-            case RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_FOUND:
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_NO_CHANGE:
                 uceError = RcsUceAdapter.ERROR_GENERIC_FAILURE;
+                break;
+            case RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_FOUND:
+                uceError = RcsUceAdapter.ERROR_NOT_FOUND;
                 break;
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT:
                 uceError = RcsUceAdapter.ERROR_REQUEST_TIMEOUT;
@@ -341,9 +347,12 @@ public class CapabilityRequestResponse {
                     uceError = RcsUceAdapter.ERROR_FORBIDDEN;
                 }
                 break;
+            case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:        // 408
+                uceError = RcsUceAdapter.ERROR_REQUEST_TIMEOUT;
+                break;
             case NetworkSipCode.SIP_CODE_INTERVAL_TOO_BRIEF:     // 423
                 // Rejected by the network because the requested expiry interval is too short.
-                uceError = RcsUceAdapter.ERROR_REQUEST_TIMEOUT;
+                uceError = RcsUceAdapter.ERROR_GENERIC_FAILURE;
                 break;
             case NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR:  // 500
             case NetworkSipCode.SIP_CODE_SERVICE_UNAVAILABLE:    // 503
