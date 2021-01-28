@@ -19,6 +19,7 @@ package com.android.ims.rcs.uce.presence.pidfparser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
@@ -40,8 +41,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserFactory;
 
 @RunWith(AndroidJUnit4.class)
 public class PidfParserTest extends ImsTestBase {
@@ -75,37 +74,85 @@ public class PidfParserTest extends ImsTestBase {
 
     @Test
     @SmallTest
-    public void testConvertToRcsContactUceCapability() throws Exception {
-        // Create the pidf data
-        String pidf = getPidfData();
+    public void testConvertFromPidfToRcsContactUceCapability() throws Exception {
+        final String contact = "sip:+11234567890@test";
+        final String serviceId = "org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel";
+        final String serviceDescription = "MMTEL feature service";
+        final boolean isAudioSupported = true;
+        final boolean isVideoSupported = false;
+
+        // Create the first PIDF data
+        String pidfData = getPidfData(contact, serviceId, serviceDescription, isAudioSupported,
+                isVideoSupported);
 
         // Convert to the class RcsContactUceCapability
-        RcsContactUceCapability capabilities = PidfParser.convertToRcsContactUceCapability(pidf);
+        RcsContactUceCapability capabilities = PidfParser.getRcsContactUceCapability(pidfData);
+        assertNotNull(capabilities);
+        assertEquals(Uri.parse(contact), capabilities.getContactUri());
+        assertEquals(RcsContactUceCapability.SOURCE_TYPE_NETWORK, capabilities.getSourceType());
+        assertEquals(RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE,
+                capabilities.getCapabilityMechanism());
+
+        List<RcsContactPresenceTuple> presenceTupleList = capabilities.getCapabilityTuples();
+        assertNotNull(presenceTupleList);
+        assertEquals(1, presenceTupleList.size());
+
+        RcsContactPresenceTuple presenceTuple1 = presenceTupleList.get(0);
+        assertEquals(serviceId, presenceTuple1.getServiceId());
+        assertEquals("1.0", presenceTuple1.getServiceVersion());
+        assertEquals(serviceDescription, presenceTuple1.getServiceDescription());
+        assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
+        assertEquals("2001-01-01T01:00:000Z", presenceTuple1.getTimestamp());
+        assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
+        assertFalse(presenceTuple1.getServiceCapabilities().isVideoCapable());
+    }
+
+    @Test
+    @SmallTest
+    public void testConvertToRcsContactUceCapabilityForMultipleTuples() throws Exception {
+        final String contact = "sip:+11234567890@test";
+        final String serviceId1 = "org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse.dp";
+        final String serviceDescription1 = "capabilities discovery";
+        final String serviceId2 = "org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel";
+        final String serviceDescription2 = "MMTEL feature service";
+        final boolean isAudioSupported = true;
+        final boolean isVideoSupported = false;
+
+        // Create the PIDF data
+        String pidfData = getPidfDataWithMultiTuples(contact, serviceId1, serviceDescription1,
+                serviceId2, serviceDescription2, isAudioSupported, isVideoSupported);
+
+        // Convert to the class RcsContactUceCapability
+        RcsContactUceCapability capabilities = PidfParser.getRcsContactUceCapability(pidfData);
 
         assertNotNull(capabilities);
-        assertEquals(Uri.fromParts("sip", "test", null), capabilities.getContactUri());
+        assertEquals(Uri.parse(contact), capabilities.getContactUri());
 
-        List<RcsContactPresenceTuple> presenceTupleList = capabilities.getPresenceTuples();
+        List<RcsContactPresenceTuple> presenceTupleList = capabilities.getCapabilityTuples();
         assertNotNull(presenceTupleList);
         assertEquals(2, presenceTupleList.size());
 
+        // Verify the first tuple information
         RcsContactPresenceTuple presenceTuple1 = presenceTupleList.get(0);
-        assertEquals("service_id_01", presenceTuple1.getServiceId());
+        assertEquals(serviceId1, presenceTuple1.getServiceId());
         assertEquals("1.0", presenceTuple1.getServiceVersion());
-        assertEquals("description_test1", presenceTuple1.getServiceDescription());
+        assertEquals(serviceDescription1, presenceTuple1.getServiceDescription());
+        assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
         assertEquals("2001-01-01T01:00:000Z", presenceTuple1.getTimestamp());
-        assertEquals(Uri.fromParts("sip", "test", null), presenceTuple1.getContactUri());
-        assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
-        assertTrue(presenceTuple1.getServiceCapabilities().isVideoCapable());
+        assertNull(presenceTuple1.getServiceCapabilities());
 
+        // Verify the second tuple information
         RcsContactPresenceTuple presenceTuple2 = presenceTupleList.get(1);
-        assertEquals("service_id_02", presenceTuple2.getServiceId());
+        assertEquals(serviceId2, presenceTuple2.getServiceId());
         assertEquals("1.0", presenceTuple2.getServiceVersion());
-        assertEquals("description_test2", presenceTuple2.getServiceDescription());
-        assertEquals("2001-02-02T01:00:000Z", presenceTuple2.getTimestamp());
-        assertEquals(Uri.fromParts("sip", "test", null), presenceTuple2.getContactUri());
         assertTrue(presenceTuple2.getServiceCapabilities().isAudioCapable());
         assertFalse(presenceTuple2.getServiceCapabilities().isVideoCapable());
+        assertEquals(serviceDescription2, presenceTuple2.getServiceDescription());
+        assertEquals(Uri.parse(contact), presenceTuple2.getContactUri());
+        assertEquals("2001-02-02T01:00:000Z", presenceTuple2.getTimestamp());
+        assertNotNull(presenceTuple2.getServiceCapabilities());
+        assertEquals(isAudioSupported, presenceTuple2.getServiceCapabilities().isAudioCapable());
+        assertEquals(isVideoSupported, presenceTuple2.getServiceCapabilities().isVideoCapable());
     }
 
     @Test
@@ -119,7 +166,7 @@ public class PidfParserTest extends ImsTestBase {
 
         // Restore to the RcsContactUceCapability from the pidf
         final RcsContactUceCapability restoredCapability =
-                PidfParser.convertToRcsContactUceCapability(pidf);
+                PidfParser.getRcsContactUceCapability(pidf);
 
         assertEquals(capability.getContactUri(), restoredCapability.getContactUri());
         assertEquals(capability.getCapabilityMechanism(),
@@ -127,8 +174,8 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals(capability.getSourceType(), restoredCapability.getSourceType());
 
         // Assert all the tuples are equal
-        List<RcsContactPresenceTuple> originalTuples = capability.getPresenceTuples();
-        List<RcsContactPresenceTuple> restoredTuples = restoredCapability.getPresenceTuples();
+        List<RcsContactPresenceTuple> originalTuples = capability.getCapabilityTuples();
+        List<RcsContactPresenceTuple> restoredTuples = restoredCapability.getCapabilityTuples();
 
         assertNotNull(restoredTuples);
         assertEquals(originalTuples.size(), restoredTuples.size());
@@ -165,48 +212,73 @@ public class PidfParserTest extends ImsTestBase {
         }
      }
 
-    private String getPidfData() {
+    private String getPidfData(String contact, String serviceId, String serviceDescription,
+            boolean isAudioSupported, boolean isVideoSupported) {
         StringBuilder pidfBuilder = new StringBuilder();
         pidfBuilder.append("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>")
-                .append("<presence entity=\"sip:test\"")
+                .append("<presence entity=\"" + contact + "\"")
                 .append(" xmlns=\"urn:ietf:params:xml:ns:pidf\"")
                 .append(" xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\"")
                 .append(" xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\"")
                 .append(" xmlns:caps=\"urn:ietf:params:xml:ns:pidf:caps\">")
-                // tuple 1
-                .append("<tuple id=\"tid0\"><status><basic>open</basic></status>")
+                // tuple data
+                .append("<tuple id=\"tid0\">")
+                .append("<status><basic>open</basic></status>")
                 .append("<op:service-description>")
-                .append("<op:service-id>service_id_01</op:service-id>")
+                .append("<op:service-id>").append(serviceId).append("</op:service-id>")
                 .append("<op:version>1.0</op:version>")
-                .append("<op:description>description_test1</op:description>")
+                .append("<op:description>").append(serviceDescription).append("</op:description>")
                 .append("</op:service-description>")
-                // support audio
+                // is audio supported
                 .append("<caps:servcaps>")
-                .append("<caps:audio>true</caps:audio>")
-                // support video
-                .append("<caps:video>true</caps:video>")
+                .append("<caps:audio>").append(isAudioSupported).append("</caps:audio>")
+                // is video supported
+                .append("<caps:video>").append(isVideoSupported).append("</caps:video>")
                 .append("</caps:servcaps>")
-                .append("<contact>sip:test</contact>")
+                .append("<contact>").append(contact).append("</contact>")
                 .append("<timestamp>2001-01-01T01:00:000Z</timestamp>")
-                .append("</tuple>")
-                // tuple 2
-                .append("<tuple id=\"tid1\"><status><basic>open</basic></status>")
-                .append("<op:service-description>")
-                .append("<op:service-id>service_id_02</op:service-id>")
-                .append("<op:version>1.0</op:version>")
-                .append("<op:description>description_test2</op:description>")
-                .append("</op:service-description>")
-                // support audio
-                .append("<caps:servcaps>")
-                .append("<caps:audio>true</caps:audio>")
-                // NOT support video
-                .append("<caps:video>false</caps:video>")
-                .append("</caps:servcaps>")
-                .append("<contact>sip:test</contact>")
-                .append("<timestamp>2001-02-02T01:00:000Z</timestamp>")
                 .append("</tuple></presence>");
-
         return pidfBuilder.toString();
+    }
+
+    private String getPidfDataWithMultiTuples(String contact, String serviceId1,
+            String serviceDescription1, String serviceId2, String serviceDescription2,
+            boolean audioSupported, boolean videoSupported) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<presence xmlns=\"urn:ietf:params:xml:ns:pidf\""
+                + " xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\""
+                + " xmlns:caps=\"urn:ietf:params:xml:ns:pidf:caps\""
+                + " entity=\"" + contact + "\">"
+                // tuple 1
+                + "<tuple id=\"a0\">"
+                + "<status><basic>open</basic></status>"
+                + "<op:service-description>"
+                + "<op:service-id>" + serviceId1 + "</op:service-id>"
+                + "<op:version>1.0</op:version>"
+                + "<op:description>" + serviceDescription1 + "</op:description>"
+                + "</op:service-description>"
+                + "<contact>" + contact + "</contact>"
+                + "<timestamp>2001-01-01T01:00:000Z</timestamp>"
+                + "</tuple>"
+                // tuple 2
+                + "<tuple id=\"a1\">"
+                + "<status><basic>open</basic></status>"
+                + "<op:service-description>"
+                + "<op:service-id>" + serviceId2 + "</op:service-id>"
+                + "<op:version>1.0</op:version>"
+                + "<op:description>" + serviceDescription2 + "</op:description>"
+                + "</op:service-description>"
+                + "<caps:servcaps>"
+                + "<caps:audio>" + audioSupported + "</caps:audio>"
+                + "<caps:duplex>"
+                + "<caps:supported><caps:full></caps:full></caps:supported>"
+                + "</caps:duplex>"
+                + "<caps:video>" + videoSupported + "</caps:video>"
+                + "</caps:servcaps>"
+                + "<contact>" + contact + "</contact>"
+                + "<timestamp>2001-02-02T01:00:000Z</timestamp>"
+                + "</tuple>"
+                + "</presence>";
     }
 
     private RcsContactUceCapability getRcsContactUceCapability() {
@@ -227,10 +299,10 @@ public class PidfParserTest extends ImsTestBase {
         // init the presence tuple
         RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
                 basicStatus, RcsContactPresenceTuple.SERVICE_ID_MMTEL, version);
-        tupleBuilder.addContactUri(contact)
-                .addDescription(description)
-                .addTimeStamp(nowTime)
-                .addServiceCapabilities(servCapsBuilder.build());
+        tupleBuilder.setContactUri(contact)
+                .setServiceDescription(description)
+                .setTimestamp(nowTime)
+                .setServiceCapabilities(servCapsBuilder.build());
 
         PresenceBuilder presenceBuilder = new PresenceBuilder(contact,
                 RcsContactUceCapability.SOURCE_TYPE_NETWORK,

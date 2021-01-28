@@ -33,7 +33,6 @@ public class NetworkSipCode {
     public static final int SIP_CODE_DECLINE = 603;
 
     public static final String SIP_OK = "OK";
-    public static final String SIP_SERVICE_UNAVAILABLE = "Service Unavailable";
     public static final String SIP_NOT_REGISTERED = "User not registered";
     public static final String SIP_NOT_AUTHORIZED_FOR_PRESENCE = "not authorized for presence";
 }
