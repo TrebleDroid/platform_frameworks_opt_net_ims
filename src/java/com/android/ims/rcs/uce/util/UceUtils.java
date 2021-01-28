@@ -72,6 +72,23 @@ public class UceUtils {
     }
 
     /**
+     * Check whether or not this carrier supports the exchange of phone numbers with the carrier's
+     * presence server.
+     */
+    public static boolean isPresenceCapExchangeEnabled(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return false;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return false;
+        }
+        return config.getBoolean(
+                CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL);
+    }
+
+    /**
      * Check if Presence is supported by the carrier.
      */
     public static boolean isPresenceSupported(Context context, int subId) {
@@ -83,7 +100,7 @@ public class UceUtils {
         if (config == null) {
             return false;
         }
-        return config.getBoolean(CarrierConfigManager.KEY_USE_RCS_PRESENCE_BOOL);
+        return config.getBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL);
     }
 
     /**
