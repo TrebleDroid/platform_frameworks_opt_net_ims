@@ -39,9 +39,7 @@ import com.android.ims.internal.IImsEcbmListener;
 import com.android.telephony.Rlog;
 
 /**
- * Provides APIs for the supplementary service settings using IMS (Ut interface).
- * It is created from 3GPP TS 24.623 (XCAP(XML Configuration Access Protocol)
- * over the Ut interface for manipulating supplementary services).
+ * Provides APIs for the modem to communicate the CDMA Emergency Callback Mode status for IMS.
  *
  * @hide
  */
@@ -56,13 +54,9 @@ public class ImsEcbm {
         miEcbm = iEcbm;
     }
 
-    public void setEcbmStateListener(ImsEcbmStateListener ecbmListener) throws ImsException {
-        try {
-            miEcbm.setListener(new ImsEcbmListenerProxy(ecbmListener));
-        } catch (RemoteException e) {
-            throw new ImsException("setEcbmStateListener()", e,
-                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
-        }
+    public void setEcbmStateListener(ImsEcbmStateListener ecbmListener) throws RemoteException {
+            miEcbm.setListener(ecbmListener != null ?
+                    new ImsEcbmListenerProxy(ecbmListener) : null);
     }
 
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
@@ -82,8 +76,8 @@ public class ImsEcbm {
     /**
      * Adapter class for {@link IImsEcbmListener}.
      */
-    private class ImsEcbmListenerProxy extends IImsEcbmListener.Stub {
-        private ImsEcbmStateListener mListener;
+    private static class ImsEcbmListenerProxy extends IImsEcbmListener.Stub {
+        private final ImsEcbmStateListener mListener;
 
         public ImsEcbmListenerProxy(ImsEcbmStateListener listener) {
             mListener = listener;
