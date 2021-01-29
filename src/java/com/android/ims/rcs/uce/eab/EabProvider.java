@@ -83,10 +83,10 @@ public class EabProvider extends ContentProvider {
     private static final String TAG = "EabProvider";
     private static final int DATABASE_VERSION = 2;
 
-    private static final String EAB_CONTACT_TABLE_NAME = "eab_contact";
-    private static final String EAB_COMMON_TABLE_NAME = "eab_common";
-    private static final String EAB_PRESENCE_TUPLE_TABLE_NAME = "eab_presence";
-    private static final String EAB_OPTIONS_TABLE_NAME = "eab_options";
+    public static final String EAB_CONTACT_TABLE_NAME = "eab_contact";
+    public static final String EAB_COMMON_TABLE_NAME = "eab_common";
+    public static final String EAB_PRESENCE_TUPLE_TABLE_NAME = "eab_presence";
+    public static final String EAB_OPTIONS_TABLE_NAME = "eab_options";
 
     private static final UriMatcher URI_MATCHER = new UriMatcher(UriMatcher.NO_MATCH);
     private static final int URL_CONTACT = 1;
