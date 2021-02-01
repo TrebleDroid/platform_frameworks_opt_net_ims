@@ -18,7 +18,6 @@ package com.android.ims.rcs.uce.eab;
 
 import static android.content.ContentResolver.NOTIFY_DELETE;
 import static android.content.ContentResolver.NOTIFY_INSERT;
-import static android.content.ContentResolver.NOTIFY_SYNC_TO_NETWORK;
 import static android.content.ContentResolver.NOTIFY_UPDATE;
 
 import android.content.ContentProvider;
@@ -30,7 +29,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
-import android.os.UserHandle;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.util.Log;
@@ -118,12 +116,12 @@ public class EabProvider extends ContentProvider {
 
             // join options table
             + " LEFT JOIN " + EAB_OPTIONS_TABLE_NAME
-            + " ON " + EAB_OPTIONS_TABLE_NAME + "." + EabCommonColumns._ID
+            + " ON " + EAB_COMMON_TABLE_NAME + "." + EabCommonColumns._ID
             + "=" + EAB_OPTIONS_TABLE_NAME + "." + OptionsColumns.EAB_COMMON_ID
 
             // join presence table
             + " LEFT JOIN " + EAB_PRESENCE_TUPLE_TABLE_NAME
-            + " ON " + EAB_PRESENCE_TUPLE_TABLE_NAME + "." + EabCommonColumns._ID
+            + " ON " + EAB_COMMON_TABLE_NAME + "." + EabCommonColumns._ID
             + "=" + EAB_PRESENCE_TUPLE_TABLE_NAME + "."
             + PresenceTupleColumns.EAB_COMMON_ID;
 
@@ -282,7 +280,8 @@ public class EabProvider extends ContentProvider {
         public static final String UNSUPPORTED_DUPLEX_MODE = "unsupported_duplex_mode";
 
         /**
-         * The presence request timestamp.
+         * The presence request timestamp. Represents seconds of UTC time since Unix epoch
+         * 1970-01-01 00:00:00.
          * <P>Type:  LONG</P>
          */
         public static final String REQUEST_TIMESTAMP = "presence_request_timestamp";
