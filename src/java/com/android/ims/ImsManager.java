@@ -3006,6 +3006,9 @@ public class ImsManager implements FeatureUpdates {
 
         pw.println("  isVtProvisionedOnDevice = " + isVtProvisionedOnDevice());
         pw.println("  isWfcProvisionedOnDevice = " + isWfcProvisionedOnDevice());
+
+        pw.println("  isCrossSimEnabledByPlatform = " + isCrossSimEnabledByPlatform());
+        pw.println("  isCrossSimCallingEnabledByUser = " + isCrossSimCallingEnabledByUser());
         pw.flush();
     }
 
