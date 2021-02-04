@@ -17,18 +17,30 @@
 package com.android.ims.rcs.uce.util;
 
 import android.content.Context;
+import android.net.Uri;
+import android.os.Bundle;
 import android.os.PersistableBundle;
+import android.provider.BlockedNumberContract;
 import android.telephony.CarrierConfigManager;
+import android.telephony.PhoneNumberUtils;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.telephony.ims.ProvisioningManager;
+import android.text.TextUtils;
 import android.util.Log;
+
+import com.android.telephony.Rlog;
 
 public class UceUtils {
 
     private static final String LOG_PREFIX = "RcsUce.";
+    private static final String LOG_TAG = LOG_PREFIX + "UceUtils";
 
-    private static final String LOG_TAG = "UceUtils";
+    private static final String SCHEME_SIP = "sip";
+    private static final String SCHEME_TEL = "tel";
+    private static final String DOMAIN_SEPARATOR = "@";
 
+    // The task ID of the UCE request
     private static long TASK_ID = 0L;
 
     /**
@@ -116,5 +128,23 @@ public class UceUtils {
             return false;
         }
         return config.getBoolean(CarrierConfigManager.KEY_USE_RCS_SIP_OPTIONS_BOOL);
+    }
+
+    /**
+     *  Returns {@code true} if {@code phoneNumber} is blocked.
+     *
+     * @param context the context of the caller.
+     * @param phoneNumber the number to check.
+     * @return true if the number is blocked, false otherwise.
+     */
+    public static boolean isNumberBlocked(Context context, String phoneNumber) {
+        int blockStatus;
+        try {
+            blockStatus = BlockedNumberContract.SystemContract.shouldSystemBlockNumber(
+                    context, phoneNumber, null /*extras*/);
+        } catch (Exception e) {
+            return false;
+        }
+        return blockStatus != BlockedNumberContract.STATUS_NOT_BLOCKED;
     }
 }
