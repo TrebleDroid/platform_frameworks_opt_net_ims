@@ -123,6 +123,8 @@ public class SubscribeRequestTest extends ImsTestBase {
     @SmallTest
     public void testNetworkResponseWithNotSuccess() throws Exception {
         SubscribeRequest subscribeRequest = getSubscribeRequest();
+        doReturn(RcsUceAdapter.ERROR_FORBIDDEN).when(mRequestResponse)
+                .getCapabilityErrorFromSipError();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_FORBIDDEN, "");
@@ -178,6 +180,8 @@ public class SubscribeRequestTest extends ImsTestBase {
     @SmallTest
     public void testTerminatedCallbackWithRetry() throws Exception {
         SubscribeRequest subscribeRequest = getSubscribeRequest();
+        doReturn(RcsUceAdapter.ERROR_GENERIC_FAILURE).when(mRequestResponse)
+                .getCapabilityErrorFromSipError();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
         String reason = "Server is busy";
