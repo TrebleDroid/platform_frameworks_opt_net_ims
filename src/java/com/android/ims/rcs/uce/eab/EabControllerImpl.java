@@ -18,14 +18,21 @@ package com.android.ims.rcs.uce.eab;
 
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS;
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE;
+import static android.telephony.ims.RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
 import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_CACHED;
+
+import static com.android.ims.rcs.uce.eab.EabProvider.EAB_OPTIONS_TABLE_NAME;
+import static com.android.ims.rcs.uce.eab.EabProvider.EAB_PRESENCE_TUPLE_TABLE_NAME;
 
 import android.annotation.NonNull;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Handler;
 import android.os.Looper;
+import android.os.PersistableBundle;
+import android.telephony.CarrierConfigManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
@@ -39,6 +46,7 @@ import android.util.TimeFormatException;
 
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -46,6 +54,7 @@ import java.util.ArrayList;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
+import java.util.TimeZone;
 import java.util.function.Predicate;
 
 /**
@@ -58,17 +67,29 @@ public class EabControllerImpl implements EabController {
     private static final int DEFAULT_CAPABILITY_CACHE_EXPIRATION_SEC = 90 * 24 * 60 * 60;
     private static final int DEFAULT_AVAILABILITY_CACHE_EXPIRATION_SEC = 60;
 
+    // 1 week
+    private static final int CLEAN_UP_LEGACY_CAPABILITY_SEC = 7 * 24 * 60 * 60;
+    private static final int CLEAN_UP_LEGACY_CAPABILITY_DELAY_MILLI_SEC = 30 * 1000;
+
     private final Context mContext;
     private final int mSubId;
     private final EabBulkCapabilityUpdater mEabBulkCapabilityUpdater;
+    private final Handler mHandler;
 
     private UceControllerCallback mUceControllerCallback;
     private volatile boolean mIsSetDestroyedFlag = false;
+
+    @VisibleForTesting
+    public final Runnable mCapabilityCleanupRunnable = () -> {
+        Log.d(TAG, "Cleanup Capabilities");
+        cleanupExpiredCapabilities();
+    };
 
     public EabControllerImpl(Context context, int subId, UceControllerCallback c, Looper looper) {
         mContext = context;
         mSubId = subId;
         mUceControllerCallback = c;
+        mHandler = new Handler(looper);
         mEabBulkCapabilityUpdater = new EabBulkCapabilityUpdater(mContext, mSubId,
                 this,
                 new EabContactSyncController(),
@@ -190,6 +211,12 @@ public class EabControllerImpl implements EabController {
         }
 
         mEabBulkCapabilityUpdater.updateExpiredTimeAlert();
+
+        if (mHandler.hasCallbacks(mCapabilityCleanupRunnable)) {
+            mHandler.removeCallbacks(mCapabilityCleanupRunnable);
+        }
+        mHandler.postDelayed(mCapabilityCleanupRunnable,
+                CLEAN_UP_LEGACY_CAPABILITY_DELAY_MILLI_SEC);
     }
 
     private List<EabCapabilityResult> generateDestroyedResult(List<Uri> contactUri) {
@@ -358,18 +385,32 @@ public class EabControllerImpl implements EabController {
     private boolean isCapabilityExpired(Cursor cursor) {
         boolean expired = false;
         String requestTimeStamp = getRequestTimestamp(cursor);
+        int capabilityCacheExpiration;
+
+        if (isNonRcsCapability(cursor)) {
+            capabilityCacheExpiration = getNonRcsCapabilityCacheExpiration(mSubId);
+        } else {
+            capabilityCacheExpiration = getCapabilityCacheExpiration(mSubId);
+        }
 
         if (requestTimeStamp != null) {
             Instant expiredTimestamp = Instant
                     .ofEpochSecond(Long.parseLong(requestTimeStamp))
-                    .plus(getCapabilityCacheExpiration(mSubId), ChronoUnit.SECONDS);
+                    .plus(capabilityCacheExpiration, ChronoUnit.SECONDS);
             expired = expiredTimestamp.isBefore(Instant.now());
-            Log.d(TAG, "Capability expiredTimestamp: "
-                    + expiredTimestamp.getEpochSecond() + ", expired:" + expired);
+            Log.d(TAG, "Capability expiredTimestamp: " + expiredTimestamp.getEpochSecond() +
+                    ", isNonRcsCapability: " +  isNonRcsCapability(cursor) +
+                    ", capabilityCacheExpiration: " + capabilityCacheExpiration +
+                    ", expired:" + expired);
         } else {
             Log.d(TAG, "Capability requestTimeStamp is null");
         }
         return expired;
+    }
+
+    private boolean isNonRcsCapability(Cursor cursor) {
+        int result = getIntValue(cursor, EabProvider.EabCommonColumns.REQUEST_RESULT);
+        return result == REQUEST_RESULT_NOT_FOUND;
     }
 
     private boolean isAvailabilityExpired(Cursor cursor) {
@@ -402,8 +443,24 @@ public class EabControllerImpl implements EabController {
         return expiredTimestamp;
     }
 
-    protected static long getCapabilityCacheExpiration(int subId) {
-        long value = -1;
+    private int getNonRcsCapabilityCacheExpiration(int subId) {
+        int value;
+        PersistableBundle carrierConfig =
+                mContext.getSystemService(CarrierConfigManager.class).getConfigForSubId(subId);
+
+        if (carrierConfig != null) {
+            value = carrierConfig.getInt(
+                    CarrierConfigManager.Ims.KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT);
+        } else {
+            value = DEFAULT_CAPABILITY_CACHE_EXPIRATION_SEC;
+            Log.e(TAG, "getNonRcsCapabilityCacheExpiration: " +
+                    "CarrierConfig is null, returning default");
+        }
+        return value;
+    }
+
+    protected static int getCapabilityCacheExpiration(int subId) {
+        int value = -1;
         try {
             ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
             value = pm.getProvisioningIntValue(
@@ -508,6 +565,7 @@ public class EabControllerImpl implements EabController {
                     GregorianCalendar date = new GregorianCalendar(
                             time.year, time.month, time.monthDay,
                             time.hour, time.minute, time.second);
+                    date.setTimeZone(TimeZone.getTimeZone("UTC"));
                     timestamp = date.getTime().getTime() / 1000;
                 } catch (TimeFormatException ex) {
                     Log.d(TAG, "Fail on parsing the timestamp. "
@@ -590,6 +648,105 @@ public class EabControllerImpl implements EabController {
             optionContent[i] = contentValues;
         }
         mContext.getContentResolver().bulkInsert(EabProvider.OPTIONS_URI, optionContent);
+    }
+
+    private void cleanupExpiredCapabilities() {
+        // Cleanup the capabilities that expired more than 1 week
+        long rcsCapabilitiesExpiredTime = Instant.now().getEpochSecond() -
+                getCapabilityCacheExpiration(mSubId) -
+                CLEAN_UP_LEGACY_CAPABILITY_SEC;
+
+        // Cleanup the capabilities that expired more than 1 week
+        long nonRcsCapabilitiesExpiredTime = Instant.now().getEpochSecond() -
+                getNonRcsCapabilityCacheExpiration(mSubId) -
+                CLEAN_UP_LEGACY_CAPABILITY_SEC;
+
+        cleanupCapabilities(rcsCapabilitiesExpiredTime, getRcsCommonIdList());
+        cleanupCapabilities(nonRcsCapabilitiesExpiredTime, getNonRcsCommonIdList());
+        cleanupOrphanedRows();
+    }
+
+    private void cleanupCapabilities(long rcsCapabilitiesExpiredTime, List<Integer> commonIdList) {
+        if (commonIdList.size() > 0) {
+            String presenceClause =
+                    EabProvider.PresenceTupleColumns.EAB_COMMON_ID +
+                            " IN (" + TextUtils.join(",", commonIdList) + ") " + " AND " +
+                            EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP + "<?";
+
+            String optionClause =
+                    EabProvider.PresenceTupleColumns.EAB_COMMON_ID +
+                            " IN (" + TextUtils.join(",", commonIdList) + ") " + " AND " +
+                            EabProvider.OptionsColumns.REQUEST_TIMESTAMP + "<?";
+
+            int deletePresenceCount = mContext.getContentResolver().delete(
+                    EabProvider.PRESENCE_URI,
+                    presenceClause,
+                    new String[]{String.valueOf(rcsCapabilitiesExpiredTime)});
+
+            int deleteOptionsCount = mContext.getContentResolver().delete(
+                    EabProvider.OPTIONS_URI,
+                    optionClause,
+                    new String[]{String.valueOf(rcsCapabilitiesExpiredTime)});
+
+            Log.d(TAG, "Cleanup capabilities. deletePresenceCount: " + deletePresenceCount +
+                ",deleteOptionsCount: " + deleteOptionsCount);
+        }
+    }
+
+    private List<Integer> getRcsCommonIdList() {
+        ArrayList<Integer> list = new ArrayList<>();
+        Cursor cursor = mContext.getContentResolver().query(
+                EabProvider.COMMON_URI,
+                null,
+                EabProvider.EabCommonColumns.REQUEST_RESULT + "<>?",
+                new String[]{String.valueOf(REQUEST_RESULT_NOT_FOUND)},
+                null);
+
+        if (cursor == null) return list;
+
+        while (cursor.moveToNext()) {
+            list.add(cursor.getInt(cursor.getColumnIndex(EabProvider.EabCommonColumns._ID)));
+        }
+        cursor.close();
+
+        return list;
+    }
+
+    private List<Integer> getNonRcsCommonIdList() {
+        ArrayList<Integer> list = new ArrayList<>();
+        Cursor cursor = mContext.getContentResolver().query(
+                EabProvider.COMMON_URI,
+                null,
+                EabProvider.EabCommonColumns.REQUEST_RESULT + "=?",
+                new String[]{String.valueOf(REQUEST_RESULT_NOT_FOUND)},
+                null);
+
+        if (cursor == null) return list;
+
+        while (cursor.moveToNext()) {
+            list.add(cursor.getInt(cursor.getColumnIndex(EabProvider.EabCommonColumns._ID)));
+        }
+        cursor.close();
+
+        return list;
+    }
+
+    /**
+     * Cleanup the entry of common table that can't map to presence or option table
+     */
+    private void cleanupOrphanedRows() {
+        String presenceSelection =
+                " (SELECT " + EabProvider.PresenceTupleColumns.EAB_COMMON_ID +
+                        " FROM " + EAB_PRESENCE_TUPLE_TABLE_NAME + ") ";
+        String optionSelection =
+                " (SELECT " + EabProvider.OptionsColumns.EAB_COMMON_ID +
+                        " FROM " + EAB_OPTIONS_TABLE_NAME + ") ";
+
+        mContext.getContentResolver().delete(
+                EabProvider.COMMON_URI,
+                EabProvider.EabCommonColumns._ID + " NOT IN " + presenceSelection +
+                        " AND " + EabProvider.EabCommonColumns._ID+ " NOT IN " + optionSelection,
+                null);
     }
 
     private String getStringValue(Cursor cursor, String column) {
