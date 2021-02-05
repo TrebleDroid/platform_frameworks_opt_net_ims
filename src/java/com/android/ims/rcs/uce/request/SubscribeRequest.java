@@ -52,6 +52,12 @@ public class SubscribeRequest extends UceRequest {
                     SubscribeRequest.this.onNetworkResponse(code, reason);
                 }
                 @Override
+                public void onNetworkRespHeader(int code, String reasonPhrase,
+                        int reasonHeaderCause, String reasonHeaderText) {
+                    SubscribeRequest.this.onNetworkResponse(code, reasonPhrase, reasonHeaderCause,
+                            reasonHeaderText);
+                }
+                @Override
                 public void onNotifyCapabilitiesUpdate(List<String> pidfXmls) {
                     SubscribeRequest.this.onCapabilitiesUpdate(pidfXmls);
                 }
@@ -141,8 +147,28 @@ public class SubscribeRequest extends UceRequest {
         // Set the capability error code and notify RequestManager if the SIP code is not success.
         // Otherwise, waiting for the onNotifyCapabilitiesUpdate callback.
         if (!mRequestResponse.isNetworkResponseOK()) {
-            int capErrorCode = CapabilityRequestResponse.convertSipErrorToCapabilityError(
-                    sipCode, reason);
+            int capErrorCode = mRequestResponse.getCapabilityErrorFromSipError();
+            mRequestResponse.setErrorCode(capErrorCode);
+            mRequestManagerCallback.onRequestFailed(mTaskId);
+        }
+    }
+
+    // Handle the network response callback which is triggered by ISubscribeResponseCallback.
+    private void onNetworkResponse(int sipCode, String reasonPhrase,
+        int reasonHeaderCause, String reasonHeaderText) {
+        logd("onNetworkResponse: code=" + sipCode + ", reasonPhrase=" + reasonPhrase +
+                ", reasonHeaderCause=" + reasonHeaderCause +
+                ", reasonHeaderText=" + reasonHeaderText);
+        if (mIsFinished) {
+            return;
+        }
+        mRequestResponse.setNetworkResponseCode(sipCode, reasonPhrase, reasonHeaderCause,
+                reasonHeaderText);
+
+        // Set the capability error code and notify RequestManager if the SIP code is not success.
+        // Otherwise, waiting for the onNotifyCapabilitiesUpdate callback.
+        if (!mRequestResponse.isNetworkResponseOK()) {
+            int capErrorCode = mRequestResponse.getCapabilityErrorFromSipError();
             mRequestResponse.setErrorCode(capErrorCode);
             mRequestManagerCallback.onRequestFailed(mTaskId);
         }
@@ -213,10 +239,7 @@ public class SubscribeRequest extends UceRequest {
         } else {
             // This request is failed. Store the retryAfter info and notify UceRequestManager.
             mRequestResponse.setRequestTerminated(reason, retryAfterMillis);
-            int networkCode = mRequestResponse.getNetworkResponseCode();
-            String networkReason = mRequestResponse.getNetworkResponseReason();
-            int capErrorCode = CapabilityRequestResponse.convertSipErrorToCapabilityError(
-                    networkCode, networkReason);
+            int capErrorCode = mRequestResponse.getCapabilityErrorFromSipError();
             mRequestResponse.setErrorCode(capErrorCode);
             mRequestManagerCallback.onRequestFailed(mTaskId);
         }

@@ -294,8 +294,8 @@ public abstract class UceRequest {
     }
 
     private void checkRequestForbidden() {
-        if (mRequestResponse.getNetworkResponseCode() == NetworkSipCode.SIP_CODE_FORBIDDEN) {
-            int errorCode = mRequestResponse.getErrorCode();
+        if (mRequestResponse.isRequestForbidden()) {
+            int errorCode = mRequestResponse.getErrorCode().orElse(RcsUceAdapter.ERROR_FORBIDDEN);
             long retryAfter = mRequestResponse.getRetryAfterMillis();
             mRequestManagerCallback.onRequestForbidden(true, errorCode, retryAfter);
         }
