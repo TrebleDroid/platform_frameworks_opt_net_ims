@@ -173,12 +173,6 @@ public class PublishProcessor {
             return false;
         }
 
-        // Check if the publishing request has reached the maximum number of retries.
-        if (mProcessorState.isReachMaximumRetries()) {
-            logd("isPublishAllowed: It has reached maximum number of retries");
-            return false;
-        }
-
         // Skip this request and re-send the request with the delay time if the publish request
         // executes too frequently.
         if (!mProcessorState.isCurrentTimeAllowed()) {
@@ -252,7 +246,7 @@ public class PublishProcessor {
         mLocalLog.log("Receive command error code=" + requestResponse.getCmdErrorCode());
         logd("onCommandError: " + requestResponse.toString());
 
-        if (requestResponse.needRetry()) {
+        if (!mProcessorState.isReachMaximumRetries() && requestResponse.needRetry()) {
             // Increase the retry count
             mProcessorState.increaseRetryCount();
 
@@ -293,7 +287,7 @@ public class PublishProcessor {
         mLocalLog.log("Receive network response code=" + requestResponse.getNetworkRespSipCode());
         logd("onNetworkResponse: " + requestResponse.toString());
 
-        if (requestResponse.needRetry()) {
+        if (!mProcessorState.isReachMaximumRetries() && requestResponse.needRetry()) {
             // Increase the retry count
             mProcessorState.increaseRetryCount();
 

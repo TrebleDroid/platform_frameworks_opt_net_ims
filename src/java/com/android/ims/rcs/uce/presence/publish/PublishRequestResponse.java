@@ -25,6 +25,7 @@ import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControl
 import com.android.ims.rcs.uce.util.NetworkSipCode;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Receiving the result callback of the publish request.
@@ -35,9 +36,11 @@ public class PublishRequestResponse {
     private volatile boolean mNeedRetry;
     private volatile PublishControllerCallback mPublishCtrlCallback;
 
-    private int mCmdErrorCode;
-    private int mNetworkRespSipCode;
-    private String mNetworkRespReason;
+    private Optional<Integer> mCmdErrorCode;
+    private Optional<Integer> mNetworkRespSipCode;
+    private Optional<String> mReasonPhrase;
+    private Optional<Integer> mReasonHeaderCause;
+    private Optional<String> mReasonHeaderText;
 
     // The timestamp when receive the response from the network.
     private Instant mResponseTimestamp;
@@ -45,6 +48,11 @@ public class PublishRequestResponse {
     public PublishRequestResponse(PublishControllerCallback publishCtrlCallback, long taskId) {
         mTaskId = taskId;
         mPublishCtrlCallback = publishCtrlCallback;
+        mCmdErrorCode = Optional.empty();
+        mNetworkRespSipCode = Optional.empty();
+        mReasonPhrase = Optional.empty();
+        mReasonHeaderCause = Optional.empty();
+        mReasonHeaderText = Optional.empty();
     }
 
     // The result callback of the publish capability request.
@@ -58,6 +66,13 @@ public class PublishRequestResponse {
         public void onNetworkResponse(int code, String reason) {
             PublishRequestResponse.this.onNetworkResponse(code, reason);
         }
+
+        @Override
+        public void onNetworkRespHeader(int code, String reasonPhrase, int reasonHeaderCause,
+                String reasonHeaderText) {
+            PublishRequestResponse.this.onNetworkResponse(code, reasonPhrase, reasonHeaderCause,
+                    reasonHeaderText);
+        }
     };
 
     public IPublishResponseCallback getResponseCallback() {
@@ -68,14 +83,44 @@ public class PublishRequestResponse {
         return mTaskId;
     }
 
-    public int getCmdErrorCode() {
+    /**
+     * Retrieve the command error code which received from the network.
+     */
+    public Optional<Integer> getCmdErrorCode() {
         return mCmdErrorCode;
     }
 
-    public int getNetworkRespSipCode() {
+    /**
+     * Retrieve the network response sip code which received from the network.
+     */
+    public Optional<Integer> getNetworkRespSipCode() {
         return mNetworkRespSipCode;
     }
 
+    /**
+     * Retrieve the reason phrase of the network response which received from the network.
+     */
+    public Optional<String> getReasonPhrase() {
+        return mReasonPhrase;
+    }
+
+    /**
+     * Retrieve the reason header from the network response.
+     */
+    public Optional<Integer> getReasonHeaderCause() {
+        return mReasonHeaderCause;
+    }
+
+    /**
+     * Retrieve the description of the reason header.
+     */
+    public Optional<String> getReasonHeaderText() {
+        return mReasonHeaderText;
+    }
+
+    /**
+     * Get the timestamp of receiving the network response callback.
+     */
     public @Nullable Instant getResponseTimestamp() {
         return mResponseTimestamp;
     }
@@ -86,7 +131,7 @@ public class PublishRequestResponse {
 
     private void onCommandError(int errorCode) {
         mResponseTimestamp = Instant.now();
-        mCmdErrorCode = errorCode;
+        mCmdErrorCode = Optional.of(errorCode);
         updateRetryFlagByCommandError();
 
         PublishControllerCallback ctrlCallback = mPublishCtrlCallback;
@@ -97,8 +142,23 @@ public class PublishRequestResponse {
 
     private void onNetworkResponse(int sipCode, String reason) {
         mResponseTimestamp = Instant.now();
-        mNetworkRespSipCode = sipCode;
-        mNetworkRespReason = reason;
+        mNetworkRespSipCode = Optional.of(sipCode);
+        mReasonPhrase = Optional.ofNullable(reason);
+        updateRetryFlagByNetworkResponse();
+
+        PublishControllerCallback ctrlCallback = mPublishCtrlCallback;
+        if (ctrlCallback != null) {
+            ctrlCallback.onRequestNetworkResp(this);
+        }
+    }
+
+    private void onNetworkResponse(int sipCode, String reasonPhrase, int reasonHeaderCause,
+            String reasonHeaderText) {
+        mResponseTimestamp = Instant.now();
+        mNetworkRespSipCode = Optional.of(sipCode);
+        mReasonPhrase = Optional.ofNullable(reasonPhrase);
+        mReasonHeaderCause = Optional.of(reasonHeaderCause);
+        mReasonHeaderText = Optional.ofNullable(reasonHeaderText);
         updateRetryFlagByNetworkResponse();
 
         PublishControllerCallback ctrlCallback = mPublishCtrlCallback;
@@ -108,7 +168,7 @@ public class PublishRequestResponse {
     }
 
     private void updateRetryFlagByCommandError() {
-        switch(mCmdErrorCode) {
+        switch(getCmdErrorCode().orElse(-1)) {
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT:
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_INSUFFICIENT_MEMORY:
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_LOST_NETWORK_CONNECTION:
@@ -119,7 +179,9 @@ public class PublishRequestResponse {
     }
 
     private void updateRetryFlagByNetworkResponse() {
-        switch (mNetworkRespSipCode) {
+        int networkRespSipCode = getReasonHeaderCause().orElseGet(
+                () -> getNetworkRespSipCode().orElse(-1));
+        switch (networkRespSipCode) {
             case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
             case NetworkSipCode.SIP_CODE_INTERVAL_TOO_BRIEF:
             case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:
@@ -138,7 +200,13 @@ public class PublishRequestResponse {
      * Check whether the publishing request is successful.
      */
     public boolean isRequestSuccess() {
-        return (mNetworkRespSipCode == NetworkSipCode.SIP_CODE_OK) ? true : false;
+        final int sipCodeOk = NetworkSipCode.SIP_CODE_OK;
+        if (getNetworkRespSipCode().filter(c -> c == sipCodeOk).isPresent() &&
+                (!getReasonHeaderCause().isPresent()
+                        || getReasonHeaderCause().filter(c -> c == sipCodeOk).isPresent())) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -152,7 +220,8 @@ public class PublishRequestResponse {
      * Convert the command error code to the publish state
      */
     public int getPublishStateByCmdErrorCode() {
-        if (RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT == mCmdErrorCode) {
+        if (getCmdErrorCode().orElse(-1) ==
+                RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT) {
             return RcsUceAdapter.PUBLISH_STATE_REQUEST_TIMEOUT;
         }
         return RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
@@ -162,7 +231,14 @@ public class PublishRequestResponse {
      * Convert the network sip code to the publish state
      */
     public int getPublishStateByNetworkResponse() {
-        switch (mNetworkRespSipCode) {
+        int respSipCode;
+        if (getReasonHeaderCause().isPresent()) {
+            respSipCode = getReasonHeaderCause().get();
+        } else {
+            respSipCode = getNetworkRespSipCode().orElse(-1);
+        }
+
+        switch (respSipCode) {
             case NetworkSipCode.SIP_CODE_OK:
                 return RcsUceAdapter.PUBLISH_STATE_OK;
             case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
@@ -179,9 +255,11 @@ public class PublishRequestResponse {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("taskId=").append(mTaskId)
-                .append(", CmdErrorCode=").append(mCmdErrorCode)
-                .append(", NetworkResponse=").append(mNetworkRespSipCode)
-                .append(", NetworkResponseReason=").append(mNetworkRespReason)
+                .append(", CmdErrorCode=").append(getCmdErrorCode().orElse(-1))
+                .append(", NetworkRespSipCode=").append(getNetworkRespSipCode().orElse(-1))
+                .append(", ReasonPhrase=").append(getReasonPhrase().orElse(""))
+                .append(", ReasonHeaderCause=").append(getReasonHeaderCause().orElse(-1))
+                .append(", ReasonHeaderText=").append(getReasonHeaderText().orElse(""))
                 .append(", ResponseTimestamp=").append(mResponseTimestamp)
                 .append(", isRequestSuccess=").append(isRequestSuccess())
                 .append(", needRetry=").append(mNeedRetry);
