@@ -131,12 +131,19 @@ public class PublishProcessorTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testNotPublishWhenReachMaximumRetries() throws Exception {
+        doReturn(true).when(mProcessorState).isPublishingNow();
+        doReturn(mTaskId).when(mProcessorState).getCurrentTaskId();
+        doReturn(mTaskId).when(mResponseCallback).getTaskId();
+        doReturn(true).when(mResponseCallback).needRetry();
         doReturn(true).when(mProcessorState).isReachMaximumRetries();
         PublishProcessor publishProcessor = getPublishProcessor();
 
-        publishProcessor.doPublish(PublishController.PUBLISH_TRIGGER_RETRY);
+        publishProcessor.onNetworkResponse(mResponseCallback);
 
-        verify(mRcsFeatureManager, never()).requestPublication(any(), any());
+        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any());
+        verify(mResponseCallback).onDestroy();
+        verify(mProcessorState).setPublishingFlag(false);
+        verify(mPublishCtrlCallback).clearRequestCanceledTimer();
     }
 
     @Test
