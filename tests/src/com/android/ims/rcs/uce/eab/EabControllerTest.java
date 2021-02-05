@@ -17,13 +17,20 @@
 package com.android.ims.rcs.uce.eab;
 
 import static android.telephony.CarrierConfigManager.Ims.KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT;
+import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE;
 import static android.telephony.ims.RcsContactUceCapability.REQUEST_RESULT_FOUND;
 import static android.telephony.ims.RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
 import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_NETWORK;
 
+import static com.android.ims.rcs.uce.eab.EabProvider.COMMON_URI;
 import static com.android.ims.rcs.uce.eab.EabProvider.CONTACT_URI;
+import static com.android.ims.rcs.uce.eab.EabProvider.OPTIONS_URI;
+import static com.android.ims.rcs.uce.eab.EabProvider.PRESENCE_URI;
+
+import static org.junit.Assert.fail;
 
 import android.content.ContentValues;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Looper;
 import android.os.PersistableBundle;
@@ -48,12 +55,16 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class EabControllerTest extends ImsTestBase {
     EabProviderTestable mEabProviderTestable = new EabProviderTestable();
     EabControllerImpl mEabController;
     PersistableBundle mBundle;
+    ExecutorService mExecutor = Executors.newSingleThreadExecutor();
 
     private static final int TEST_SUB_ID = 1;
     private static final String TEST_PHONE_NUMBER = "16661234567";
@@ -64,6 +75,7 @@ public class EabControllerTest extends ImsTestBase {
     private static final boolean TEST_AUDIO_CAPABLE = true;
     private static final boolean TEST_VIDEO_CAPABLE = false;
 
+    private static final int TIME_OUT_IN_SEC = 5;
     private static final Uri TEST_CONTACT_URI = Uri.parse(TEST_PHONE_NUMBER + "@android.test");
 
     @Before
@@ -182,6 +194,97 @@ public class EabControllerTest extends ImsTestBase {
                 mEabController.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_CONTACT_EXPIRED_FAILURE,
                 mEabController.getCapabilities(contactUriList).get(0).getStatus());
+    }
+
+    @Test
+    @SmallTest
+    public void testCleanupInvalidDataInCommonTable() throws InterruptedException {
+        // Insert invalid data in common table
+        ContentValues data = new ContentValues();
+        data.put(EabProvider.EabCommonColumns.EAB_CONTACT_ID, -1);
+        data.put(EabProvider.EabCommonColumns.MECHANISM, CAPABILITY_MECHANISM_PRESENCE);
+        data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_FOUND);
+        data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, -1);
+        mContext.getContentResolver().insert(COMMON_URI, data);
+
+        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+
+        // Verify the entry that cannot map to presence/option table has been removed
+        Cursor cursor = mContext.getContentResolver().query(COMMON_URI, null, null, null, null);
+        while(cursor.moveToNext()) {
+            int contactId = cursor.getInt(
+                    cursor.getColumnIndex(EabProvider.EabCommonColumns.EAB_CONTACT_ID));
+            if (contactId == -1) {
+                fail("Invalid data didn't been cleared");
+            }
+        }
+    }
+
+    @Test
+    @SmallTest
+    public void testCleanupInvalidDataInPresenceTable() throws InterruptedException {
+        String expiredContact = "expiredContact";
+        GregorianCalendar expiredDate = new GregorianCalendar();
+        expiredDate.setTimeZone(TimeZone.getTimeZone("UTC"));
+        expiredDate.add(Calendar.DATE, -120);
+        // Insert invalid data in presence table
+        ContentValues data = new ContentValues();
+        data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_FOUND);
+        Uri commonUri = mContext.getContentResolver().insert(COMMON_URI, data);
+
+        data = new ContentValues();
+        data.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonUri.getLastPathSegment());
+        data.put(EabProvider.PresenceTupleColumns.CONTACT_URI, expiredContact);
+        data.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP,
+                expiredDate.getTime().getTime() / 1000);
+        mContext.getContentResolver().insert(PRESENCE_URI, data);
+
+        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+
+        // Verify the invalid data has been removed after save capabilities
+        Cursor cursor = mContext.getContentResolver().query(PRESENCE_URI, null, null, null, null);
+        while(cursor.moveToNext()) {
+            String contactUri = cursor.getString(
+                    cursor.getColumnIndex(EabProvider.PresenceTupleColumns.CONTACT_URI));
+            if (contactUri.equals(expiredContact)) {
+                fail("Invalid data didn't been cleared");
+            }
+        }
+    }
+
+    @Test
+    @SmallTest
+    public void testCleanupInvalidDataInOptionTable() throws InterruptedException {
+        String expiredFeatureTag = "expiredFeatureTag";
+        GregorianCalendar expiredDate = new GregorianCalendar();
+        expiredDate.setTimeZone(TimeZone.getTimeZone("UTC"));
+        expiredDate.add(Calendar.DATE, -120);
+        // Insert invalid data in presence table
+        ContentValues data = new ContentValues();
+        data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_NOT_FOUND);
+        Uri commonUri = mContext.getContentResolver().insert(COMMON_URI, data);
+
+        data = new ContentValues();
+        data.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonUri.getLastPathSegment());
+        data.put(EabProvider.OptionsColumns.FEATURE_TAG, expiredFeatureTag);
+        data.put(EabProvider.OptionsColumns.REQUEST_TIMESTAMP,
+                expiredDate.getTime().getTime() / 1000);
+        mContext.getContentResolver().insert(OPTIONS_URI, data);
+
+        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+
+        // Verify the invalid data has been removed after save capabilities
+        Cursor cursor = mContext.getContentResolver().query(OPTIONS_URI, null, null, null, null);
+        while(cursor.moveToNext()) {
+            String featureTag = cursor.getString(
+                    cursor.getColumnIndex(EabProvider.OptionsColumns.FEATURE_TAG));
+            if (featureTag.equals(expiredFeatureTag)) {
+                fail("Invalid data didn't been cleared");
+            }
+        }
     }
 
     private RcsContactUceCapability createPresenceCapability(boolean isExpired) {
