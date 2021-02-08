@@ -61,6 +61,7 @@ class PublishUtils {
         }
 
         for (String impu : impus) {
+            if (TextUtils.isEmpty(impu)) continue;
             Uri impuUri = Uri.parse(impu);
             if (SCHEME_SIP.equals(impuUri.getScheme()) &&
                     impuUri.getSchemeSpecificPart().endsWith(domain)) {
