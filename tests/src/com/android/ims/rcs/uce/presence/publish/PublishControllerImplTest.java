@@ -21,12 +21,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteCallbackList;
 import android.telephony.ims.RcsUceAdapter;
+import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -159,7 +161,11 @@ public class PublishControllerImplTest extends ImsTestBase {
 
         Handler handler = publishController.getPublishHandler();
         waitForHandlerAction(handler, 1000);
-        verify(mPublishProcessor).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
+        verify(mPublishProcessor, never()).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
+
+        IImsCapabilityCallback callback = publishController.getRcsCapabilitiesCallback();
+        callback.onCapabilitiesStatusChanged(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+        verify(mPublishProcessor).checkAndSendPendingRequest();
     }
 
     private PublishControllerImpl createPublishController() {

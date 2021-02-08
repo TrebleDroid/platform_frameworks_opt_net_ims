@@ -388,9 +388,13 @@ public class RcsFeatureManager implements FeatureUpdates {
     /**
      * Query the availability of an IMS RCS capability.
      */
-    public boolean isAvailable(@RcsImsCapabilities.RcsImsCapabilityFlag int capability)
+    public boolean isAvailable(@RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+            @ImsRegistrationImplBase.ImsRegistrationTech int radioTech)
             throws android.telephony.ims.ImsException {
         try {
+            if (mRcsFeatureConnection.getRegistrationTech() != radioTech) {
+                return false;
+            }
             int currentStatus = mRcsFeatureConnection.queryCapabilityStatus();
             return new RcsImsCapabilities(currentStatus).isCapable(capability);
         } catch (RemoteException e) {
