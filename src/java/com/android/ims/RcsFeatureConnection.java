@@ -28,6 +28,7 @@ import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IPublishResponseCallback;
+import android.telephony.ims.aidl.IOptionsResponseCallback;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
@@ -239,6 +240,15 @@ public class RcsFeatureConnection extends FeatureConnection {
         synchronized (mLock) {
             checkServiceIsReady();
             getServiceInterface(mBinder).subscribeForCapabilities(uris, c);
+        }
+    }
+
+    public void sendOptionsCapabilityRequest(Uri contactUri, List<String> myCapabilities,
+            IOptionsResponseCallback callback) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).sendOptionsCapabilityRequest(contactUri, myCapabilities,
+                    callback);
         }
     }
 

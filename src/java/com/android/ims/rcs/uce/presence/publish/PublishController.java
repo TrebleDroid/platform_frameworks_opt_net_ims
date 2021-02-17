@@ -19,6 +19,7 @@ package com.android.ims.rcs.uce.presence.publish;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 
@@ -135,7 +136,7 @@ public interface PublishController extends ControllerBase {
     /**
      * Retrieve the device's capabilities.
      */
-    RcsContactUceCapability getDeviceCapabilities();
+    RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int mechanism);
 
     /**
      * Publish the device's capabilities to the Presence server.
