@@ -16,6 +16,7 @@
 
 package com.android.ims.rcs.uce.request;
 
+import android.net.Uri;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactTerminatedReason;
 import android.telephony.ims.RcsContactUceCapability;
@@ -76,6 +77,9 @@ public class CapabilityRequestResponse {
     // "onNotifyCapabilitiesUpdate"
     private final List<RcsContactUceCapability> mUpdatedCapabilityList;
 
+    // The list of the remote contact's capability.
+    private final List<String> mRemoteCaps;
+
     // The callback to notify the result of this request.
     public IRcsUceControllerCallback mCapabilitiesCallback;
 
@@ -89,6 +93,7 @@ public class CapabilityRequestResponse {
         mRetryAfterMillis = Optional.of(0L);
         mTerminatedResource = new ArrayList<>();
         mUpdatedCapabilityList = new ArrayList<>();
+        mRemoteCaps = new ArrayList<>();
     }
 
     /**
@@ -275,6 +280,41 @@ public class CapabilityRequestResponse {
     }
 
     /**
+     * Set the remote's capabilities which are sent from the network.
+     */
+    public void setRemoteCapabilities(Uri contact, List<String> remoteCaps) {
+        // Set the remote capabilities
+        if (remoteCaps != null) {
+            remoteCaps.stream().filter(Objects::nonNull).forEach(cap -> mRemoteCaps.add(cap));
+        }
+
+        RcsContactUceCapability.OptionsBuilder optionsBuilder
+                = new RcsContactUceCapability.OptionsBuilder(contact);
+        int requestResult = RcsContactUceCapability.REQUEST_RESULT_FOUND;
+        if (!getNetworkRespSipCode().isPresent()) {
+            requestResult = RcsContactUceCapability.REQUEST_RESULT_UNKNOWN;
+        } else {
+            switch (getNetworkRespSipCode().get()) {
+                case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
+                    // Intentional fallthrough
+                case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:
+                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_ONLINE;
+                    break;
+                case NetworkSipCode.SIP_CODE_NOT_FOUND:
+                    // Intentional fallthrough
+                case NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE:
+                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
+                    break;
+            }
+        }
+        optionsBuilder.setRequestResult(requestResult);
+        optionsBuilder.addFeatureTags(mRemoteCaps);
+
+        // Add the remote's capabilities to the updated capability list
+        addUpdatedCapabilities(Collections.singletonList(optionsBuilder.build()));
+    }
+
+    /**
      * Trigger the capabilities callback. This capabilities is retrieved from the cache.
      */
     public boolean triggerCachedCapabilitiesCallback(
@@ -450,6 +490,9 @@ public class CapabilityRequestResponse {
                 .append(", ReasonHeaderText=").append(mReasonHeaderText.orElse(""))
                 .append(", TerminatedReason=").append(mTerminatedReason.orElse(""))
                 .append(", RetryAfterMillis=").append(mRetryAfterMillis.orElse(0L))
+                .append(", RemoteCaps size=" + mRemoteCaps.size())
+                .append(", Updated capability size=" + mUpdatedCapabilityList.size())
+                .append(", Terminated resource size=" + mTerminatedResource.size())
                 .toString();
     }
 }
