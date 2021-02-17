@@ -24,6 +24,7 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
@@ -86,7 +87,7 @@ public class UceController {
         /**
          * Retrieve the device's capabilities.
          */
-        RcsContactUceCapability getDeviceCapabilities();
+        RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int mechanism);
 
         /**
          * The network reply that the request is forbidden.
@@ -108,13 +109,6 @@ public class UceController {
          * @return true when the UCE is forbidden by the network
          */
         boolean isRequestForbiddenByNetwork();
-
-        /**
-         * Trigger the capabilities request with OPTIONS
-         */
-        void requestCapabilitiesByOptions(@NonNull Uri contactUri,
-                @NonNull RcsContactUceCapability ownCapabilities,
-                @NonNull IOptionsResponseCallback callback);
 
         /**
          * The method is called when the given contacts' capabilities are expired and need to be
@@ -172,8 +166,7 @@ public class UceController {
         /**
          * @return an {@link OptionsController} associated with the subscription id specified.
          */
-        OptionsController createOptionsController(Context context, int subId,
-                UceControllerCallback c, Looper looper);
+        OptionsController createOptionsController(Context context, int subId);
     }
 
     private ControllerFactory mControllerFactory = new ControllerFactory() {
@@ -195,9 +188,8 @@ public class UceController {
         }
 
         @Override
-        public OptionsController createOptionsController(Context context, int subId,
-                UceControllerCallback c, Looper looper) {
-            return new OptionsControllerImpl(context, subId, c, looper);
+        public OptionsController createOptionsController(Context context, int subId) {
+            return new OptionsControllerImpl(context, subId);
         }
     };
 
@@ -254,14 +246,14 @@ public class UceController {
         mPublishController = mControllerFactory.createPublishController(mContext, mSubId,
                 mCtrlCallback, mLooper);
         mSubscribeController = mControllerFactory.createSubscribeController(mContext, mSubId);
-        mOptionsController = mControllerFactory.createOptionsController(mContext, mSubId,
-                mCtrlCallback, mLooper);
+        mOptionsController = mControllerFactory.createOptionsController(mContext, mSubId);
     }
 
     private void initRequestManager() {
         mRequestManager = mRequestManagerFactory.createRequestManager(mContext, mSubId, mLooper,
                 mCtrlCallback);
         mRequestManager.setSubscribeController(mSubscribeController);
+        mRequestManager.setOptionsController(mOptionsController);
     }
 
     /**
@@ -339,8 +331,8 @@ public class UceController {
         }
 
         @Override
-        public RcsContactUceCapability getDeviceCapabilities() {
-            return mPublishController.getDeviceCapabilities();
+        public RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int mechanism) {
+            return mPublishController.getDeviceCapabilities(mechanism);
         }
 
         @Override
@@ -357,13 +349,6 @@ public class UceController {
         @Override
         public boolean isRequestForbiddenByNetwork() {
             return (mServerState.getForbiddenErrorCode() != null) ? true : false;
-        }
-
-        @Override
-        public void requestCapabilitiesByOptions(@NonNull Uri uri,
-                @NonNull RcsContactUceCapability ownCapabilities,
-                @NonNull IOptionsResponseCallback callback) {
-            mOptionsController.sendCapabilitiesRequest(uri, ownCapabilities, callback);
         }
 
         @Override
@@ -520,7 +505,7 @@ public class UceController {
     public void retrieveOptionsCapabilitiesForRemote(@NonNull Uri contactUri,
             @NonNull List<String> remoteCapabilities, @NonNull IOptionsRequestCallback c) {
         logi("retrieveOptionsCapabilitiesForRemote");
-        mOptionsController.retrieveCapabilitiesForRemote(contactUri, remoteCapabilities, c);
+        mRequestManager.retrieveCapabilitiesForRemote(contactUri, remoteCapabilities, c);
     }
 
     /**

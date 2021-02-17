@@ -81,7 +81,7 @@ public class UceControllerTest extends ImsTestBase {
         doReturn(mSubscribeController).when(mControllerFactory).createSubscribeController(any(),
                 eq(mSubId));
         doReturn(mOptionsController).when(mControllerFactory).createOptionsController(any(),
-                eq(mSubId), any(), any());
+                eq(mSubId));
         doReturn(mTaskManager).when(mTaskManagerFactory).createRequestManager(any(), eq(mSubId),
                 any(), any());
     }
@@ -241,20 +241,6 @@ public class UceControllerTest extends ImsTestBase {
         uceController.onUnpublish();
 
         verify(mPublishController).onUnpublish();
-    }
-
-    @Test
-    @SmallTest
-    public void testRetrieveOptionsCapabilities() {
-        UceController uceController = createUceController();
-
-        Uri contact = Uri.fromParts("sip", "test", null);
-        List<String> capabilities = new ArrayList<>();
-        uceController.retrieveOptionsCapabilitiesForRemote(contact, capabilities,
-                mOptionsRequestCallback);
-
-        verify(mOptionsController).retrieveCapabilitiesForRemote(contact, capabilities,
-                mOptionsRequestCallback);
     }
 
     @Test
