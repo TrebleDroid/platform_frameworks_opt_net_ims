@@ -62,7 +62,7 @@ public class PublishProcessorTest extends ImsTestBase {
 
         doReturn(true).when(mDeviceCapabilities).isImsRegistered();
         RcsContactUceCapability capability = getRcsContactUceCapability();
-        doReturn(capability).when(mDeviceCapabilities).getDeviceCapabilities(any());
+        doReturn(capability).when(mDeviceCapabilities).getDeviceCapabilities(anyInt(), any());
 
         doReturn(mTaskId).when(mResponseCallback).getTaskId();
     }
@@ -79,7 +79,7 @@ public class PublishProcessorTest extends ImsTestBase {
 
         publishProcessor.doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
 
-        verify(mDeviceCapabilities).getDeviceCapabilities(any());
+        verify(mDeviceCapabilities).getDeviceCapabilities(anyInt(), any());
         verify(mProcessorState).setPublishingFlag(true);
         verify(mRcsFeatureManager).requestPublication(any(), any());
         verify(mPublishCtrlCallback).setupRequestCanceledTimer(anyLong(), anyLong());

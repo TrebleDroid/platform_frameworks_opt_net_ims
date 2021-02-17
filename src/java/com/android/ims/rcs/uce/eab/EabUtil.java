@@ -23,6 +23,7 @@ import android.util.Log;
 
 import com.android.ims.rcs.uce.eab.EabProvider.ContactColumns;
 import com.android.ims.rcs.uce.eab.EabProvider.EabCommonColumns;
+import com.android.ims.rcs.uce.eab.EabProvider.OptionsColumns;
 import com.android.ims.rcs.uce.eab.EabProvider.PresenceTupleColumns;
 import com.android.ims.rcs.uce.util.UceUtils;
 
@@ -144,6 +145,8 @@ public class EabUtil {
         int count = 0;
         count = context.getContentResolver().delete(EabProvider.PRESENCE_URI,
                 PresenceTupleColumns.EAB_COMMON_ID + "=?", new String[]{String.valueOf(commonId)});
+        context.getContentResolver().delete(EabProvider.OPTIONS_URI,
+                OptionsColumns.EAB_COMMON_ID + "=?", new String[]{String.valueOf(commonId)});
         context.getContentResolver().delete(EabProvider.COMMON_URI,
                 EabCommonColumns.EAB_CONTACT_ID + "=?", new String[]{String.valueOf(contactId)});
         context.getContentResolver().delete(EabProvider.CONTACT_URI,

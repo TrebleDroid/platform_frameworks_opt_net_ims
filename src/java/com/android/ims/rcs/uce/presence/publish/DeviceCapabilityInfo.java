@@ -23,11 +23,14 @@ import android.telephony.AccessNetworkConstants;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
+import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
 import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.UceUtils;
 
 /**
@@ -259,14 +262,28 @@ public class DeviceCapabilityInfo {
     /**
      * Get the device's capabilities.
      */
-    public synchronized RcsContactUceCapability getDeviceCapabilities(Context context) {
-        Uri uri = PublishUtils.getPublishingUri(context, mSubId);
+    public synchronized RcsContactUceCapability getDeviceCapabilities(
+            @CapabilityMechanism int mechanism, Context context) {
+        switch (mechanism) {
+            case RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE:
+                return getPresenceCapabilities(context);
+            case RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS:
+                return getOptionsCapabilities(context);
+            default:
+                logw("getDeviceCapabilities: invalid mechanism " + mechanism);
+                return null;
+        }
+    }
+
+    // Get the device's capabilities with the PRESENCE mechanism.
+    private RcsContactUceCapability getPresenceCapabilities(Context context) {
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId);
         if (uri == null) {
-            logw("getDeviceCapabilities: uri is empty");
+            logw("getPresenceCapabilities: uri is empty");
             return null;
         }
         ServiceCapabilities.Builder servCapsBuilder = new ServiceCapabilities.Builder(
-            hasVolteCapability(), hasVtCapability());
+                hasVolteCapability(), hasVtCapability());
         servCapsBuilder.addSupportedDuplexMode(ServiceCapabilities.DUPLEX_MODE_FULL);
 
         RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
@@ -290,6 +307,21 @@ public class DeviceCapabilityInfo {
         }
 
         return presenceBuilder.build();
+    }
+
+    // Get the device's capabilities with the OPTIONS mechanism.
+    private RcsContactUceCapability getOptionsCapabilities(Context context) {
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId);
+        if (uri == null) {
+            logw("getOptionsCapabilities: uri is empty");
+            return null;
+        }
+
+        OptionsBuilder optionsBuilder = new OptionsBuilder(uri);
+        optionsBuilder.setRequestResult(RcsContactUceCapability.REQUEST_RESULT_FOUND);
+        FeatureTags.addMmTelFeatureTags(optionsBuilder,
+                hasVolteCapability(), hasVtCapability());
+        return optionsBuilder.build();
     }
 
     // Check if the device has the VoLTE capability
