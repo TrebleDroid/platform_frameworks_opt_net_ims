@@ -23,30 +23,32 @@ import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.util.UceUtils;
+
 /**
  * The util class of publishing device's capabilities.
  */
 class PublishUtils {
-    private static final String LOG_TAG = "PublishUtils";
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "PublishUtils";
 
     private static final String SCHEME_SIP = "sip";
     private static final String SCHEME_TEL = "tel";
     private static final String DOMAIN_SEPARATOR = "@";
 
-    public static Uri getPublishingUri(Context context, int subId) {
+    public static Uri getDeviceContactUri(Context context, int subId) {
         TelephonyManager telephonyManager = getTelephonyManager(context, subId);
         if (telephonyManager == null) {
-            Log.w(LOG_TAG, "getPublishingUri: TelephonyManager is null");
+            Log.w(LOG_TAG, "getDeviceContactUri: TelephonyManager is null");
             return null;
         }
 
         // Get the contact uri from ISIM.
         Uri contactUri = getContactUriFromIsim(telephonyManager);
         if (contactUri != null) {
-            Log.d(LOG_TAG, "getPublishingUri: impu");
+            Log.d(LOG_TAG, "getDeviceContactUri: impu");
             return contactUri;
         } else {
-            Log.d(LOG_TAG, "getPublishingUri: line number");
+            Log.d(LOG_TAG, "getDeviceContactUri: line number");
             return getContactUriFromLine1Number(telephonyManager);
         }
     }

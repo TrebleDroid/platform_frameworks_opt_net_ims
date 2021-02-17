@@ -21,7 +21,9 @@ package com.android.ims.rcs.uce.util;
  */
 public class NetworkSipCode {
     public static final int SIP_CODE_OK = 200;
+    public static final int SIP_CODE_BAD_REQUEST = 400;
     public static final int SIP_CODE_FORBIDDEN = 403;
+    public static final int SIP_CODE_NOT_FOUND = 404;
     public static final int SIP_CODE_REQUEST_TIMEOUT = 408;
     public static final int SIP_CODE_INTERVAL_TOO_BRIEF = 423;
     public static final int SIP_CODE_TEMPORARILY_UNAVAILABLE = 480;
@@ -31,8 +33,12 @@ public class NetworkSipCode {
     public static final int SIP_CODE_SERVER_TIMEOUT = 504;
     public static final int SIP_CODE_BUSY_EVERYWHERE = 600;
     public static final int SIP_CODE_DECLINE = 603;
+    public static final int SIP_CODE_DOES_NOT_EXIST_ANYWHERE = 604;
 
     public static final String SIP_OK = "OK";
+    public static final String SIP_BAD_REQUEST = "Bad Request";
+    public static final String SIP_SERVICE_UNAVAILABLE = "Service Unavailable";
+    public static final String SIP_INTERNAL_SERVER_ERROR = "Internal Server Error";
     public static final String SIP_NOT_REGISTERED = "User not registered";
     public static final String SIP_NOT_AUTHORIZED_FOR_PRESENCE = "not authorized for presence";
 }
