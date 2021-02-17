@@ -16,15 +16,16 @@
 
 package com.android.ims.rcs.uce.options;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.net.Uri;
-import android.os.Looper;
-import android.telephony.ims.RcsContactUceCapability;
-import android.telephony.ims.aidl.IOptionsRequestCallback;
+import android.os.RemoteException;
 import android.telephony.ims.aidl.IOptionsResponseCallback;
+import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
+import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
-import com.android.ims.rcs.uce.UceController.UceControllerCallback;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.List;
 
@@ -33,43 +34,49 @@ import java.util.List;
  */
 public class OptionsControllerImpl implements OptionsController {
 
-    private final Context mContext;
-    private final int mSubId;
-    private final UceControllerCallback mCallback;
-    private final Looper mLooper;
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "OptionsController";
 
-    public OptionsControllerImpl(Context context, int subId, UceControllerCallback c,
-            Looper looper) {
-        mContext = context;
+    private final int mSubId;
+    private final Context mContext;
+    private volatile boolean mIsDestroyedFlag;
+    private volatile RcsFeatureManager mRcsFeatureManager;
+
+    public OptionsControllerImpl(Context context, int subId) {
         mSubId = subId;
-        mCallback = c;
-        mLooper = looper;
+        mContext = context;
     }
 
     @Override
     public void onRcsConnected(RcsFeatureManager manager) {
-        // TODO: Implement this method
+        mRcsFeatureManager = manager;
     }
 
     @Override
     public void onRcsDisconnected() {
-        // TODO: Implement this method
+        mRcsFeatureManager = null;
     }
 
     @Override
     public void onDestroy() {
-        // TODO: Implement this method
+        mIsDestroyedFlag = true;
+        mRcsFeatureManager = null;
     }
 
     @Override
-    public void sendCapabilitiesRequest(Uri contactUri, RcsContactUceCapability ownCapabilities,
-            IOptionsResponseCallback c) {
-        // TODO: Implement this method
-    }
+    public void sendCapabilitiesRequest(Uri contactUri, @NonNull List<String> deviceFeatureTags,
+            IOptionsResponseCallback c) throws RemoteException {
 
-    @Override
-    public void retrieveCapabilitiesForRemote(Uri contactUri, List<String> remoteCapabilities,
-            IOptionsRequestCallback c) {
-        // TODO: Implement this method
+        if (mIsDestroyedFlag) {
+            throw new RemoteException("OPTIONS controller is destroyed");
+        }
+
+        RcsFeatureManager featureManager = mRcsFeatureManager;
+        if (featureManager == null) {
+            Log.w(LOG_TAG, "sendCapabilitiesRequest: Service is unavailable");
+            c.onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_SERVICE_UNAVAILABLE);
+            return;
+        }
+
+        featureManager.sendOptionsCapabilityRequest(contactUri, deviceFeatureTags, c);
     }
 }

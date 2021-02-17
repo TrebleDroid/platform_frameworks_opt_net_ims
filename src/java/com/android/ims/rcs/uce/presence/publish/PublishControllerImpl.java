@@ -25,6 +25,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.telephony.ims.ImsException;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
@@ -257,8 +258,8 @@ public class PublishControllerImpl implements PublishController {
     }
 
     @Override
-    public RcsContactUceCapability getDeviceCapabilities() {
-        return mDeviceCapabilityInfo.getDeviceCapabilities(mContext);
+    public RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int mechanism) {
+        return mDeviceCapabilityInfo.getDeviceCapabilities(mechanism, mContext);
     }
 
     private void registerRcsAvailabilityChanged(RcsFeatureManager manager) {
