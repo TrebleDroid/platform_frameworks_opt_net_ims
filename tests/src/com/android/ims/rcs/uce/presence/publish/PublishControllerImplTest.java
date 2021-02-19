@@ -16,7 +16,10 @@
 
 package com.android.ims.rcs.uce.presence.publish;
 
+import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_RETRY;
+import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_VT_SETTING_CHANGE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,6 +39,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController;
+import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapListenerFactory;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
 import com.android.ims.ImsTestBase;
@@ -166,6 +170,28 @@ public class PublishControllerImplTest extends ImsTestBase {
         IImsCapabilityCallback callback = publishController.getRcsCapabilitiesCallback();
         callback.onCapabilitiesStatusChanged(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
         verify(mPublishProcessor).checkAndSendPendingRequest();
+    }
+
+    @Test
+    @SmallTest
+    public void testRequestPublishWhenDeviceCapabilitiesChange() throws Exception {
+        PublishControllerImpl publishController = createPublishController();
+
+        // Set the PRESENCE is capable
+        IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
+        RcsCapCallback.onCapabilitiesStatusChanged(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+
+        // Trigger the first publish (RETRY)
+        PublishControllerCallback callback = publishController.getPublishControllerCallback();
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_RETRY, 60000);
+
+        // Trigger another publish request (VT changes)
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE, 0);
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
+
+        // Verify the publish request can be processed immediately
+        verify(mPublishProcessor).doPublish(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
     }
 
     private PublishControllerImpl createPublishController() {
