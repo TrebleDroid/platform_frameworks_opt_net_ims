@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.net.Uri;
@@ -142,11 +143,22 @@ public class OptionsRequestTest extends ImsTestBase {
         doReturn(true).when(mRequestResponse).isNetworkResponseOK();
         IOptionsResponseCallback callback = request.getResponseCallback();
 
+        // Respond the SIP CODE 200 OK
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK, mFeatureTags);
 
         verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_OK,
                 NetworkSipCode.SIP_OK);
         verify(mRequestResponse).setRemoteCapabilities(any(), eq(mFeatureTags));
+        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
+        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
+
+        // Respond the SIP CODE 202 ACCEPTED
+        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED,
+                mFeatureTags);
+
+        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_ACCEPTED,
+                NetworkSipCode.SIP_ACCEPTED);
+        verify(mRequestResponse, times(2)).setRemoteCapabilities(any(), eq(mFeatureTags));
         verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
         verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
     }
