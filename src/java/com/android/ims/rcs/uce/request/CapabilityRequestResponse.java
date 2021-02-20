@@ -172,13 +172,15 @@ public class CapabilityRequestResponse {
     }
 
     /**
-     * Check if the network response is OK.
-     * @return true if the network response code is OK and the Reason header cause
+     * Check if the network response is success.
+     * @return true if the network response code is OK or Accepted and the Reason header cause
      * is either not present or OK.
      */
     public boolean isNetworkResponseOK() {
         final int sipCodeOk = NetworkSipCode.SIP_CODE_OK;
-        if (getNetworkRespSipCode().filter(c -> c == sipCodeOk).isPresent() &&
+        final int sipCodeAccepted = NetworkSipCode.SIP_CODE_ACCEPTED;
+        Optional<Integer> respSipCode = getNetworkRespSipCode();
+        if (respSipCode.filter(c -> (c == sipCodeOk || c == sipCodeAccepted)).isPresent() &&
                 (!getReasonHeaderCause().isPresent()
                         || getReasonHeaderCause().filter(c -> c == sipCodeOk).isPresent())) {
             return true;

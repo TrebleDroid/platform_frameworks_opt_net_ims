@@ -21,6 +21,7 @@ package com.android.ims.rcs.uce.util;
  */
 public class NetworkSipCode {
     public static final int SIP_CODE_OK = 200;
+    public static final int SIP_CODE_ACCEPTED = 202;
     public static final int SIP_CODE_BAD_REQUEST = 400;
     public static final int SIP_CODE_FORBIDDEN = 403;
     public static final int SIP_CODE_NOT_FOUND = 404;
@@ -36,6 +37,7 @@ public class NetworkSipCode {
     public static final int SIP_CODE_DOES_NOT_EXIST_ANYWHERE = 604;
 
     public static final String SIP_OK = "OK";
+    public static final String SIP_ACCEPTED = "Accepted";
     public static final String SIP_BAD_REQUEST = "Bad Request";
     public static final String SIP_SERVICE_UNAVAILABLE = "Service Unavailable";
     public static final String SIP_INTERNAL_SERVER_ERROR = "Internal Server Error";
