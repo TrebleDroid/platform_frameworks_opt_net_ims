@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.net.Uri;
@@ -111,10 +112,19 @@ public class SubscribeRequestTest extends ImsTestBase {
         doReturn(true).when(mRequestResponse).isNetworkResponseOK();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
+        // Respond the SIP CODE 200 OK
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK);
 
         verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_OK,
                 NetworkSipCode.SIP_OK);
+        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
+        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
+
+        // Respond the SIP CODE 202 ACCEPTED
+        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED);
+
+        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_ACCEPTED,
+                NetworkSipCode.SIP_ACCEPTED);
         verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
         verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
     }
@@ -170,10 +180,17 @@ public class SubscribeRequestTest extends ImsTestBase {
         doReturn(true).when(mRequestResponse).isNetworkResponseOK();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
+        // Respond SIP CODE 200 OK
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK);
         callback.onTerminated(null, 0L);
 
         verify(mRequestManagerCallback).onRequestSuccess(anyLong());
+
+        // Respond SIP CODE 202 ACCEPTED
+        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED);
+        callback.onTerminated(null, 0L);
+
+        verify(mRequestManagerCallback, times(2)).onRequestSuccess(anyLong());
     }
 
     @Test
