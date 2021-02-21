@@ -23,6 +23,7 @@ import android.content.Context;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.text.TextUtils;
+import android.util.IndentingPrintWriter;
 import android.util.LocalLog;
 import android.util.Log;
 
@@ -60,7 +61,7 @@ public class PublishProcessor {
     // The callback of the PublishController
     private PublishControllerCallback mPublishCtrlCallback;
 
-    private final LocalLog mLocalLog = new LocalLog(20);
+    private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
 
     public PublishProcessor(Context context, int subId, DeviceCapabilityInfo capabilityInfo,
             PublishControllerCallback publishCtrlCallback) {
@@ -409,6 +410,23 @@ public class PublishProcessor {
     }
 
     public void dump(PrintWriter printWriter) {
-        mLocalLog.dump(printWriter);
+        IndentingPrintWriter pw = new IndentingPrintWriter(printWriter, "  ");
+        pw.println("PublishProcessor" + "[subId: " + mSubId + "]:");
+        pw.increaseIndent();
+
+        pw.print("ProcessorState: isPublishing=");
+        pw.print(mProcessorState.isPublishingNow());
+        pw.print(", hasReachedMaxRetries=");
+        pw.print(mProcessorState.isReachMaximumRetries());
+        pw.print(", delayTimeToAllowPublish=");
+        pw.println(mProcessorState.getDelayTimeToAllowPublish());
+
+        pw.println("Log:");
+        pw.increaseIndent();
+        mLocalLog.dump(pw);
+        pw.decreaseIndent();
+        pw.println("---");
+
+        pw.decreaseIndent();
     }
 }

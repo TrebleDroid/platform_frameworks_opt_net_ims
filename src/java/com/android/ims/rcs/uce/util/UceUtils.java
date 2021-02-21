@@ -33,6 +33,7 @@ import com.android.telephony.Rlog;
 
 public class UceUtils {
 
+    public static final int LOG_SIZE = 20;
     private static final String LOG_PREFIX = "RcsUce.";
     private static final String LOG_TAG = LOG_PREFIX + "UceUtils";
 
