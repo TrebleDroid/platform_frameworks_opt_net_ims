@@ -20,6 +20,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.ims.ImsRegistrationAttributes;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
 import android.telephony.ims.RcsContactUceCapability;
@@ -28,10 +29,14 @@ import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
 import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.UceUtils;
+
+import java.io.PrintWriter;
+import java.util.Set;
 
 /**
  * Stores the device's capabilities information.
@@ -41,6 +46,9 @@ public class DeviceCapabilityInfo {
 
     private final int mSubId;
 
+    // Tracks capability status based on the IMS registration.
+    private final PublishServiceDescTracker mServiceCapRegTracker;
+
     // The mmtel feature is registered or not
     private boolean mMmtelRegistered;
 
@@ -49,6 +57,9 @@ public class DeviceCapabilityInfo {
 
     // The rcs feature is registered or not
     private boolean mRcsRegistered;
+
+    // Whether or not presence is reported as capable
+    private boolean mPresenceCapable;
 
     // The network type which ims rcs registers on.
     private int mRcsNetworkRegType;
@@ -62,8 +73,9 @@ public class DeviceCapabilityInfo {
     private boolean mMobileData;
     private boolean mVtSetting;
 
-    public DeviceCapabilityInfo(int subId) {
+    public DeviceCapabilityInfo(int subId, String[] capToRegistrationMap) {
         mSubId = subId;
+        mServiceCapRegTracker = PublishServiceDescTracker.fromCarrierConfig(capToRegistrationMap);
         reset();
     }
 
@@ -117,23 +129,29 @@ public class DeviceCapabilityInfo {
         mMmtelNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
     }
 
+    public synchronized void updatePresenceCapable(boolean isCapable) {
+        mPresenceCapable = isCapable;
+    }
+
     /**
      * Update the status that IMS RCS is registered.
      */
-    public synchronized void updateImsRcsRegistered(int type) {
+    public synchronized void updateImsRcsRegistered(ImsRegistrationAttributes attr) {
         StringBuilder builder = new StringBuilder();
         builder.append("IMS RCS registered: original state=").append(mRcsRegistered)
                 .append(", changes type from ").append(mRcsNetworkRegType)
-                .append(" to ").append(type);
+                .append(" to ").append(attr.getTransportType());
         logi(builder.toString());
 
         if (!mRcsRegistered) {
             mRcsRegistered = true;
         }
 
-        if (mRcsNetworkRegType != type) {
-            mRcsNetworkRegType = type;
+        if (mRcsNetworkRegType != attr.getTransportType()) {
+            mRcsNetworkRegType = attr.getTransportType();
         }
+
+        mServiceCapRegTracker.updateImsRegistration(attr.getFeatureTags());
     }
 
     /**
@@ -234,6 +252,10 @@ public class DeviceCapabilityInfo {
         return false;
     }
 
+    public synchronized boolean isPresenceCapable() {
+        return mPresenceCapable;
+    }
+
     private boolean isVolteAvailable(int networkRegType, MmTelCapabilities capabilities) {
         return (networkRegType == AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
                 && capabilities.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE);
@@ -282,31 +304,57 @@ public class DeviceCapabilityInfo {
             logw("getPresenceCapabilities: uri is empty");
             return null;
         }
-        ServiceCapabilities.Builder servCapsBuilder = new ServiceCapabilities.Builder(
-                hasVolteCapability(), hasVtCapability());
-        servCapsBuilder.addSupportedDuplexMode(ServiceCapabilities.DUPLEX_MODE_FULL);
-
-        RcsContactPresenceTuple.Builder tupleBuilder = new RcsContactPresenceTuple.Builder(
-                RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
-                RcsContactPresenceTuple.SERVICE_ID_MMTEL, "1.0");
-        tupleBuilder.setContactUri(uri).setServiceCapabilities(servCapsBuilder.build());
-
-        RcsContactPresenceTuple.Builder callComposerTupleBuilder =
-                new RcsContactPresenceTuple.Builder(
-                        RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN,
-                        RcsContactPresenceTuple.SERVICE_ID_CALL_COMPOSER, "2.0");
-        callComposerTupleBuilder.setContactUri(uri).setServiceCapabilities(
-                servCapsBuilder.build());
+        Set<ServiceDescription> capableFromReg =
+                mServiceCapRegTracker.copyRegistrationCapabilities();
 
         PresenceBuilder presenceBuilder = new PresenceBuilder(uri,
                 RcsContactUceCapability.SOURCE_TYPE_CACHED,
                 RcsContactUceCapability.REQUEST_RESULT_FOUND);
-        presenceBuilder.addCapabilityTuple(tupleBuilder.build());
+        // RCS presence tag (added to all presence documents)
+        ServiceDescription presDescription = getCustomizedDescription(
+                ServiceDescription.SERVICE_DESCRIPTION_PRESENCE, capableFromReg);
+        addCapability(presenceBuilder, presDescription.getTupleBuilder(), uri);
+        capableFromReg.remove(presDescription);
+
+        // mmtel
+        ServiceDescription voiceDescription = getCustomizedDescription(
+                ServiceDescription.SERVICE_DESCRIPTION_MMTEL_VOICE, capableFromReg);
+        ServiceDescription vtDescription = getCustomizedDescription(
+                ServiceDescription.SERVICE_DESCRIPTION_MMTEL_VOICE_VIDEO, capableFromReg);
+        ServiceDescription descToUse = hasVtCapability() ? vtDescription : voiceDescription;
+        ServiceCapabilities servCaps = new ServiceCapabilities.Builder(
+                hasVolteCapability(), hasVtCapability())
+                .addSupportedDuplexMode(ServiceCapabilities.DUPLEX_MODE_FULL).build();
+        addCapability(presenceBuilder, descToUse.getTupleBuilder()
+                .setServiceCapabilities(servCaps), uri);
+        capableFromReg.remove(voiceDescription);
+        capableFromReg.remove(vtDescription);
+
+        // call composer via mmtel
+        ServiceDescription composerDescription = getCustomizedDescription(
+                ServiceDescription.SERVICE_DESCRIPTION_CALL_COMPOSER_MMTEL, capableFromReg);
         if (hasCallComposerCapability()) {
-            presenceBuilder.addCapabilityTuple(callComposerTupleBuilder.build());
+            addCapability(presenceBuilder, composerDescription.getTupleBuilder(), uri);
+        }
+        capableFromReg.remove(composerDescription);
+
+        // External features can only be found using registration states from other components.
+        // Count these features as capable and include in PIDF XML if they are registered.
+        for (ServiceDescription capability : capableFromReg) {
+            addCapability(presenceBuilder, capability.getTupleBuilder(), uri);
         }
 
         return presenceBuilder.build();
+    }
+
+    /**
+     * Search the refSet for the ServiceDescription that matches the service-id && version and
+     * return that or return the reference if there is no match.
+     */
+    private ServiceDescription getCustomizedDescription(ServiceDescription reference,
+            Set<ServiceDescription> refSet) {
+        return refSet.stream().filter(s -> s.serviceId.equals(reference.serviceId)
+                && s.version.equals(reference.version)).findFirst().orElse(reference);
     }
 
     // Get the device's capabilities with the OPTIONS mechanism.
@@ -317,11 +365,18 @@ public class DeviceCapabilityInfo {
             return null;
         }
 
+        Set<String> capableFromReg = mServiceCapRegTracker.copyRegistrationFeatureTags();
+
         OptionsBuilder optionsBuilder = new OptionsBuilder(uri);
         optionsBuilder.setRequestResult(RcsContactUceCapability.REQUEST_RESULT_FOUND);
-        FeatureTags.addMmTelFeatureTags(optionsBuilder,
-                hasVolteCapability(), hasVtCapability());
+        FeatureTags.addFeatureTags(optionsBuilder, hasVolteCapability(), hasVtCapability(),
+                isPresenceCapable(), hasCallComposerCapability(), capableFromReg);
         return optionsBuilder.build();
+    }
+
+    private void addCapability(RcsContactUceCapability.PresenceBuilder presenceBuilder,
+            RcsContactPresenceTuple.Builder tupleBuilder, Uri contactUri) {
+        presenceBuilder.addCapabilityTuple(tupleBuilder.setContactUri(contactUri).build());
     }
 
     // Check if the device has the VoLTE capability
@@ -388,5 +443,16 @@ public class DeviceCapabilityInfo {
         builder.append(mSubId);
         builder.append("] ");
         return builder;
+    }
+
+    public void dump(PrintWriter printWriter) {
+        IndentingPrintWriter pw = new IndentingPrintWriter(printWriter, "  ");
+        pw.println("DeviceCapabilityInfo :");
+        pw.increaseIndent();
+
+        pw.println("ServiceDescriptionTracker:");
+        mServiceCapRegTracker.dump(pw);
+
+        pw.decreaseIndent();
     }
 }

@@ -33,6 +33,7 @@ import java.util.Optional;
 public class PublishRequestResponse {
 
     private final long mTaskId;
+    private final String mPidfXml;
     private volatile boolean mNeedRetry;
     private volatile PublishControllerCallback mPublishCtrlCallback;
 
@@ -45,8 +46,10 @@ public class PublishRequestResponse {
     // The timestamp when receive the response from the network.
     private Instant mResponseTimestamp;
 
-    public PublishRequestResponse(PublishControllerCallback publishCtrlCallback, long taskId) {
+    public PublishRequestResponse(PublishControllerCallback publishCtrlCallback, long taskId,
+            String pidfXml) {
         mTaskId = taskId;
+        mPidfXml = pidfXml;
         mPublishCtrlCallback = publishCtrlCallback;
         mCmdErrorCode = Optional.empty();
         mNetworkRespSipCode = Optional.empty();
@@ -123,6 +126,13 @@ public class PublishRequestResponse {
      */
     public @Nullable Instant getResponseTimestamp() {
         return mResponseTimestamp;
+    }
+
+    /**
+     * @return the PIDF XML sent during this request.
+     */
+    public String getPidfXml() {
+        return mPidfXml;
     }
 
     public void onDestroy() {
