@@ -73,6 +73,7 @@ public class PublishControllerImpl implements PublishController {
     private PublishHandler mPublishHandler;
     private volatile boolean mIsDestroyedFlag;
     private volatile boolean mCapabilityPresenceEnabled;
+    private volatile boolean mReceivePublishFromService;
     private volatile RcsFeatureManager mRcsFeatureManager;
     private final UceControllerCallback mUceCtrlCallback;
 
@@ -233,7 +234,7 @@ public class PublishControllerImpl implements PublishController {
         }
     }
 
-    // Clear the publish state callback since the publish controller instance is destroyed.
+    // Clear all the publish state callbacks since the publish controller instance is destroyed.
     private void clearPublishStateCallbacks() {
         synchronized (mPublishStateLock) {
             logd("clearPublishStateCallbacks");
@@ -262,6 +263,10 @@ public class PublishControllerImpl implements PublishController {
         return mDeviceCapabilityInfo.getDeviceCapabilities(mechanism, mContext);
     }
 
+    /*
+     * Register the availability callback to receive the RCS capabilities change. This method is
+     * called when the RCS is connected.
+     */
     private void registerRcsAvailabilityChanged(RcsFeatureManager manager) {
         try {
             manager.registerRcsAvailabilityCallback(mSubId, mRcsCapabilitiesCallback);
@@ -270,6 +275,10 @@ public class PublishControllerImpl implements PublishController {
         }
     }
 
+    /*
+     * Unregister the availability callback. This method is called when the PublishController
+     * instance is destroyed.
+     */
     private void unregisterRcsAvailabilityChanged() {
         RcsFeatureManager manager = mRcsFeatureManager;
         if (manager == null) return;
@@ -329,6 +338,7 @@ public class PublishControllerImpl implements PublishController {
     @Override
     public void requestPublishCapabilitiesFromService(int triggerType) {
         logi("Receive the publish request from service: service trigger type=" + triggerType);
+        mReceivePublishFromService = true;
         mPublishHandler.requestPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
     }
 
@@ -431,14 +441,15 @@ public class PublishControllerImpl implements PublishController {
                 return;
             }
             if (publishCtrl.mIsDestroyedFlag) return;
-            publishCtrl.logd("requestPublish: " + type + ", delay=" + delay);
 
-            // Return if the RCS capabilities presence uce is not enabled.
-            if (!publishCtrl.mCapabilityPresenceEnabled) {
-                publishCtrl.logd("requestPublish: Skip. capability presence uce is not enabled.");
+            // Check if the PUBLISH request is allowed.
+            if (!publishCtrl.isPublishRequestAllowed()) {
+                publishCtrl.logd("requestPublish: SKIP. The publish request is not allowed.");
                 publishCtrl.mPublishProcessor.setPendingRequest(true);
                 return;
             }
+
+            publishCtrl.logd("requestPublish: " + type + ", delay=" + delay);
 
             // If the trigger type is not RETRY, it means that the device capabilities have been
             // changed. To make sure that the publish request can be processed immediately, remove
@@ -521,6 +532,23 @@ public class PublishControllerImpl implements PublishController {
             EVENT_DESCRIPTION.put(MSG_REQUEST_NETWORK_RESPONSE, "REQUEST_NETWORK_RESPONSE");
             EVENT_DESCRIPTION.put(MSG_REQUEST_CANCELED, "REQUEST_CANCELED");
         }
+    }
+
+    /**
+     * Check if the PUBLISH request is allowed.
+     */
+    private boolean isPublishRequestAllowed() {
+        // The PUBLISH request requires that the RCS PRESENCE is capable.
+        if (!mCapabilityPresenceEnabled) {
+            logd("isPublishRequestAllowed: capability presence uce is not enabled.");
+            return false;
+        }
+        // The first PUBLISH request is required to be triggered from the service.
+        if (!mReceivePublishFromService) {
+            logd("requestPublish: Have not received the first PUBLISH request from the service.");
+            return false;
+        }
+        return true;
     }
 
     /**
