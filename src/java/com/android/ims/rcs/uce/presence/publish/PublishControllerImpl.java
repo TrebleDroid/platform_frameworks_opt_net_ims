@@ -31,6 +31,8 @@ import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
+import android.util.IndentingPrintWriter;
+import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
@@ -38,6 +40,7 @@ import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.time.Instant;
 import java.util.HashMap;
@@ -70,6 +73,7 @@ public class PublishControllerImpl implements PublishController {
 
     private final int mSubId;
     private final Context mContext;
+    private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
     private PublishHandler mPublishHandler;
     private volatile boolean mIsDestroyedFlag;
     private volatile boolean mCapabilityPresenceEnabled;
@@ -630,14 +634,17 @@ public class PublishControllerImpl implements PublishController {
 
     private void logd(String log) {
         Log.d(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[D] " + log);
     }
 
     private void logi(String log) {
         Log.i(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[I] " + log);
     }
 
     private void logw(String log) {
         Log.w(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[W] " + log);
     }
 
     private StringBuilder getLogPrefix() {
@@ -645,5 +652,33 @@ public class PublishControllerImpl implements PublishController {
         builder.append(mSubId);
         builder.append("] ");
         return builder;
+    }
+
+    @Override
+    public void dump(PrintWriter printWriter) {
+        IndentingPrintWriter pw = new IndentingPrintWriter(printWriter, "  ");
+        pw.println("PublishControllerImpl" + "[subId: " + mSubId + "]:");
+        pw.increaseIndent();
+
+        pw.print("mCapabilityPresenceEnabled=");
+        pw.println(mCapabilityPresenceEnabled);
+        pw.print("mPublishState=");
+        pw.print(mPublishState);
+        pw.print(" at time ");
+        pw.println(mPublishStateUpdatedTime);
+
+        if (mPublishProcessor != null) {
+            mPublishProcessor.dump(pw);
+        } else {
+            pw.println("mPublishProcessor is null");
+        }
+
+        pw.println("Log:");
+        pw.increaseIndent();
+        mLocalLog.dump(pw);
+        pw.decreaseIndent();
+        pw.println("---");
+
+        pw.decreaseIndent();
     }
 }

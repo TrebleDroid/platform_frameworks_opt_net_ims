@@ -28,18 +28,17 @@ import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
-import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IOptionsRequestCallback;
-import android.telephony.ims.aidl.IOptionsResponseCallback;
 import android.telephony.ims.aidl.IRcsUceControllerCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
+import android.util.IndentingPrintWriter;
+import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.eab.EabController;
 import com.android.ims.rcs.uce.eab.EabControllerImpl;
-import com.android.ims.rcs.uce.eab.EabUtil;
 import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.options.OptionsControllerImpl;
 import com.android.ims.rcs.uce.presence.publish.PublishController;
@@ -50,6 +49,7 @@ import com.android.ims.rcs.uce.request.UceRequestManager;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.PrintWriter;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -195,6 +195,7 @@ public class UceController {
 
     private final int mSubId;
     private final Context mContext;
+    private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
     private volatile boolean mIsRcsConnected;
     private volatile boolean mIsDestroyedFlag;
     private Looper mLooper;
@@ -618,16 +619,35 @@ public class UceController {
         }
     }
 
+    public void dump(PrintWriter printWriter) {
+        IndentingPrintWriter pw = new IndentingPrintWriter(printWriter, "  ");
+        pw.println("UceController" + "[subId: " + mSubId + "]:");
+        pw.increaseIndent();
+
+        pw.println("Log:");
+        pw.increaseIndent();
+        mLocalLog.dump(pw);
+        pw.decreaseIndent();
+        pw.println("---");
+
+        mPublishController.dump(pw);
+
+        pw.decreaseIndent();
+    }
+
     private void logd(String log) {
         Log.d(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[D] " + log);
     }
 
     private void logi(String log) {
         Log.i(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[I] " + log);
     }
 
     private void logw(String log) {
         Log.w(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[W] " + log);
     }
 
     private StringBuilder getLogPrefix() {
