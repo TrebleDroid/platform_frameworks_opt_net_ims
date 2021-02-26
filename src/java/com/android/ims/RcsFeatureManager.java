@@ -32,6 +32,7 @@ import android.telephony.ims.RcsUceAdapter.StackPublishTriggerType;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.aidl.ICapabilityExchangeEventListener;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
+import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRcsController;
 import android.telephony.ims.aidl.IImsRcsFeature;
 import android.telephony.ims.aidl.IImsRegistration;
@@ -592,6 +593,10 @@ public class RcsFeatureManager implements FeatureUpdates {
          * Mock-able interface for {@link SubscriptionManager#getSubId(int)} used for testing.
          */
         int getSubId(int slotId);
+    }
+
+    public IImsConfig getConfig() {
+        return mRcsFeatureConnection.getConfig();
     }
 
     private static SubscriptionManagerProxy sSubscriptionManagerProxy
