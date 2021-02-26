@@ -100,6 +100,9 @@ public class PublishProcessorState {
     // Get the delay time to allow to execute the publish request.
     public long getDelayTimeToAllowPublish() {
         synchronized (mLock) {
+            if (mAllowedTimestamp == null) {
+                mAllowedTimestamp = Instant.now();
+            }
             // Setup the delay to the time which publish request is allowed to execute.
             long delayTime = ChronoUnit.MILLIS.between(Instant.now(), mAllowedTimestamp);
             if (delayTime < 0) {
