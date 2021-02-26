@@ -140,7 +140,7 @@ public class PublishProcessorTest extends ImsTestBase {
 
         publishProcessor.onNetworkResponse(mResponseCallback);
 
-        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any());
+        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any(), any());
         verify(mResponseCallback).onDestroy();
         verify(mProcessorState).setPublishingFlag(false);
         verify(mPublishCtrlCallback).clearRequestCanceledTimer();
@@ -189,7 +189,7 @@ public class PublishProcessorTest extends ImsTestBase {
 
         publishProcessor.onCommandError(mResponseCallback);
 
-        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any());
+        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any(), any());
         verify(mResponseCallback).onDestroy();
         verify(mProcessorState).setPublishingFlag(false);
         verify(mPublishCtrlCallback).clearRequestCanceledTimer();
@@ -226,7 +226,7 @@ public class PublishProcessorTest extends ImsTestBase {
 
         publishProcessor.onNetworkResponse(mResponseCallback);
 
-        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any());
+        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any(), any());
         verify(mResponseCallback).onDestroy();
         verify(mProcessorState).setPublishingFlag(false);
         verify(mPublishCtrlCallback).clearRequestCanceledTimer();
