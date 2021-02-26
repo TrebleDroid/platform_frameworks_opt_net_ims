@@ -16,13 +16,10 @@
 
 package com.android.ims.rcs.uce.presence.publish;
 
-import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import android.content.BroadcastReceiver;
@@ -32,9 +29,11 @@ import android.telecom.TelecomManager;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ImsRcsManager;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.ims.ImsRegistrationAttributes;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RegistrationManager.RegistrationCallback;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -166,10 +165,12 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
     public void testRcsRegistration() throws Exception {
         DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
         RegistrationCallback registrationCallback = deviceCapListener.mRcsRegistrationCallback;
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
+                ImsRegistrationImplBase.REGISTRATION_TECH_LTE).build();
 
-        registrationCallback.onRegistered(anyInt());
+        registrationCallback.onRegistered(attr);
 
-        verify(mDeviceCapability).updateImsRcsRegistered(anyInt());
+        verify(mDeviceCapability).updateImsRcsRegistered(attr);
         verify(mCallback).requestPublishFromInternal(
                 PublishController.PUBLISH_TRIGGER_RCS_REGISTERED, 500L);
     }
