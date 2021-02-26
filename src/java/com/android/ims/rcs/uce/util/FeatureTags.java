@@ -19,91 +19,107 @@ package com.android.ims.rcs.uce.util;
 import android.net.Uri;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
-import android.text.TextUtils;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The util class of the feature tags.
  */
 public class FeatureTags {
 
-    private static final String FEATURE_TAG_STANDALONE_MSG =
+    public static final String FEATURE_TAG_STANDALONE_MSG =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-"
                     + "service.ims.icsi.oma.cpm.msg,urn%3Aurn-7%3A3gpp-"
                     + "service.ims.icsi.oma.cpm.largemsg,urn%3Aurn-7%3A3gpp-"
                     + "service.ims.icsi.oma.cpm.deferred\";+g.gsma.rcs.cpm.pager-large";
 
-    private static final String FEATURE_TAG_CHAT =
+    public static final String FEATURE_TAG_CHAT_IM =
+            "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcse.im\"";
+
+    public static final String FEATURE_TAG_CHAT_SESSION =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.oma.cpm.session\"";
 
-    private static final String FEATURE_TAG_FILE_TRANSFER =
+    public static final String FEATURE_TAG_FILE_TRANSFER =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.fthttp\"";
 
-    private static final String FEATURE_TAG_FILE_TRANSFER_VIA_SMS =
+    public static final String FEATURE_TAG_FILE_TRANSFER_VIA_SMS =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.ftsms\"";
 
-    private static final String FEATURE_TAG_CALL_COMPOSER_ENRICHED_CALLING =
+    public static final String FEATURE_TAG_CALL_COMPOSER_ENRICHED_CALLING =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.gsma.callcomposer\"";
 
-    private static final String FEATURE_TAG_CALL_COMPOSER_VIA_TELEPHONY = "+g.gsma.callcomposer";
+    public static final String FEATURE_TAG_CALL_COMPOSER_VIA_TELEPHONY = "+g.gsma.callcomposer";
 
-    private static final String FEATURE_TAG_POST_CALL =
+    public static final String FEATURE_TAG_POST_CALL =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.gsma.callunanswered\"";
 
-    private static final String FEATURE_TAG_SHARED_MAP =
+    public static final String FEATURE_TAG_SHARED_MAP =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.gsma.sharedmap\"";
 
-    private static final String FEATURE_TAG_SHARED_SKETCH =
+    public static final String FEATURE_TAG_SHARED_SKETCH =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.gsma.sharedsketch\"";
 
-    private static final String FEATURE_TAG_GEO_PUSH =
+    public static final String FEATURE_TAG_GEO_PUSH =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.geopush\"";
 
-    private static final String FEATURE_TAG_GEO_PUSH_VIA_SMS =
+    public static final String FEATURE_TAG_GEO_PUSH_VIA_SMS =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.geosms\"";
 
-    private static final String FEATURE_TAG_CHATBOT_COMMUNICATION_USING_SESSION =
+    public static final String FEATURE_TAG_CHATBOT_COMMUNICATION_USING_SESSION =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.chatbot\"";
 
-    private static final String FEATURE_TAG_CHATBOT_COMMUNICATION_USING_STANDALONE_MSG =
+    public static final String FEATURE_TAG_CHATBOT_COMMUNICATION_USING_STANDALONE_MSG =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.chatbot.sa\"";
 
-    private static final String FEATURE_TAG_CHATOBT_VERSION_SUPPORTED =
+    public static final String FEATURE_TAG_CHATBOT_VERSION_SUPPORTED =
             "+g.gsma.rcs.botversion=\"#=1,#=2\"";
 
-    private static final String FEATURE_TAG_CPIM_EXTENSION = "+g.gsma.rcs.cpimext";
+    public static final String FEATURE_TAG_CHATBOT_ROLE = "+g.gsma.rcs.isbot";
 
-    private static final String FEATURE_TAG_DATA_OFF_ACTIVE = "+g.3gpp.ps-data-off=\"active\"";
-
-    private static final String FEATURE_TAG_DATA_OFF_INACTIVE = "+g.3gpp.ps-data-off=\"inactive\"";
-
-    private static final String FEATURE_TAG_MMTEL_AUDIO =
+    public static final String FEATURE_TAG_MMTEL =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel\"";
 
-    private static final String FEATURE_TAG_MMTEL_VIDEO =
-            "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel\";video";
+    public static final String FEATURE_TAG_VIDEO = "video";
 
-    private static final String FEATURE_TAG_PRESENCE =
-            "+g.3gpp.iari-ref=\"urn:urn-7:3gpp-application.ims.iari.rcse.dp\"";
+    public static final String FEATURE_TAG_PRESENCE =
+            "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcse.dp\"";
 
     /**
-     * Add the MMTEL feature tag to the given RcsContactUceCapability OPTIONS builder.
-     * @param optionsBuilder The OptionsBuilder to add the mmtel feature tags
-     * @param audioSupport If the audio capability is supported
-     * @param videoSupport If the video capability is supported
+     * Add the feature tags to the given RcsContactUceCapability OPTIONS builder.
+     * @param optionsBuilder The OptionsBuilder to add the feature tags
+     * @param mmtelAudioSupport If the audio capability is supported
+     * @param mmtelVideoSupport If the video capability is supported
+     * @param presenceSupport If presence is also supported
+     * @param callComposerSupport If call composer via telephony is supported
+     * @param registrationTags The other feature tags included in the IMS registration.
      */
-    public static void addMmTelFeatureTags(final OptionsBuilder optionsBuilder,
-            boolean audioSupport, boolean videoSupport) {
-        StringBuilder builder = new StringBuilder();
-        if (audioSupport && videoSupport) {
-            builder.append(FEATURE_TAG_MMTEL_VIDEO);
-        } else if (audioSupport) {
-            builder.append(FEATURE_TAG_MMTEL_AUDIO);
+    public static void addFeatureTags(final OptionsBuilder optionsBuilder,
+            boolean mmtelAudioSupport, boolean mmtelVideoSupport,
+            boolean presenceSupport, boolean callComposerSupport, Set<String> registrationTags) {
+        if (presenceSupport) {
+            registrationTags.add(FEATURE_TAG_PRESENCE);
+        } else {
+            registrationTags.remove(FEATURE_TAG_PRESENCE);
         }
-        String mmtelFeature = builder.toString();
-        if (!TextUtils.isEmpty(mmtelFeature)) {
-            optionsBuilder.addFeatureTag(mmtelFeature);
+        if (mmtelAudioSupport && mmtelVideoSupport) {
+            registrationTags.add(FEATURE_TAG_MMTEL);
+            registrationTags.add(FEATURE_TAG_VIDEO);
+        } else if (mmtelAudioSupport) {
+            registrationTags.add(FEATURE_TAG_MMTEL);
+            registrationTags.remove(FEATURE_TAG_VIDEO);
+        } else {
+            registrationTags.remove(FEATURE_TAG_MMTEL);
+            registrationTags.remove(FEATURE_TAG_VIDEO);
+        }
+        if (callComposerSupport) {
+            registrationTags.add(FEATURE_TAG_CALL_COMPOSER_VIA_TELEPHONY);
+        } else {
+            registrationTags.remove(FEATURE_TAG_CALL_COMPOSER_VIA_TELEPHONY);
+        }
+        if (!registrationTags.isEmpty()) {
+            optionsBuilder.addFeatureTags(new ArrayList<>(registrationTags));
         }
     }
 

@@ -34,15 +34,20 @@ import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ImsMmTelManager.CapabilityCallback;
 import android.telephony.ims.ImsRcsManager;
 import android.telephony.ims.ImsReasonInfo;
+import android.telephony.ims.ImsRegistrationAttributes;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.feature.MmTelFeature.MmTelCapabilities;
+import android.util.IndentingPrintWriter;
+import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.util.HandlerExecutor;
+
+import java.io.PrintWriter;
 
 /**
  * Listen to the device changes and notify the PublishController to publish the device's
@@ -113,6 +118,7 @@ public class DeviceCapabilityListener {
 
     private final int mSubId;
     private final Context mContext;
+    private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
     private volatile boolean mInitialized;
 
     // The listener is destroyed
@@ -373,10 +379,10 @@ public class DeviceCapabilityListener {
     public final RegistrationManager.RegistrationCallback mRcsRegistrationCallback =
             new RegistrationManager.RegistrationCallback() {
                 @Override
-                public void onRegistered(int imsTransportType) {
+                public void onRegistered(ImsRegistrationAttributes attributes) {
                     synchronized (mLock) {
-                        logi("onRcsRegistered: " + imsTransportType);
-                        handleImsRcsRegistered(imsTransportType);
+                        logi("onRcsRegistered: " + attributes);
+                        handleImsRcsRegistered(attributes);
                     }
                 }
 
@@ -507,8 +513,8 @@ public class DeviceCapabilityListener {
     /*
      * This method is called when the RCS is registered.
      */
-    private void handleImsRcsRegistered(int imsTransportType) {
-        mCapabilityInfo.updateImsRcsRegistered(imsTransportType);
+    private void handleImsRcsRegistered(ImsRegistrationAttributes attr) {
+        mCapabilityInfo.updateImsRcsRegistered(attr);
         mCallback.requestPublishFromInternal(
                 PublishController.PUBLISH_TRIGGER_RCS_REGISTERED,
                 DELAY_SEND_IMS_REGISTERED_CHANGED_MSG);
@@ -545,14 +551,17 @@ public class DeviceCapabilityListener {
 
     private void logd(String log) {
         Log.d(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[D] " + log);
     }
 
     private void logi(String log) {
         Log.i(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[I] " + log);
     }
 
     private void logw(String log) {
         Log.w(LOG_TAG, getLogPrefix().append(log).toString());
+        mLocalLog.log("[W] " + log);
     }
 
     private StringBuilder getLogPrefix() {
@@ -560,5 +569,21 @@ public class DeviceCapabilityListener {
         builder.append(mSubId);
         builder.append("] ");
         return builder;
+    }
+
+    public void dump(PrintWriter printWriter) {
+        IndentingPrintWriter pw = new IndentingPrintWriter(printWriter, "  ");
+        pw.println("DeviceCapListener" + "[subId: " + mSubId + "]:");
+        pw.increaseIndent();
+
+        mCapabilityInfo.dump(pw);
+
+        pw.println("Log:");
+        pw.increaseIndent();
+        mLocalLog.dump(pw);
+        pw.decreaseIndent();
+        pw.println("---");
+
+        pw.decreaseIndent();
     }
 }

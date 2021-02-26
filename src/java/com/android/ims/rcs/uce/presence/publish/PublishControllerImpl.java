@@ -21,8 +21,10 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PersistableBundle;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.telephony.CarrierConfigManager;
 import android.telephony.ims.ImsException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
@@ -39,6 +41,7 @@ import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.os.SomeArgs;
 
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
@@ -76,7 +79,6 @@ public class PublishControllerImpl implements PublishController {
     private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
     private PublishHandler mPublishHandler;
     private volatile boolean mIsDestroyedFlag;
-    private volatile boolean mCapabilityPresenceEnabled;
     private volatile boolean mReceivePublishFromService;
     private volatile RcsFeatureManager mRcsFeatureManager;
     private final UceControllerCallback mUceCtrlCallback;
@@ -85,6 +87,8 @@ public class PublishControllerImpl implements PublishController {
     private @PublishState int mPublishState;
     // The timestamp of updating the publish state
     private Instant mPublishStateUpdatedTime = Instant.now();
+    // The last PIDF XML used in the publish
+    private String mPidfXml;
 
     // The callbacks to notify publish state changed.
     private RemoteCallbackList<IRcsUcePublishStateCallback> mPublishStateCallbacks;
@@ -116,11 +120,11 @@ public class PublishControllerImpl implements PublishController {
         public void onCapabilitiesStatusChanged(int capabilities) {
             logd("onCapabilitiesStatusChanged: " + capabilities);
             RcsImsCapabilities RcsImsCapabilities = new RcsImsCapabilities(capabilities);
-            mCapabilityPresenceEnabled =
-                    RcsImsCapabilities.isCapable(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+            mDeviceCapabilityInfo.updatePresenceCapable(
+                    RcsImsCapabilities.isCapable(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE));
 
             // Trigger a publish request if the RCS capabilities presence is enabled.
-            if (mCapabilityPresenceEnabled) {
+            if (mDeviceCapabilityInfo.isPresenceCapable()) {
                 mPublishProcessor.checkAndSendPendingRequest();
             }
         }
@@ -156,7 +160,14 @@ public class PublishControllerImpl implements PublishController {
         mPublishStateCallbacks = new RemoteCallbackList<>();
 
         mPublishHandler = new PublishHandler(this, looper);
-        mDeviceCapabilityInfo = new DeviceCapabilityInfo(mSubId);
+
+        CarrierConfigManager manager = mContext.getSystemService(CarrierConfigManager.class);
+        PersistableBundle bundle = manager != null ? manager.getConfigForSubId(mSubId) :
+                CarrierConfigManager.getDefaultConfig();
+        String[] serviceDescFeatureTagMap = bundle.getStringArray(
+                CarrierConfigManager.Ims.
+                        KEY_PUBLISH_SERVICE_DESC_FEATURE_TAG_MAP_OVERRIDE_STRING_ARRAY);
+        mDeviceCapabilityInfo = new DeviceCapabilityInfo(mSubId, serviceDescFeatureTagMap);
 
         initPublishProcessor();
         initDeviceCapabilitiesListener();
@@ -187,7 +198,7 @@ public class PublishControllerImpl implements PublishController {
     public void onRcsDisconnected() {
         logd("onRcsDisconnected");
         mRcsFeatureManager = null;
-        mCapabilityPresenceEnabled = false;
+        mDeviceCapabilityInfo.updatePresenceCapable(false);
         mPublishProcessor.onRcsDisconnected();
     }
 
@@ -195,7 +206,7 @@ public class PublishControllerImpl implements PublishController {
     public void onDestroy() {
         logi("onDestroy");
         mIsDestroyedFlag = true;
-        mCapabilityPresenceEnabled = false;
+        mDeviceCapabilityInfo.updatePresenceCapable(false);
         unregisterRcsAvailabilityChanged();
         mDeviceCapListener.onDestroy();   // It will turn off the listener automatically.
         mPublishHandler.onDestroy();
@@ -259,7 +270,7 @@ public class PublishControllerImpl implements PublishController {
         logd("onUnpublish");
         if (mIsDestroyedFlag) return;
         mPublishHandler.onPublishStateChanged(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED,
-                Instant.now());
+                Instant.now(), null /*pidfXml*/);
     }
 
     @Override
@@ -330,9 +341,9 @@ public class PublishControllerImpl implements PublishController {
 
                 @Override
                 public void updatePublishRequestResult(@PublishState int publishState,
-                        Instant updatedTime) {
+                        Instant updatedTime, String pidfXml) {
                     logd("updatePublishRequestResult: " + publishState + ", time=" + updatedTime);
-                    mPublishHandler.onPublishStateChanged(publishState, updatedTime);
+                    mPublishHandler.onPublishStateChanged(publishState, updatedTime, pidfXml);
                 }
             };
 
@@ -371,9 +382,13 @@ public class PublishControllerImpl implements PublishController {
             publishCtrl.logd("handleMessage: " + EVENT_DESCRIPTION.get(message.what));
             switch (message.what) {
                 case MSG_PUBLISH_STATE_CHANGED:
-                    int newPublishState = message.arg1;
-                    Instant updatedTimestamp = (Instant) message.obj;
-                    publishCtrl.handlePublishStateChangedMessage(newPublishState, updatedTimestamp);
+                    SomeArgs args = (SomeArgs) message.obj;
+                    int newPublishState = (Integer) args.arg1;
+                    Instant updatedTimestamp = (Instant) args.arg2;
+                    String pidfXml = (String) args.arg3;
+                    args.recycle();
+                    publishCtrl.handlePublishStateChangedMessage(newPublishState, updatedTimestamp,
+                            pidfXml);
                     break;
 
                 case MSG_NOTIFY_CURRENT_PUBLISH_STATE:
@@ -414,11 +429,15 @@ public class PublishControllerImpl implements PublishController {
          * Send the message to notify the publish state is changed.
          */
         public void onPublishStateChanged(@PublishState int publishState,
-                @NonNull Instant updatedTimestamp) {
+                @NonNull Instant updatedTimestamp, String pidfXml) {
             Message message = obtainMessage();
+            SomeArgs args = SomeArgs.obtain();
+            args.arg1 = publishState;
+            args.arg2 = updatedTimestamp;
+            args.arg3 = pidfXml;
+
             message.what = MSG_PUBLISH_STATE_CHANGED;
-            message.arg1 = publishState;
-            message.obj = updatedTimestamp;
+            message.obj = args;
             sendMessage(message);
         }
 
@@ -446,7 +465,7 @@ public class PublishControllerImpl implements PublishController {
             }
             if (publishCtrl.mIsDestroyedFlag) return;
 
-            // Check if the PUBLISH request is allowed.
+            // Return if the RCS capabilities presence uce is not enabled.
             if (!publishCtrl.isPublishRequestAllowed()) {
                 publishCtrl.logd("requestPublish: SKIP. The publish request is not allowed.");
                 publishCtrl.mPublishProcessor.setPendingRequest(true);
@@ -543,7 +562,7 @@ public class PublishControllerImpl implements PublishController {
      */
     private boolean isPublishRequestAllowed() {
         // The PUBLISH request requires that the RCS PRESENCE is capable.
-        if (!mCapabilityPresenceEnabled) {
+        if (!mDeviceCapabilityInfo.isPresenceCapable()) {
             logd("isPublishRequestAllowed: capability presence uce is not enabled.");
             return false;
         }
@@ -560,7 +579,7 @@ public class PublishControllerImpl implements PublishController {
      * from original state.
      */
     private void handlePublishStateChangedMessage(@PublishState int newPublishState,
-            Instant updatedTimestamp) {
+            Instant updatedTimestamp, String pidfXml) {
         synchronized (mPublishStateLock) {
             if (mIsDestroyedFlag) return;
             // Check if the time of the given publish state is not earlier than existing time.
@@ -575,6 +594,7 @@ public class PublishControllerImpl implements PublishController {
             if (mPublishState == newPublishState) return;
             mPublishState = newPublishState;
             mPublishStateUpdatedTime = updatedTimestamp;
+            mPidfXml = pidfXml;
         }
 
         // Trigger the publish state changed in handler thread since it may take time.
@@ -660,12 +680,16 @@ public class PublishControllerImpl implements PublishController {
         pw.println("PublishControllerImpl" + "[subId: " + mSubId + "]:");
         pw.increaseIndent();
 
-        pw.print("mCapabilityPresenceEnabled=");
-        pw.println(mCapabilityPresenceEnabled);
+        pw.print("isPresenceCapable=");
+        pw.println(mDeviceCapabilityInfo.isPresenceCapable());
         pw.print("mPublishState=");
         pw.print(mPublishState);
         pw.print(" at time ");
         pw.println(mPublishStateUpdatedTime);
+        pw.println("Last PIDF XML:");
+        pw.increaseIndent();
+        pw.println(mPidfXml);
+        pw.decreaseIndent();
 
         if (mPublishProcessor != null) {
             mPublishProcessor.dump(pw);
