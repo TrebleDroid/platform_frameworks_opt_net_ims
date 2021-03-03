@@ -16,6 +16,8 @@
 
 package com.android.ims;
 
+import static android.telephony.ims.ProvisioningManager.KEY_VOIMS_OPT_IN_STATUS;
+
 import android.annotation.NonNull;
 import android.app.PendingIntent;
 import android.compat.annotation.UnsupportedAppUsage;
@@ -68,6 +70,7 @@ import com.android.telephony.Rlog;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -206,6 +209,10 @@ public class ImsManager implements FeatureUpdates {
     private static final boolean DBG = true;
 
     private static final int RESPONSE_WAIT_TIME_MS = 3000;
+
+    private static final int[] LOCAL_IMS_CONFIG_KEYS = {
+            KEY_VOIMS_OPT_IN_STATUS
+    };
 
     /**
      * Create a Lazy Executor that is not instantiated for this instance unless it is used. This
@@ -473,9 +480,9 @@ public class ImsManager implements FeatureUpdates {
     /**
      * Returns the user configuration of Enhanced 4G LTE Mode setting for slot. If the option is
      * not editable ({@link CarrierConfigManager#KEY_EDITABLE_ENHANCED_4G_LTE_BOOL} is false),
-     * hidden ({@link CarrierConfigManager#KEY_HIDE_ENHANCED_4G_LTE_BOOL} is true), or
-     * the setting is not initialized, this method will return default value specified by
-     * {@link CarrierConfigManager#KEY_ENHANCED_4G_LTE_ON_BY_DEFAULT_BOOL}.
+     * hidden ({@link CarrierConfigManager#KEY_HIDE_ENHANCED_4G_LTE_BOOL} is true), the setting is
+     * not initialized, and VoIMS opt-in status disabled, this method will return default value
+     * specified by {@link CarrierConfigManager#KEY_ENHANCED_4G_LTE_ON_BY_DEFAULT_BOOL}.
      *
      * Note that even if the setting was set, it may no longer be editable. If this is the case we
      * return the default value.
@@ -486,12 +493,15 @@ public class ImsManager implements FeatureUpdates {
                 SUB_PROPERTY_NOT_INITIALIZED);
         boolean onByDefault = getBooleanCarrierConfig(
                 CarrierConfigManager.KEY_ENHANCED_4G_LTE_ON_BY_DEFAULT_BOOL);
+        boolean isUiUnEditable =
+                !getBooleanCarrierConfig(CarrierConfigManager.KEY_EDITABLE_ENHANCED_4G_LTE_BOOL)
+                || getBooleanCarrierConfig(CarrierConfigManager.KEY_HIDE_ENHANCED_4G_LTE_BOOL);
+        boolean isSettingNotInitialized = setting == SUB_PROPERTY_NOT_INITIALIZED;
 
-        // If Enhanced 4G LTE Mode is uneditable, hidden or not initialized, we use the default
-        // value
-        if (!getBooleanCarrierConfig(CarrierConfigManager.KEY_EDITABLE_ENHANCED_4G_LTE_BOOL)
-                || getBooleanCarrierConfig(CarrierConfigManager.KEY_HIDE_ENHANCED_4G_LTE_BOOL)
-                || setting == SUB_PROPERTY_NOT_INITIALIZED) {
+        // If Enhanced 4G LTE Mode is uneditable, hidden, not initialized and VoIMS opt-in disabled
+        // we use the default value. If VoIMS opt-in is enabled, we will always allow the user to
+        // change the IMS enabled setting.
+        if ((isUiUnEditable || isSettingNotInitialized) && !isVoImsOptInEnabled()) {
             return onByDefault;
         } else {
             return (setting == ProvisioningManager.PROVISIONING_VALUE_ENABLED);
@@ -515,9 +525,9 @@ public class ImsManager implements FeatureUpdates {
 
     /**
      * Change persistent Enhanced 4G LTE Mode setting. If the option is not editable
-     * ({@link CarrierConfigManager#KEY_EDITABLE_ENHANCED_4G_LTE_BOOL} is false)
-     * or hidden ({@link CarrierConfigManager#KEY_HIDE_ENHANCED_4G_LTE_BOOL} is true),
-     * this method will set the setting to the default value specified by
+     * ({@link CarrierConfigManager#KEY_EDITABLE_ENHANCED_4G_LTE_BOOL} is false),
+     * hidden ({@link CarrierConfigManager#KEY_HIDE_ENHANCED_4G_LTE_BOOL} is true), and VoIMS opt-in
+     * status disabled, this method will set the setting to the default value specified by
      * {@link CarrierConfigManager#KEY_ENHANCED_4G_LTE_ON_BY_DEFAULT_BOOL}.
      */
     public void setEnhanced4gLteModeSetting(boolean enabled) {
@@ -527,8 +537,13 @@ public class ImsManager implements FeatureUpdates {
         }
         int subId = getSubId();
         // If editable=false or hidden=true, we must keep default advanced 4G mode.
-        if (!getBooleanCarrierConfig(CarrierConfigManager.KEY_EDITABLE_ENHANCED_4G_LTE_BOOL) ||
-                getBooleanCarrierConfig(CarrierConfigManager.KEY_HIDE_ENHANCED_4G_LTE_BOOL)) {
+        boolean isUiUnEditable =
+                !getBooleanCarrierConfig(CarrierConfigManager.KEY_EDITABLE_ENHANCED_4G_LTE_BOOL) ||
+                        getBooleanCarrierConfig(CarrierConfigManager.KEY_HIDE_ENHANCED_4G_LTE_BOOL);
+
+        // If VoIMS opt-in is enabled, we will always allow the user to change the IMS enabled
+        // setting.
+        if (isUiUnEditable && !isVoImsOptInEnabled()) {
             enabled = getBooleanCarrierConfig(
                     CarrierConfigManager.KEY_ENHANCED_4G_LTE_ON_BY_DEFAULT_BOOL);
         }
@@ -676,6 +691,11 @@ public class ImsManager implements FeatureUpdates {
                 SYSTEM_PROPERTY_NOT_SET) == 1 ||
                 SystemProperties.getInt(PROPERTY_DBG_VOLTE_AVAIL_OVERRIDE,
                         SYSTEM_PROPERTY_NOT_SET) == 1) {
+            return true;
+        }
+
+        if (getLocalImsConfigKeyInt(KEY_VOIMS_OPT_IN_STATUS)
+                == ProvisioningManager.PROVISIONING_VALUE_ENABLED) {
             return true;
         }
 
@@ -2976,6 +2996,158 @@ public class ImsManager implements FeatureUpdates {
         return bool ? "1" : "0";
     }
 
+    public int getConfigInt(int key) throws ImsException {
+        if (isLocalImsConfigKey(key)) {
+            return getLocalImsConfigKeyInt(key);
+        } else {
+            return getConfigInterface().getConfigInt(key);
+        }
+    }
+
+    public String getConfigString(int key) throws ImsException {
+        if (isLocalImsConfigKey(key)) {
+            return getLocalImsConfigKeyString(key);
+        } else {
+            return getConfigInterface().getConfigString(key);
+        }
+    }
+
+    public int setConfig(int key, int value) throws ImsException, RemoteException {
+        if (isLocalImsConfigKey(key)) {
+            return setLocalImsConfigKeyInt(key, value);
+        } else {
+            return getConfigInterface().setConfig(key, value);
+        }
+    }
+
+    public int setConfig(int key, String value) throws ImsException, RemoteException {
+        if (isLocalImsConfigKey(key)) {
+            return setLocalImsConfigKeyString(key, value);
+        } else {
+            return getConfigInterface().setConfig(key, value);
+        }
+    }
+
+    /**
+     * Gets the configuration value that supported in frameworks.
+     *
+     * @param key, as defined in com.android.ims.ProvisioningManager.
+     * @return the value in Integer format
+     */
+    private int getLocalImsConfigKeyInt(int key) {
+        int result = ProvisioningManager.PROVISIONING_RESULT_UNKNOWN;
+
+        switch (key) {
+            case KEY_VOIMS_OPT_IN_STATUS:
+                result = isVoImsOptInEnabled() ? 1 : 0;
+                break;
+        }
+        log("getLocalImsConfigKeInt() for key:" + key + ", result: " + result);
+        return result;
+    }
+
+    /**
+     * Gets the configuration value that supported in frameworks.
+     *
+     * @param key, as defined in com.android.ims.ProvisioningManager.
+     * @return the value in String format
+     */
+    private String getLocalImsConfigKeyString(int key) {
+        String result = "";
+
+        switch (key) {
+            case KEY_VOIMS_OPT_IN_STATUS:
+                result = booleanToPropertyString(isVoImsOptInEnabled());
+
+                break;
+        }
+        log("getLocalImsConfigKeyString() for key:" + key + ", result: " + result);
+        return result;
+    }
+
+    /**
+     * Sets the configuration value that supported in frameworks.
+     *
+     * @param key, as defined in com.android.ims.ProvisioningManager.
+     * @param value in Integer format.
+     * @return as defined in com.android.ims.ProvisioningManager#OperationStatusConstants
+     */
+    private int setLocalImsConfigKeyInt(int key, int value) throws ImsException, RemoteException {
+        int result = ImsConfig.OperationStatusConstants.UNKNOWN;
+
+        switch (key) {
+            case KEY_VOIMS_OPT_IN_STATUS:
+                result = setVoImsOptInSetting(value);
+                updateImsServiceConfig();
+                break;
+        }
+        log("setLocalImsConfigKeyInt() for" +
+                " key: " + key +
+                ", value: " + value +
+                ", result: " + result);
+
+        // Notify ims config changed
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        IImsConfig config = c.getConfig();
+        config.notifyIntImsConfigChanged(key, value);
+
+        return result;
+    }
+
+    /**
+     * Sets the configuration value that supported in frameworks.
+     *
+     * @param key, as defined in com.android.ims.ProvisioningManager.
+     * @param value in String format.
+     * @return as defined in com.android.ims.ProvisioningManager#OperationStatusConstants
+     */
+    private int setLocalImsConfigKeyString(int key, String value)
+            throws ImsException, RemoteException {
+        int result = ImsConfig.OperationStatusConstants.UNKNOWN;
+
+        switch (key) {
+            case KEY_VOIMS_OPT_IN_STATUS:
+                result = setVoImsOptInSetting(Integer.parseInt(value));
+                updateImsServiceConfig();
+                break;
+        }
+        log("setLocalImsConfigKeyString() for" +
+                " key: " + key +
+                ", value: " + value +
+                ", result: " + result);
+
+        // Notify ims config changed
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        IImsConfig config = c.getConfig();
+        config.notifyStringImsConfigChanged(key, value);
+
+        return result;
+    }
+
+    /**
+     * Check the config whether supported by framework.
+     *
+     * @param key, as defined in com.android.ims.ProvisioningManager.
+     * @return true if the config is supported by framework.
+     */
+    private boolean isLocalImsConfigKey(int key) {
+        return Arrays.stream(LOCAL_IMS_CONFIG_KEYS).anyMatch(value -> value == key);
+    }
+
+    private boolean isVoImsOptInEnabled() {
+        int setting = mSubscriptionManagerProxy.getIntegerSubscriptionProperty(
+                getSubId(), SubscriptionManager.VOIMS_OPT_IN_STATUS,
+                SUB_PROPERTY_NOT_INITIALIZED);
+        return (setting == ProvisioningManager.PROVISIONING_VALUE_ENABLED);
+    }
+
+    private int setVoImsOptInSetting(int value) {
+        mSubscriptionManagerProxy.setSubscriptionProperty(
+                getSubId(),
+                SubscriptionManager.VOIMS_OPT_IN_STATUS,
+                String.valueOf(value));
+        return ImsConfig.OperationStatusConstants.SUCCESS;
+    }
 
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("ImsManager:");
@@ -2992,6 +3164,7 @@ public class ImsManager implements FeatureUpdates {
         pw.println("  isNonTtyOrTtyOnVolteEnabled = " + isNonTtyOrTtyOnVolteEnabled());
 
         pw.println("  isVolteEnabledByPlatform = " + isVolteEnabledByPlatform());
+        pw.println("  isVoImsOptInEnabled = " + isVoImsOptInEnabled());
         pw.println("  isVolteProvisionedOnDevice = " + isVolteProvisionedOnDevice());
         pw.println("  isEnhanced4gLteModeSettingEnabledByUser = " +
                 isEnhanced4gLteModeSettingEnabledByUser());
