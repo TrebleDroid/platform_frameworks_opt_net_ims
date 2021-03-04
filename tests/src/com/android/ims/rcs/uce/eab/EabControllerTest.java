@@ -49,7 +49,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.text.SimpleDateFormat;
+import java.time.temporal.ChronoUnit;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -153,11 +154,9 @@ public class EabControllerTest extends ImsTestBase {
         GregorianCalendar date = new GregorianCalendar();
         date.setTimeZone(TimeZone.getTimeZone("UTC"));
         date.add(Calendar.DATE, -120);
-        String timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX")
-                .format(date.getTime());
 
         List<RcsContactUceCapability> contactList = new ArrayList<>();
-        contactList.add(createPresenceNonRcsCapability(timestamp));
+        contactList.add(createPresenceNonRcsCapability(Instant.now()));
 
         mEabController.saveCapabilities(contactList);
 
@@ -177,11 +176,7 @@ public class EabControllerTest extends ImsTestBase {
         // Set non-rcs capabilities expiration to 119 days
         mBundle.putInt(KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT, 119 * 24 * 60 * 60);
         // Set timestamp to 120 days age
-        GregorianCalendar date = new GregorianCalendar();
-        date.setTimeZone(TimeZone.getTimeZone("UTC"));
-        date.add(Calendar.DATE, -120);
-        String timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX")
-                .format(date.getTime());
+        Instant timestamp = Instant.now().minus(120, ChronoUnit.DAYS);
 
         List<RcsContactUceCapability> contactList = new ArrayList<>();
         contactList.add(createPresenceNonRcsCapability(timestamp));
@@ -288,17 +283,12 @@ public class EabControllerTest extends ImsTestBase {
     }
 
     private RcsContactUceCapability createPresenceCapability(boolean isExpired) {
-        String timestamp;
-        GregorianCalendar date = new GregorianCalendar();
-        date.setTimeZone(TimeZone.getTimeZone("UTC"));
+        Instant timestamp;
         if (isExpired) {
-            date.add(Calendar.DATE, -120);
+            timestamp = Instant.now().minus(120, ChronoUnit.DAYS);
         } else {
-            date.add(Calendar.DATE, 120);
+            timestamp = Instant.now().plus(120, ChronoUnit.DAYS);
         }
-
-        timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX")
-                .format(date.getTime());
 
         RcsContactPresenceTuple.ServiceCapabilities.Builder serviceCapabilitiesBuilder =
                 new RcsContactPresenceTuple.ServiceCapabilities.Builder(TEST_AUDIO_CAPABLE,
@@ -309,7 +299,7 @@ public class EabControllerTest extends ImsTestBase {
                         .setServiceDescription(TEST_SERVICE_DESCRIPTION)
                         .setContactUri(TEST_CONTACT_URI)
                         .setServiceCapabilities(serviceCapabilitiesBuilder.build())
-                        .setTimestamp(timestamp)
+                        .setTime(timestamp)
                         .build();
 
         RcsContactPresenceTuple tupleWithEmptyServiceCapabilities =
@@ -317,7 +307,7 @@ public class EabControllerTest extends ImsTestBase {
                         TEST_SERVICE_VERSION)
                         .setServiceDescription(TEST_SERVICE_DESCRIPTION)
                         .setContactUri(TEST_CONTACT_URI)
-                        .setTimestamp(timestamp)
+                        .setTime(timestamp)
                         .build();
 
         RcsContactUceCapability.PresenceBuilder builder =
@@ -328,7 +318,7 @@ public class EabControllerTest extends ImsTestBase {
         return builder.build();
     }
 
-    private RcsContactUceCapability createPresenceNonRcsCapability(String timestamp) {
+    private RcsContactUceCapability createPresenceNonRcsCapability(Instant timestamp) {
         RcsContactPresenceTuple.ServiceCapabilities.Builder serviceCapabilitiesBuilder =
                 new RcsContactPresenceTuple.ServiceCapabilities.Builder(false, false);
         RcsContactPresenceTuple tupleWithServiceCapabilities =
@@ -337,7 +327,7 @@ public class EabControllerTest extends ImsTestBase {
                         .setServiceDescription(TEST_SERVICE_DESCRIPTION)
                         .setContactUri(TEST_CONTACT_URI)
                         .setServiceCapabilities(serviceCapabilitiesBuilder.build())
-                        .setTimestamp(timestamp)
+                        .setTime(timestamp)
                         .build();
 
         RcsContactUceCapability.PresenceBuilder builder =
