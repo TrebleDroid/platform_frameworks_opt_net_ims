@@ -95,6 +95,9 @@ public class PublishProcessorState {
         // for the next publish allowed time.
         private int mRetryCount;
 
+        // The subscription ID associated with this throttle helper.
+        private int mSubId;
+
         // The time when the last PUBLISH request is success. It is one of the calculation
         // conditions for the next publish allowed time.
         private Optional<Instant> mLastPublishedTime;
@@ -103,10 +106,8 @@ public class PublishProcessorState {
         private Optional<Instant> mPublishAllowedTime;
 
         public PublishThrottle(int subId) {
-            mLastPublishedTime = Optional.empty();
-            mPublishAllowedTime = Optional.empty();
-            mRcsPublishThrottle = UceUtils.getRcsPublishThrottle(subId);
-            Log.d(LOG_TAG, "RcsPublishThrottle=" + mRcsPublishThrottle);
+            mSubId = subId;
+            resetState();
         }
 
         // Set the time of the last successful PUBLISH request.
@@ -128,6 +129,15 @@ public class PublishProcessorState {
             mRetryCount = 0;
             // Adjust the publish allowed time.
             calcLatestPublishAllowedTime();
+        }
+
+        // In the case that the ImsService is disconnected, reset state for when the service
+        // reconnects
+        public void resetState() {
+            mLastPublishedTime = Optional.empty();
+            mPublishAllowedTime = Optional.empty();
+            mRcsPublishThrottle = UceUtils.getRcsPublishThrottle(mSubId);
+            Log.d(LOG_TAG, "RcsPublishThrottle=" + mRcsPublishThrottle);
         }
 
         // Check if it has reached the maximum retries.
@@ -376,6 +386,14 @@ public class PublishProcessorState {
     public void updatePublishThrottle(int publishThrottle) {
         synchronized (mLock) {
             mPublishThrottle.updatePublishThrottle(publishThrottle);
+        }
+    }
+
+    public void onRcsDisconnected() {
+        synchronized (mLock) {
+            setPublishingFlag(false /*isPublishing*/);
+            clearPendingRequest();
+            mPublishThrottle.resetState();
         }
     }
 }
