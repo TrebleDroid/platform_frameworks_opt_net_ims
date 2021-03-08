@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verify;
 
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
@@ -84,6 +85,7 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     @Test
     public void testRefreshCapabilities() throws Exception {
+        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(true);
         mockBulkCapabilityCarrierConfig(true);
@@ -94,15 +96,20 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 .when(mEabContactSyncController)
                 .syncContactToEabProvider(any());
 
-        EabBulkCapabilityUpdater eabBulkCapabilityUpdater = new EabBulkCapabilityUpdater(
+        new EabBulkCapabilityUpdater(
                 mContext,
                 mSubId,
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                Looper.getMainLooper());
+                handler);
 
-
+        // wait handler task finished
+        int retryTimes = 0;
+        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
+            Thread.sleep(1000);
+            retryTimes++;
+        }
         verify(mMockUceControllerCallback).refreshCapabilities(
                 anyList(),
                 any(IRcsUceControllerCallback.class));
@@ -110,6 +117,7 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     @Test
     public void testUceSettingsDisabled() throws Exception {
+        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(false);
         mockBulkCapabilityCarrierConfig(true);
@@ -120,14 +128,20 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 .when(mEabContactSyncController)
                 .syncContactToEabProvider(any());
 
-        EabBulkCapabilityUpdater eabBulkCapabilityUpdater = new EabBulkCapabilityUpdater(
+        new EabBulkCapabilityUpdater(
                 mContext,
                 mSubId,
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                Looper.getMainLooper());
+                handler);
 
+        // wait handler task finished
+        int retryTimes = 0;
+        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
+            Thread.sleep(1000);
+            retryTimes++;
+        }
         verify(mMockUceControllerCallback, never()).refreshCapabilities(
                 any(),
                 any(IRcsUceControllerCallback.class));
@@ -135,6 +149,7 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     @Test
     public void testCarrierConfigDisabled() throws Exception {
+        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(true);
         mockBulkCapabilityCarrierConfig(false);
@@ -145,14 +160,20 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 .when(mEabContactSyncController)
                 .syncContactToEabProvider(any());
 
-        EabBulkCapabilityUpdater eabBulkCapabilityUpdater = new EabBulkCapabilityUpdater(
+        new EabBulkCapabilityUpdater(
                 mContext,
                 mSubId,
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                Looper.getMainLooper());
+                handler);
 
+        // wait handler task finished
+        int retryTimes = 0;
+        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
+            Thread.sleep(1000);
+            retryTimes++;
+        }
         verify(mMockUceControllerCallback, never()).refreshCapabilities(
                 anyList(),
                 any(IRcsUceControllerCallback.class));
