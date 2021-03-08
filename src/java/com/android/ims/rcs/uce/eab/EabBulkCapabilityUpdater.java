@@ -219,14 +219,14 @@ public final class EabBulkCapabilityUpdater {
             EabControllerImpl eabControllerImpl,
             EabContactSyncController eabContactSyncController,
             UceController.UceControllerCallback uceControllerCallback,
-            Looper looper) {
+            Handler handler) {
         mContext = context;
         mSubId = subId;
         mEabControllerImpl = eabControllerImpl;
         mEabContactSyncController = eabContactSyncController;
         mUceControllerCallback = uceControllerCallback;
 
-        mHandler = new Handler(looper);
+        mHandler = handler;
         mContactProviderListener = new ContactChangedListener(mHandler);
         mEabSettingListener = new EabSettingsListener(mHandler);
         mCapabilityExpiredListener = new CapabilityExpiredListener();
