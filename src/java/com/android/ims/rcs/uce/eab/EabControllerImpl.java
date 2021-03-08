@@ -95,7 +95,7 @@ public class EabControllerImpl implements EabController {
                 this,
                 new EabContactSyncController(),
                 mUceControllerCallback,
-                looper);
+                mHandler);
     }
 
     @Override
