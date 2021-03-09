@@ -116,17 +116,6 @@ public class UceController {
          */
         void refreshCapabilities(@NonNull List<Uri> contactNumbers,
                 @NonNull IRcsUceControllerCallback callback) throws RemoteException;
-
-        /**
-         * The method is called when the EabController and the PublishController want to receive
-         * published state changes.
-         */
-        void registerPublishStateCallback(@NonNull IRcsUcePublishStateCallback c);
-
-        /**
-         * Remove the existing PublishStateCallback.
-         */
-        void unregisterPublishStateCallback(@NonNull IRcsUcePublishStateCallback c);
     }
 
     /**
@@ -358,18 +347,6 @@ public class UceController {
             logd("refreshCapabilities: " + contactNumbers.size());
             UceController.this.requestCapabilitiesInternal(contactNumbers, true, callback);
         }
-
-        @Override
-        public void registerPublishStateCallback(@NonNull IRcsUcePublishStateCallback c) {
-            logd("UceControllerCallback: registerPublishStateCallback");
-            UceController.this.registerPublishStateCallback(c);
-        }
-
-        @Override
-        public void unregisterPublishStateCallback(@NonNull IRcsUcePublishStateCallback c) {
-            logd("UceControllerCallback: unregisterPublishStateCallback");
-            UceController.this.unregisterPublishStateCallback(c);
-        }
     };
 
     @VisibleForTesting
@@ -467,7 +444,7 @@ public class UceController {
         if (mServerState.isRequestForbidden()) {
             Integer errorCode = mServerState.getForbiddenErrorCode();
             long retryAfter = mServerState.getRetryAfterMillis();
-            logw("requestCapabilities: The request is forbidden, errorCode=" + errorCode
+            logw("requestAvailability: The request is forbidden, errorCode=" + errorCode
                 + ", retryAfter=" + retryAfter);
             errorCode = (errorCode != null) ? errorCode : RcsUceAdapter.ERROR_FORBIDDEN;
             c.onError(errorCode, retryAfter);
@@ -539,7 +516,7 @@ public class UceController {
 
     /**
      * Check if the UceController is available.
-     * @return true if the RCS is connected without destroyed.
+     * @return true if RCS is connected without destroyed.
      */
     public boolean isUnavailable() {
         if (!mIsRcsConnected || mIsDestroyedFlag) {

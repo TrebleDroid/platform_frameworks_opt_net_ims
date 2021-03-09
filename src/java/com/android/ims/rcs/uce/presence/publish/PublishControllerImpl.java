@@ -33,6 +33,7 @@ import android.telephony.ims.RcsUceAdapter.PublishState;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
+import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag;
 import android.util.IndentingPrintWriter;
 import android.util.LocalLog;
 import android.util.Log;
@@ -48,6 +49,7 @@ import java.lang.ref.WeakReference;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The implementation of PublishController.
@@ -71,7 +73,7 @@ public class PublishControllerImpl implements PublishController {
     @VisibleForTesting
     public interface DeviceCapListenerFactory {
         DeviceCapabilityListener createDeviceCapListener(Context context, int subId,
-                DeviceCapabilityInfo capInfo, PublishControllerCallback callback, Looper looper);
+                DeviceCapabilityInfo capInfo, PublishControllerCallback callback);
     }
 
     private final int mSubId;
@@ -105,9 +107,8 @@ public class PublishControllerImpl implements PublishController {
 
     // The listener to listen to the device's capabilities changed.
     private DeviceCapabilityListener mDeviceCapListener;
-    private DeviceCapListenerFactory mDeviceCapListenerFactory =
-            (context, subId, capInfo, callback, looper)
-                    -> new DeviceCapabilityListener(context, subId, capInfo, callback, looper);
+    private DeviceCapListenerFactory mDeviceCapListenerFactory = (context, subId, capInfo, callback)
+            -> new DeviceCapabilityListener(context, subId, capInfo, callback);
 
     // Listen to the RCS availability status changed.
     private final IImsCapabilityCallback mRcsCapabilitiesCallback =
@@ -117,7 +118,7 @@ public class PublishControllerImpl implements PublishController {
                 int resultCapability, int resultRadioTech, boolean enabled) {
         }
         @Override
-        public void onCapabilitiesStatusChanged(int capabilities) {
+        public void onCapabilitiesStatusChanged(@RcsImsCapabilityFlag int capabilities) {
             logd("onCapabilitiesStatusChanged: " + capabilities);
             RcsImsCapabilities RcsImsCapabilities = new RcsImsCapabilities(capabilities);
             mDeviceCapabilityInfo.updatePresenceCapable(
@@ -183,13 +184,14 @@ public class PublishControllerImpl implements PublishController {
 
     private void initDeviceCapabilitiesListener() {
         mDeviceCapListener = mDeviceCapListenerFactory.createDeviceCapListener(mContext, mSubId,
-                mDeviceCapabilityInfo, mPublishControllerCallback, mPublishHandler.getLooper());
+                mDeviceCapabilityInfo, mPublishControllerCallback);
     }
 
     @Override
     public void onRcsConnected(RcsFeatureManager manager) {
         logd("onRcsConnected");
         mRcsFeatureManager = manager;
+        mDeviceCapListener.onRcsConnected();
         mPublishProcessor.onRcsConnected(manager);
         registerRcsAvailabilityChanged(manager);
     }
@@ -199,6 +201,7 @@ public class PublishControllerImpl implements PublishController {
         logd("onRcsDisconnected");
         mRcsFeatureManager = null;
         mDeviceCapabilityInfo.updatePresenceCapable(false);
+        mDeviceCapListener.onRcsDisconnected();
         mPublishProcessor.onRcsDisconnected();
     }
 
@@ -308,9 +311,9 @@ public class PublishControllerImpl implements PublishController {
     private final PublishControllerCallback mPublishControllerCallback =
             new PublishControllerCallback() {
                 @Override
-                public void requestPublishFromInternal(@PublishTriggerType int type, long delay) {
-                    logd("requestPublishFromInternal: type=" + type + ", delay=" + delay);
-                    mPublishHandler.requestPublish(type, delay);
+                public void requestPublishFromInternal(@PublishTriggerType int type) {
+                    logd("requestPublishFromInternal: type=" + type);
+                    mPublishHandler.requestPublish(type);
                 }
 
                 @Override
@@ -344,6 +347,12 @@ public class PublishControllerImpl implements PublishController {
                         Instant updatedTime, String pidfXml) {
                     logd("updatePublishRequestResult: " + publishState + ", time=" + updatedTime);
                     mPublishHandler.onPublishStateChanged(publishState, updatedTime, pidfXml);
+                }
+
+                @Override
+                public void updatePublishThrottle(int value) {
+                    logd("updatePublishThrottle: value=" + value);
+                    mPublishProcessor.updatePublishThrottle(value);
                 }
             };
 
@@ -441,6 +450,9 @@ public class PublishControllerImpl implements PublishController {
             sendMessage(message);
         }
 
+        /**
+         * Notify the new added callback of the latest publish state.
+         */
         public void onNotifyCurrentPublishState(IRcsUcePublishStateCallback callback) {
             Message message = obtainMessage();
             message.what = MSG_NOTIFY_CURRENT_PUBLISH_STATE;
@@ -449,54 +461,45 @@ public class PublishControllerImpl implements PublishController {
         }
 
         /**
-         * Send the request publish message without delay.
+         * Send the PUBLISH message with the given trigger type.
          */
         public void requestPublish(@PublishTriggerType int type) {
-            requestPublish(type, 0L);
-        }
-
-        /**
-         * Send the request publish message with the delay.
-         */
-        public void requestPublish(@PublishTriggerType int type, long delay) {
             PublishControllerImpl publishCtrl = mPublishControllerRef.get();
             if (publishCtrl == null) {
                 return;
             }
             if (publishCtrl.mIsDestroyedFlag) return;
 
-            // Return if the RCS capabilities presence uce is not enabled.
+            // Update the latest PUBLISH allowed time according to the given trigger type.
+            publishCtrl.mPublishProcessor.updatePublishingAllowedTime(type);
+
+            // Set the pending flag and return if the RCS capabilities presence uce is not enabled
+            // or the first publish is not triggered from the service.
             if (!publishCtrl.isPublishRequestAllowed()) {
-                publishCtrl.logd("requestPublish: SKIP. The publish request is not allowed.");
-                publishCtrl.mPublishProcessor.setPendingRequest(true);
+                publishCtrl.logd("requestPublish: SKIP. The publish is not allowed. type=" + type);
+                publishCtrl.mPublishProcessor.setPendingRequest(type);
                 return;
             }
 
-            publishCtrl.logd("requestPublish: " + type + ", delay=" + delay);
-
-            // If the trigger type is not RETRY, it means that the device capabilities have been
-            // changed. To make sure that the publish request can be processed immediately, remove
-            // the existing one and send a new publish request without delayed.
-            if (type != PublishController.PUBLISH_TRIGGER_RETRY) {
-                removeMessages(MSG_REQUEST_PUBLISH);
-            } else {
-                // Skip this request if the trigger type is RETRY and there's alreay a publish
-                // request in the queue.
-                if (hasMessages(MSG_REQUEST_PUBLISH)) {
-                    publishCtrl.logd(
-                            "requestPublish: Skip. There's already a request in the queue");
-                    return;
-                }
+            // Get the publish request delay time. If the delay is not present, the first PUBLISH
+            // is not allowed to be executed; If the delay time is 0, it means that this request
+            // can be executed immediately.
+            Optional<Long> delay = publishCtrl.mPublishProcessor.getPublishingDelayTime();
+            if (!delay.isPresent()) {
+                publishCtrl.logd("requestPublish: SKIP. The delay is not present. type=" + type);
+                publishCtrl.mPublishProcessor.setPendingRequest(type);
+                return;
             }
+            publishCtrl.logd("requestPublish: " + type + ", delay=" + delay.get());
 
+            // Remove the existing PUBLISH message.
+            removeMessages(MSG_REQUEST_PUBLISH);
+
+            // Send a new PUBLISH message with the latest delay time.
             Message message = obtainMessage();
             message.what = MSG_REQUEST_PUBLISH;
             message.obj = (Integer) type;
-            if (delay > 0) {
-                sendMessageDelayed(message, delay);
-            } else {
-                sendMessage(message);
-            }
+            sendMessageDelayed(message, delay.get());
         }
 
         public void onRequestCommandError(PublishRequestResponse requestResponse) {
@@ -568,7 +571,7 @@ public class PublishControllerImpl implements PublishController {
         }
         // The first PUBLISH request is required to be triggered from the service.
         if (!mReceivePublishFromService) {
-            logd("requestPublish: Have not received the first PUBLISH request from the service.");
+            logd("isPublishRequestAllowed: Have not received the first PUBLISH from the service.");
             return false;
         }
         return true;
@@ -618,16 +621,16 @@ public class PublishControllerImpl implements PublishController {
         }
     }
 
-    public void handleRequestPublishMessage(@PublishTriggerType int type) {
+    private void handleRequestPublishMessage(@PublishTriggerType int type) {
         if (mIsDestroyedFlag) return;
         if (mUceCtrlCallback.isRequestForbiddenByNetwork()) {
-            logd("handleRequestPublishMessage: UCE request is forbidden by the network");
+            logd("handleRequestPublishMessage: The network forbids UCE requests: type=" + type);
             return;
         }
         mPublishProcessor.doPublish(type);
     }
 
-    public void handleRequestCanceledMessage(long taskId) {
+    private void handleRequestCanceledMessage(long taskId) {
         if (mIsDestroyedFlag) return;
         mPublishProcessor.cancelPublishRequest(taskId);
     }
