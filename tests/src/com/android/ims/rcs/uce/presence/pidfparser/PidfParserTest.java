@@ -102,7 +102,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("1.0", presenceTuple1.getServiceVersion());
         assertEquals(serviceDescription, presenceTuple1.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
-        assertEquals("2001-01-01T01:00:000Z", presenceTuple1.getTimestamp());
+        assertEquals("2001-01-01T01:00:00Z", presenceTuple1.getTime().toString());
         assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
         assertFalse(presenceTuple1.getServiceCapabilities().isVideoCapable());
     }
@@ -138,7 +138,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("1.0", presenceTuple1.getServiceVersion());
         assertEquals(serviceDescription1, presenceTuple1.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
-        assertEquals("2001-01-01T01:00:000Z", presenceTuple1.getTimestamp());
+        assertEquals("2001-01-01T01:00:00Z", presenceTuple1.getTime().toString());
         assertNull(presenceTuple1.getServiceCapabilities());
 
         // Verify the second tuple information
@@ -149,7 +149,7 @@ public class PidfParserTest extends ImsTestBase {
         assertFalse(presenceTuple2.getServiceCapabilities().isVideoCapable());
         assertEquals(serviceDescription2, presenceTuple2.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple2.getContactUri());
-        assertEquals("2001-02-02T01:00:000Z", presenceTuple2.getTimestamp());
+        assertEquals("2001-02-02T01:00:00Z", presenceTuple2.getTime().toString());
         assertNotNull(presenceTuple2.getServiceCapabilities());
         assertEquals(isAudioSupported, presenceTuple2.getServiceCapabilities().isAudioCapable());
         assertEquals(isVideoSupported, presenceTuple2.getServiceCapabilities().isVideoCapable());
@@ -236,7 +236,7 @@ public class PidfParserTest extends ImsTestBase {
                 .append("<caps:video>").append(isVideoSupported).append("</caps:video>")
                 .append("</caps:servcaps>")
                 .append("<contact>").append(contact).append("</contact>")
-                .append("<timestamp>2001-01-01T01:00:000Z</timestamp>")
+                .append("<timestamp>2001-01-01T01:00:00.00Z</timestamp>")
                 .append("</tuple></presence>");
         return pidfBuilder.toString();
     }
@@ -258,7 +258,7 @@ public class PidfParserTest extends ImsTestBase {
                 + "<op:description>" + serviceDescription1 + "</op:description>"
                 + "</op:service-description>"
                 + "<contact>" + contact + "</contact>"
-                + "<timestamp>2001-01-01T01:00:000Z</timestamp>"
+                + "<timestamp>2001-01-01T01:00:00.00Z</timestamp>"
                 + "</tuple>"
                 // tuple 2
                 + "<tuple id=\"a1\">"
@@ -276,7 +276,7 @@ public class PidfParserTest extends ImsTestBase {
                 + "<caps:video>" + videoSupported + "</caps:video>"
                 + "</caps:servcaps>"
                 + "<contact>" + contact + "</contact>"
-                + "<timestamp>2001-02-02T01:00:000Z</timestamp>"
+                + "<timestamp>2001-02-02T01:00:00.00Z</timestamp>"
                 + "</tuple>"
                 + "</presence>";
     }
@@ -289,7 +289,7 @@ public class PidfParserTest extends ImsTestBase {
         final String basicStatus = RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN;
         final String version = "1.0";
         final String description = "description test";
-        final String nowTime = Instant.now().toString();
+        final Instant nowTime = Instant.now();
 
         // init the capabilities
         ServiceCapabilities.Builder servCapsBuilder =
@@ -301,7 +301,7 @@ public class PidfParserTest extends ImsTestBase {
                 basicStatus, RcsContactPresenceTuple.SERVICE_ID_MMTEL, version);
         tupleBuilder.setContactUri(contact)
                 .setServiceDescription(description)
-                .setTimestamp(nowTime)
+                .setTime(nowTime)
                 .setServiceCapabilities(servCapsBuilder.build());
 
         PresenceBuilder presenceBuilder = new PresenceBuilder(contact,

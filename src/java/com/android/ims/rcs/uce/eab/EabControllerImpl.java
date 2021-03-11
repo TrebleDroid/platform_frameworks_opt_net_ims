@@ -49,6 +49,7 @@ import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.GregorianCalendar;
@@ -376,7 +377,14 @@ public class EabControllerImpl implements EabController {
             rcsContactPresenceTupleBuilder.setServiceCapabilities(serviceCapabilities);
         }
         if (timeStamp != null) {
-            rcsContactPresenceTupleBuilder.setTimestamp(timeStamp);
+            try {
+                Instant instant = Instant.ofEpochSecond(Long.parseLong(timeStamp));
+                rcsContactPresenceTupleBuilder.setTime(instant);
+            } catch (NumberFormatException ex) {
+                Log.w(TAG, "Create presence tuple: NumberFormatException");
+            } catch (DateTimeParseException e) {
+                Log.w(TAG, "Create presence tuple: parse timestamp failed");
+            }
         }
 
         return rcsContactPresenceTupleBuilder.build();
@@ -557,21 +565,8 @@ public class EabControllerImpl implements EabController {
 
             // Using the current timestamp if the timestamp doesn't populate
             Long timestamp;
-            if (tuple.getTimestamp() != null) {
-                try {
-                    Time time = new Time();
-                    time.parse3339(tuple.getTimestamp());
-
-                    GregorianCalendar date = new GregorianCalendar(
-                            time.year, time.month, time.monthDay,
-                            time.hour, time.minute, time.second);
-                    date.setTimeZone(TimeZone.getTimeZone("UTC"));
-                    timestamp = date.getTime().getTime() / 1000;
-                } catch (TimeFormatException ex) {
-                    Log.d(TAG, "Fail on parsing the timestamp. "
-                            + "Timestamp: " + tuple.getTimestamp());
-                    timestamp = Instant.now().getEpochSecond();
-                }
+            if (tuple.getTime() != null) {
+                timestamp = tuple.getTime().getEpochSecond();
             } else {
                 timestamp = Instant.now().getEpochSecond();
             }
