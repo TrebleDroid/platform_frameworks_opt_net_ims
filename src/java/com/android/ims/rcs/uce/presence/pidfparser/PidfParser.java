@@ -41,6 +41,9 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -201,7 +204,13 @@ public class PidfParser {
         // Timestamp
         String timestamp = PidfParserUtils.getTupleTimestamp(tuple);
         if (!TextUtils.isEmpty(timestamp)) {
-            builder.setTimestamp(timestamp);
+            try {
+                Instant instant = DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(
+                        timestamp, Instant::from);
+                builder.setTime(instant);
+            } catch (DateTimeParseException e) {
+                Log.w(LOG_TAG, "getRcsContactPresenceTuple: Parse timestamp failed " + e);
+            }
         }
 
         // Set service description
