@@ -121,7 +121,7 @@ public interface PublishController extends ControllerBase {
         /**
          * Update the publish request result.
          */
-        void updatePublishRequestResult(int publishState, Instant updatedTimestamp);
+        void updatePublishRequestResult(int publishState, Instant updatedTimestamp, String pidfXml);
     }
 
     /**
