@@ -45,6 +45,8 @@ import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapL
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
 import com.android.ims.ImsTestBase;
 
+import java.util.Optional;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,7 +72,7 @@ public class PublishControllerImplTest extends ImsTestBase {
         doReturn(mPublishProcessor).when(mPublishProcessorFactory).createPublishProcessor(any(),
                 eq(mSubId), any(), any());
         doReturn(mDeviceCapListener).when(mDeviceCapListenerFactory).createDeviceCapListener(any(),
-                eq(mSubId), any(), any(), any());
+                eq(mSubId), any(), any());
     }
 
     @After
@@ -178,6 +180,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testRequestPublishFromServiceWithRcsCapability() throws Exception {
         PublishControllerImpl publishController = createPublishController();
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
 
         // Set the PRESENCE is capable
         IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
@@ -196,6 +199,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testFirstRequestPublishIsTriggeredFromService() throws Exception {
         PublishControllerImpl publishController = createPublishController();
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
 
         // Set the PRESENCE is capable
         IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
@@ -203,7 +207,7 @@ public class PublishControllerImplTest extends ImsTestBase {
 
         // Trigger a publish request (VT changes)
         PublishControllerCallback callback = publishController.getPublishControllerCallback();
-        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE, 0);
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
         Handler handler = publishController.getPublishHandler();
         waitForHandlerAction(handler, 1000);
 
@@ -219,7 +223,7 @@ public class PublishControllerImplTest extends ImsTestBase {
         verify(mPublishProcessor).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
 
         // Trigger the third publish request (VT changes)
-        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE, 0);
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
         waitForHandlerAction(handler, 1000);
 
         // Verify the publish request can be processed this time.
@@ -230,6 +234,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testRequestPublishWhenDeviceCapabilitiesChange() throws Exception {
         PublishControllerImpl publishController = createPublishController();
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
 
         // Set the PRESENCE is capable
         IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
@@ -246,10 +251,10 @@ public class PublishControllerImplTest extends ImsTestBase {
 
         // Trigger the sedond publish (RETRY), it should be processed after 10 seconds.
         PublishControllerCallback callback = publishController.getPublishControllerCallback();
-        callback.requestPublishFromInternal(PUBLISH_TRIGGER_RETRY, 10000);
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_RETRY);
 
         // Trigger another publish request (VT changes)
-        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE, 0);
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
         waitForHandlerAction(handler, 1000);
 
         // Verify the publish request can be processed immediately
