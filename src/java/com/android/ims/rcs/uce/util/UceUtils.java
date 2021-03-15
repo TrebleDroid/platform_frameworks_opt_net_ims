@@ -37,9 +37,7 @@ public class UceUtils {
     private static final String LOG_PREFIX = "RcsUce.";
     private static final String LOG_TAG = LOG_PREFIX + "UceUtils";
 
-    private static final String SCHEME_SIP = "sip";
-    private static final String SCHEME_TEL = "tel";
-    private static final String DOMAIN_SEPARATOR = "@";
+    private static final long DEFAULT_RCS_PUBLISH_SOURCE_THROTTLE_MS = 60000L;
 
     // The task ID of the UCE request
     private static long TASK_ID = 0L;
@@ -147,5 +145,26 @@ public class UceUtils {
             return false;
         }
         return blockStatus != BlockedNumberContract.STATUS_NOT_BLOCKED;
+    }
+
+    /**
+     * Get the minimum time that allow two PUBLISH requests can be executed continuously.
+     *
+     * @param subId The subscribe ID
+     * @return The milliseconds that allowed two consecutive publish request.
+     */
+    public static long getRcsPublishThrottle(int subId) {
+        long throttle = DEFAULT_RCS_PUBLISH_SOURCE_THROTTLE_MS;
+        try {
+            ProvisioningManager manager = ProvisioningManager.createForSubscriptionId(subId);
+            long provisioningValue = manager.getProvisioningIntValue(
+                    ProvisioningManager.KEY_RCS_PUBLISH_SOURCE_THROTTLE_MS);
+            if (provisioningValue > 0) {
+                throttle = provisioningValue;
+            }
+        } catch (Exception e) {
+            Log.w(LOG_TAG, "getRcsPublishThrottle: exception=" + e.getMessage());
+        }
+        return throttle;
     }
 }

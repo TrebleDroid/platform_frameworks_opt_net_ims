@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 
 import android.content.BroadcastReceiver;
 import android.content.Intent;
-import android.os.Looper;
+import android.os.Handler;
 import android.telecom.TelecomManager;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ImsRcsManager;
@@ -48,6 +48,9 @@ import org.mockito.Mock;
 
 @RunWith(AndroidJUnit4.class)
 public class DeviceCapabilityListenerTest extends ImsTestBase {
+
+    private static final long HANDLER_WAIT_TIMEOUT_MS = 2000L;
+    private static final long HANDLER_SENT_DELAY_MS = 1000L;
 
     @Mock DeviceCapabilityInfo mDeviceCapability;
     @Mock PublishController.PublishControllerCallback mCallback;
@@ -114,9 +117,12 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         Intent intent = new Intent(TelecomManager.ACTION_TTY_PREFERRED_MODE_CHANGED);
         receiver.onReceive(mContext, intent);
 
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
+
         verify(mDeviceCapability).updateTtyPreferredMode(anyInt());
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_TTY_PREFERRED_CHANGE, 0L);
+                PublishController.PUBLISH_TRIGGER_TTY_PREFERRED_CHANGE);
     }
 
     @Test
@@ -128,65 +134,83 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
         receiver.onReceive(mContext, intent);
 
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
+
         verify(mDeviceCapability).updateAirplaneMode(anyBoolean());
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_AIRPLANE_MODE_CHANGE, 0L);
+                PublishController.PUBLISH_TRIGGER_AIRPLANE_MODE_CHANGE);
     }
 
     @Test
     @SmallTest
     public void testMmtelRegistration() throws Exception {
         DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
+        deviceCapListener.setImsCallbackRegistered(true);
         RegistrationCallback registrationCallback = deviceCapListener.mMmtelRegistrationCallback;
 
-        registrationCallback.onRegistered(anyInt());
+        registrationCallback.onRegistered(1);
 
-        verify(mDeviceCapability).updateImsMmtelRegistered(anyInt());
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
+
+        verify(mDeviceCapability).updateImsMmtelRegistered(1);
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED, 500L);
+                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED);
     }
 
     @Test
     @SmallTest
     public void testMmTelUnregistration() throws Exception {
         DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
+        deviceCapListener.setImsCallbackRegistered(true);
         RegistrationCallback registrationCallback = deviceCapListener.mMmtelRegistrationCallback;
 
-        ImsReasonInfo info = new ImsReasonInfo();
+        ImsReasonInfo info = new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_NOT_REGISTERED, -1, "");
         registrationCallback.onUnregistered(info);
+
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
 
         verify(mDeviceCapability).updateImsMmtelUnregistered();
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_MMTEL_UNREGISTERED, 0L);
+                PublishController.PUBLISH_TRIGGER_MMTEL_UNREGISTERED);
     }
 
     @Test
     @SmallTest
     public void testRcsRegistration() throws Exception {
         DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
+        deviceCapListener.setImsCallbackRegistered(true);
         RegistrationCallback registrationCallback = deviceCapListener.mRcsRegistrationCallback;
         ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
                 ImsRegistrationImplBase.REGISTRATION_TECH_LTE).build();
 
         registrationCallback.onRegistered(attr);
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
 
         verify(mDeviceCapability).updateImsRcsRegistered(attr);
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_RCS_REGISTERED, 500L);
+                PublishController.PUBLISH_TRIGGER_RCS_REGISTERED);
     }
 
     @Test
     @SmallTest
     public void testRcsUnregistration() throws Exception {
         DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
+        deviceCapListener.setImsCallbackRegistered(true);
         RegistrationCallback registrationCallback = deviceCapListener.mRcsRegistrationCallback;
 
-        ImsReasonInfo info = new ImsReasonInfo();
+        ImsReasonInfo info = new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_NOT_REGISTERED, -1, "");
         registrationCallback.onUnregistered(info);
+
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
 
         verify(mDeviceCapability).updateImsRcsUnregistered();
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_RCS_UNREGISTERED, 0L);
+                PublishController.PUBLISH_TRIGGER_RCS_UNREGISTERED);
     }
 
     @Test
@@ -198,14 +222,17 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         MmTelFeature.MmTelCapabilities capabilities = new MmTelFeature.MmTelCapabilities();
         callback.onCapabilitiesStatusChanged(capabilities);
 
+        Handler handler = deviceCapListener.getHandler();
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
+
         verify(mDeviceCapability).updateMmtelCapabilitiesChanged(capabilities);
         verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_MMTEL_CAPABILITY_CHANGE, 0L);
+                PublishController.PUBLISH_TRIGGER_MMTEL_CAPABILITY_CHANGE);
     }
 
     private DeviceCapabilityListener createDeviceCapabilityListener() {
         DeviceCapabilityListener deviceCapListener = new DeviceCapabilityListener(mContext,
-                mSubId, mDeviceCapability, mCallback, Looper.getMainLooper());
+                mSubId, mDeviceCapability, mCallback);
         deviceCapListener.setImsMmTelManagerFactory(mImsMmTelMgrFactory);
         deviceCapListener.setImsRcsManagerFactory(mImsRcsMgrFactory);
         deviceCapListener.setProvisioningMgrFactory(mProvisioningMgrFactory);
