@@ -580,16 +580,19 @@ public class DeviceCapabilityListener {
      * This method is called when RCS is registered.
      */
     private void handleImsRcsRegistered(ImsRegistrationAttributes attr) {
-        mCapabilityInfo.updateImsRcsRegistered(attr);
-        mHandler.sendTriggeringPublishMessage(PublishController.PUBLISH_TRIGGER_RCS_REGISTERED);
+        if (mCapabilityInfo.updateImsRcsRegistered(attr)) {
+            mHandler.sendTriggeringPublishMessage(PublishController.PUBLISH_TRIGGER_RCS_REGISTERED);
+        }
     }
 
     /*
      * This method is called when RCS is unregistered.
      */
     private void handleImsRcsUnregistered() {
-        mCapabilityInfo.updateImsRcsUnregistered();
-        mHandler.sendTriggeringPublishMessage(PublishController.PUBLISH_TRIGGER_RCS_UNREGISTERED);
+        if (mCapabilityInfo.updateImsRcsUnregistered()) {
+            mHandler.sendTriggeringPublishMessage(
+                    PublishController.PUBLISH_TRIGGER_RCS_UNREGISTERED);
+        }
     }
 
     /*
