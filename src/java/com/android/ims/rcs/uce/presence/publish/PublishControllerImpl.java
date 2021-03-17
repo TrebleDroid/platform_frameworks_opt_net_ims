@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The implementation of PublishController.
@@ -224,6 +225,44 @@ public class PublishControllerImpl implements PublishController {
         synchronized (mPublishStateLock) {
             return (!mIsDestroyedFlag) ? mPublishState : RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
         }
+    }
+
+    @Override
+    public RcsContactUceCapability addRegistrationOverrideCapabilities(Set<String> featureTags) {
+        if (mDeviceCapabilityInfo.addRegistrationOverrideCapabilities(featureTags)) {
+            mPublishHandler.requestPublish(PublishController.PUBLISH_TRIGGER_OVERRIDE_CAPS);
+        }
+        return mDeviceCapabilityInfo.getDeviceCapabilities(
+                RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE, mContext);
+    }
+
+    @Override
+    public RcsContactUceCapability removeRegistrationOverrideCapabilities(Set<String> featureTags) {
+        if (mDeviceCapabilityInfo.removeRegistrationOverrideCapabilities(featureTags)) {
+            mPublishHandler.requestPublish(PublishController.PUBLISH_TRIGGER_OVERRIDE_CAPS);
+        }
+        return mDeviceCapabilityInfo.getDeviceCapabilities(
+                RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE, mContext);
+    }
+
+    @Override
+    public RcsContactUceCapability clearRegistrationOverrideCapabilities() {
+        if (mDeviceCapabilityInfo.clearRegistrationOverrideCapabilities()) {
+            mPublishHandler.requestPublish(PublishController.PUBLISH_TRIGGER_OVERRIDE_CAPS);
+        }
+        return mDeviceCapabilityInfo.getDeviceCapabilities(
+                RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE, mContext);
+    }
+
+    @Override
+    public RcsContactUceCapability getLatestRcsContactUceCapability() {
+        return mDeviceCapabilityInfo.getDeviceCapabilities(
+                RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE, mContext);
+    }
+
+    @Override
+    public String getLastPidfXml() {
+        return mPidfXml;
     }
 
     /**
@@ -699,6 +738,9 @@ public class PublishControllerImpl implements PublishController {
         } else {
             pw.println("mPublishProcessor is null");
         }
+
+        pw.println();
+        mDeviceCapListener.dump(pw);
 
         pw.println("Log:");
         pw.increaseIndent();
