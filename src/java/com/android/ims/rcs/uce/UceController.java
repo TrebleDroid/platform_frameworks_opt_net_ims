@@ -54,6 +54,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The UceController will manage the RCS UCE requests on a per subscription basis. When it receives
@@ -505,6 +506,51 @@ public class UceController {
      */
     public @PublishState int getUcePublishState() {
         return mPublishController.getUcePublishState();
+    }
+
+    /**
+     * Add new feature tags to the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    public RcsContactUceCapability addRegistrationOverrideCapabilities(Set<String> featureTags) {
+        return mPublishController.addRegistrationOverrideCapabilities(featureTags);
+    }
+
+    /**
+     * Remove existing feature tags to the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    public RcsContactUceCapability removeRegistrationOverrideCapabilities(Set<String> featureTags) {
+        return mPublishController.removeRegistrationOverrideCapabilities(featureTags);
+    }
+
+    /**
+     * Clear all overrides in the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    public RcsContactUceCapability clearRegistrationOverrideCapabilities() {
+        return mPublishController.clearRegistrationOverrideCapabilities();
+    }
+
+    /**
+     * @return current RcsContactUceCapability instance that will be used for PUBLISH.
+     */
+    public RcsContactUceCapability getLatestRcsContactUceCapability() {
+        return mPublishController.getLatestRcsContactUceCapability();
+    }
+
+    /**
+     * Get the PIDF XML associated with the last successful publish or null if not PUBLISHed to the
+     * network.
+     */
+    public String getLastPidfXml() {
+        return mPublishController.getLastPidfXml();
     }
 
     /**

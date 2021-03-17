@@ -113,7 +113,7 @@ public class PublishServiceDescTracker {
     // The capabilities calculated based off of the last IMS registration.
     private final Set<ServiceDescription> mRegistrationCapabilities = new ArraySet<>();
     // Contains the feature tags used in the last update to IMS registration.
-    private Set<String> mRegistrationFeatureTags;
+    private Set<String> mRegistrationFeatureTags = new ArraySet<>();
 
     /**
      * Create a new instance, which incorporates any carrier config overrides of the default
