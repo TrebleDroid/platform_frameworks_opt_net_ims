@@ -29,6 +29,7 @@ import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Instant;
+import java.util.Set;
 
 /**
  * The interface related to the PUBLISH request.
@@ -71,6 +72,9 @@ public interface PublishController extends ControllerBase {
     /** Publish trigger type: provisioning changes */
     int PUBLISH_TRIGGER_PROVISIONING_CHANGE = 12;
 
+    /**The caps have been overridden for a test*/
+    int PUBLISH_TRIGGER_OVERRIDE_CAPS = 13;
+
     @IntDef(value = {
             PUBLISH_TRIGGER_SERVICE,
             PUBLISH_TRIGGER_RETRY,
@@ -83,7 +87,8 @@ public interface PublishController extends ControllerBase {
             PUBLISH_TRIGGER_MMTEL_CAPABILITY_CHANGE,
             PUBLISH_TRIGGER_RCS_REGISTERED,
             PUBLISH_TRIGGER_RCS_UNREGISTERED,
-            PUBLISH_TRIGGER_PROVISIONING_CHANGE
+            PUBLISH_TRIGGER_PROVISIONING_CHANGE,
+            PUBLISH_TRIGGER_OVERRIDE_CAPS
     }, prefix="PUBLISH_TRIGGER_")
     @Retention(RetentionPolicy.SOURCE)
     @interface PublishTriggerType {}
@@ -130,9 +135,43 @@ public interface PublishController extends ControllerBase {
     }
 
     /**
+     * Add new feature tags to the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    RcsContactUceCapability addRegistrationOverrideCapabilities(Set<String> featureTags);
+
+    /**
+     * Remove existing feature tags to the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    RcsContactUceCapability removeRegistrationOverrideCapabilities(Set<String> featureTags);
+
+    /**
+     * Clear all overrides in the Set used to calculate the capabilities in PUBLISH.
+     * <p>
+     * Used for testing ONLY.
+     * @return the new capabilities that will be used for PUBLISH.
+     */
+    RcsContactUceCapability clearRegistrationOverrideCapabilities();
+
+    /**
+     * @return latest RcsContactUceCapability instance that will be used for PUBLISH.
+     */
+    RcsContactUceCapability getLatestRcsContactUceCapability();
+
+    /**
      * Retrieve the RCS UCE Publish state.
      */
     @PublishState int getUcePublishState();
+
+    /**
+     * @return the last PIDF XML used for publish or {@code null} if the device is not published.
+     */
+    String getLastPidfXml();
 
     /**
      * Notify that the device's capabilities have been unpublished from the network.
