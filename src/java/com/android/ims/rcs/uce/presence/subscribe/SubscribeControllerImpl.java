@@ -61,6 +61,11 @@ public class SubscribeControllerImpl implements SubscribeController {
     }
 
     @Override
+    public void onCarrierConfigChanged() {
+        // Nothing Required Here.
+    }
+
+    @Override
     public void requestCapabilities(List<Uri> contactUris, ISubscribeResponseCallback c)
             throws RemoteException {
 
