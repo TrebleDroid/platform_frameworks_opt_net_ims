@@ -36,4 +36,9 @@ public interface ControllerBase {
      * Notify to destroy this instance. The UceController instance is unusable after destroyed.
      */
     void onDestroy();
+
+    /**
+     * Notify the controller that the Carrier Config has changed.
+     */
+    void onCarrierConfigChanged();
 }

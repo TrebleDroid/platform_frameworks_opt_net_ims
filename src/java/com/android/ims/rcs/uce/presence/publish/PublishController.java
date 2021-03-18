@@ -75,6 +75,9 @@ public interface PublishController extends ControllerBase {
     /**The caps have been overridden for a test*/
     int PUBLISH_TRIGGER_OVERRIDE_CAPS = 13;
 
+    /** The Carrier Config for the subscription has Changed **/
+    int PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED = 14;
+
     @IntDef(value = {
             PUBLISH_TRIGGER_SERVICE,
             PUBLISH_TRIGGER_RETRY,
@@ -88,7 +91,8 @@ public interface PublishController extends ControllerBase {
             PUBLISH_TRIGGER_RCS_REGISTERED,
             PUBLISH_TRIGGER_RCS_UNREGISTERED,
             PUBLISH_TRIGGER_PROVISIONING_CHANGE,
-            PUBLISH_TRIGGER_OVERRIDE_CAPS
+            PUBLISH_TRIGGER_OVERRIDE_CAPS,
+            PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED
     }, prefix="PUBLISH_TRIGGER_")
     @Retention(RetentionPolicy.SOURCE)
     @interface PublishTriggerType {}
