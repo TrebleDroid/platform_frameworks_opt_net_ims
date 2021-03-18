@@ -51,9 +51,6 @@ public class DeviceCapabilityInfo {
 
     private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
 
-    // Tracks capability status based on the IMS registration.
-    private final PublishServiceDescTracker mServiceCapRegTracker;
-
     // FT overrides to add to the IMS registration, which will be added to the existing
     // capabilities.
     private final Set<String> mOverrideAddFeatureTags = new ArraySet<>();
@@ -61,6 +58,9 @@ public class DeviceCapabilityInfo {
     // FT overrides to remove from the existing IMS registration, which will remove the related
     // capabilities.
     private final Set<String> mOverrideRemoveFeatureTags = new ArraySet<>();
+
+    // Tracks capability status based on the IMS registration.
+    private PublishServiceDescTracker mServiceCapRegTracker;
 
     // The feature tags associated with the last IMS registration update.
     private Set<String> mLastRegistrationFeatureTags = Collections.emptySet();
@@ -112,6 +112,20 @@ public class DeviceCapabilityInfo {
         mMobileData = true;
         mVtSetting = true;
         mMmTelCapabilities = new MmTelCapabilities();
+    }
+
+    /**
+     * Update the capability registration tracker feature tag override mapping.
+     * @return if true, this has caused a change in the Feature Tags associated with the device
+     * and a new PUBLISH should be generated.
+     */
+    public synchronized boolean updateCapabilityRegistrationTrackerMap(String[] newMap) {
+        Set<String> oldTags = mServiceCapRegTracker.copyRegistrationFeatureTags();
+        mServiceCapRegTracker = PublishServiceDescTracker.fromCarrierConfig(newMap);
+        mServiceCapRegTracker.updateImsRegistration(mLastRegistrationOverrideFeatureTags);
+        boolean changed = !oldTags.equals(mServiceCapRegTracker.copyRegistrationFeatureTags());
+        if (changed) logi("Carrier Config Change resulted in associated FT list change");
+        return changed;
     }
 
     public synchronized boolean isImsRegistered() {

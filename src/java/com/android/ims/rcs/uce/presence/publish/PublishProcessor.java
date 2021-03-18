@@ -91,6 +91,7 @@ public class PublishProcessor {
         mLocalLog.log("onRcsDisconnected");
         logi("onRcsDisconnected");
         mRcsFeatureManager = null;
+        mProcessorState.onRcsDisconnected();
     }
 
     /**

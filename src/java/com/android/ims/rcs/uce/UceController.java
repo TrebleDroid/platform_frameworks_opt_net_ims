@@ -301,6 +301,16 @@ public class UceController {
         mLooper.quit();
     }
 
+    /**
+     * Notify all associated classes that the carrier configuration has changed for the subId.
+     */
+    public void onCarrierConfigChanged() {
+        mEabController.onCarrierConfigChanged();
+        mPublishController.onCarrierConfigChanged();
+        mSubscribeController.onCarrierConfigChanged();
+        mOptionsController.onCarrierConfigChanged();
+    }
+
     /*
      * The implementation of the interface UceControllerCallback. These methods are called by other
      * controllers.

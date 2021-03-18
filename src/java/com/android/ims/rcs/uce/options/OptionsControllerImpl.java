@@ -63,6 +63,11 @@ public class OptionsControllerImpl implements OptionsController {
     }
 
     @Override
+    public void onCarrierConfigChanged() {
+        // Nothing required here.
+    }
+
+    @Override
     public void sendCapabilitiesRequest(Uri contactUri, @NonNull List<String> deviceFeatureTags,
             IOptionsResponseCallback c) throws RemoteException {
 
