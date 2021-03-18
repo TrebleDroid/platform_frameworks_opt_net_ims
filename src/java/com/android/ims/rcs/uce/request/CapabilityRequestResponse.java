@@ -32,9 +32,11 @@ import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -78,7 +80,7 @@ public class CapabilityRequestResponse {
     private final List<RcsContactUceCapability> mUpdatedCapabilityList;
 
     // The list of the remote contact's capability.
-    private final List<String> mRemoteCaps;
+    private final Set<String> mRemoteCaps;
 
     // The callback to notify the result of this request.
     public IRcsUceControllerCallback mCapabilitiesCallback;
@@ -93,7 +95,7 @@ public class CapabilityRequestResponse {
         mRetryAfterMillis = Optional.of(0L);
         mTerminatedResource = new ArrayList<>();
         mUpdatedCapabilityList = new ArrayList<>();
-        mRemoteCaps = new ArrayList<>();
+        mRemoteCaps = new HashSet<>();
     }
 
     /**
@@ -284,7 +286,7 @@ public class CapabilityRequestResponse {
     /**
      * Set the remote's capabilities which are sent from the network.
      */
-    public void setRemoteCapabilities(Uri contact, List<String> remoteCaps) {
+    public void setRemoteCapabilities(Uri contact, Set<String> remoteCaps) {
         // Set the remote capabilities
         if (remoteCaps != null) {
             remoteCaps.stream().filter(Objects::nonNull).forEach(cap -> mRemoteCaps.add(cap));

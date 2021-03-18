@@ -20,7 +20,6 @@ import android.net.Uri;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -119,7 +118,7 @@ public class FeatureTags {
             registrationTags.remove(FEATURE_TAG_CALL_COMPOSER_VIA_TELEPHONY);
         }
         if (!registrationTags.isEmpty()) {
-            optionsBuilder.addFeatureTags(new ArrayList<>(registrationTags));
+            optionsBuilder.addFeatureTags(registrationTags);
         }
     }
 

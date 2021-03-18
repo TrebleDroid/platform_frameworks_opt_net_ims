@@ -42,7 +42,9 @@ import com.android.ims.rcs.uce.util.NetworkSipCode;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -65,7 +67,7 @@ public class OptionsRequestTest extends ImsTestBase {
     private int mSubId = 1;
     private int mRequestType = UceRequest.REQUEST_TYPE_CAPABILITY;
     private Uri mTestContact;
-    private List<String> mFeatureTags;
+    private Set<String> mFeatureTags;
     private RcsContactUceCapability mDeviceCapability;
 
     @Mock OptionsController mOptionsController;
@@ -77,7 +79,7 @@ public class OptionsRequestTest extends ImsTestBase {
         super.setUp();
         mTestContact = Uri.fromParts("sip", "test", null);
 
-        mFeatureTags = new ArrayList<>();
+        mFeatureTags = new HashSet<>();
         mFeatureTags.add(FEATURE_TAG_CHAT);
         mFeatureTags.add(FEATURE_TAG_FILE_TRANSFER);
         mFeatureTags.add(FEATURE_TAG_MMTEL_AUDIO_CALL);
@@ -144,7 +146,8 @@ public class OptionsRequestTest extends ImsTestBase {
         IOptionsResponseCallback callback = request.getResponseCallback();
 
         // Respond the SIP CODE 200 OK
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK, mFeatureTags);
+        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK,
+                new ArrayList<>(mFeatureTags));
 
         verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_OK,
                 NetworkSipCode.SIP_OK);
@@ -154,7 +157,7 @@ public class OptionsRequestTest extends ImsTestBase {
 
         // Respond the SIP CODE 202 ACCEPTED
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED,
-                mFeatureTags);
+                new ArrayList<>(mFeatureTags));
 
         verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_ACCEPTED,
                 NetworkSipCode.SIP_ACCEPTED);
@@ -174,7 +177,7 @@ public class OptionsRequestTest extends ImsTestBase {
         callback.onNetworkResponse(NetworkSipCode.SIP_CODE_FORBIDDEN, "", Collections.EMPTY_LIST);
 
         verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_FORBIDDEN, "");
-        verify(mRequestResponse).setRemoteCapabilities(any(), eq(Collections.EMPTY_LIST));
+        verify(mRequestResponse).setRemoteCapabilities(any(), eq(Collections.EMPTY_SET));
         verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
         verify(mRequestManagerCallback).onRequestFailed(anyLong());
     }
