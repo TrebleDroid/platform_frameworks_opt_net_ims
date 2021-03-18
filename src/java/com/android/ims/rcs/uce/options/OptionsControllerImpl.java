@@ -27,7 +27,8 @@ import android.util.Log;
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.util.UceUtils;
 
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * The implementation of OptionsController.
@@ -67,8 +68,7 @@ public class OptionsControllerImpl implements OptionsController {
         // Nothing required here.
     }
 
-    @Override
-    public void sendCapabilitiesRequest(Uri contactUri, @NonNull List<String> deviceFeatureTags,
+    public void sendCapabilitiesRequest(Uri contactUri, @NonNull Set<String> deviceFeatureTags,
             IOptionsResponseCallback c) throws RemoteException {
 
         if (mIsDestroyedFlag) {
@@ -82,6 +82,7 @@ public class OptionsControllerImpl implements OptionsController {
             return;
         }
 
-        featureManager.sendOptionsCapabilityRequest(contactUri, deviceFeatureTags, c);
+        featureManager.sendOptionsCapabilityRequest(contactUri, new ArrayList<>(deviceFeatureTags),
+            c);
     }
 }

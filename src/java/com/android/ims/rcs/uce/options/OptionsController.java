@@ -23,7 +23,7 @@ import android.telephony.ims.aidl.IOptionsResponseCallback;
 
 import com.android.ims.rcs.uce.ControllerBase;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * The interface to define the operations of the SIP OPTIONS
@@ -35,6 +35,6 @@ public interface OptionsController extends ControllerBase {
      * @param deviceFeatureTags The feature tags of the device's capabilities.
      * @param c The response callback of the OPTIONS capabilities request.
      */
-    void sendCapabilitiesRequest(@NonNull Uri contactUri, @NonNull List<String> deviceFeatureTags,
+    void sendCapabilitiesRequest(@NonNull Uri contactUri, @NonNull Set<String> deviceFeatureTags,
             @NonNull IOptionsResponseCallback c) throws RemoteException;
 }
