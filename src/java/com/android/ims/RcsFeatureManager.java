@@ -206,12 +206,12 @@ public class RcsFeatureManager implements FeatureUpdates {
     /**
      * Update the capabilities for this RcsFeature.
      */
-    public void updateCapabilities() throws android.telephony.ims.ImsException {
-        boolean optionsSupport = isOptionsSupported();
-        boolean presenceSupported = isPresenceSupported();
+    public void updateCapabilities(int newSubId) throws android.telephony.ims.ImsException {
+        boolean optionsSupport = isOptionsSupported(newSubId);
+        boolean presenceSupported = isPresenceSupported(newSubId);
 
-        logi("Update capabilities for slot " + mSlotId + ": options=" + optionsSupport
-                + ", presence=" + presenceSupported);
+        logi("Update capabilities for slot " + mSlotId + " and sub " + newSubId + ": options="
+                + optionsSupport+ ", presence=" + presenceSupported);
 
         if (optionsSupport || presenceSupported) {
             CapabilityChangeRequest request = new CapabilityChangeRequest();
@@ -458,36 +458,35 @@ public class RcsFeatureManager implements FeatureUpdates {
         }
     }
 
-    private boolean isOptionsSupported() {
-        return isCapabilityTypeSupported(mContext, mSlotId, CAPABILITY_OPTIONS);
+    private boolean isOptionsSupported(int subId) {
+        return isCapabilityTypeSupported(mContext, subId, CAPABILITY_OPTIONS);
     }
 
-    private boolean isPresenceSupported() {
-        return isCapabilityTypeSupported(mContext, mSlotId, CAPABILITY_PRESENCE);
+    private boolean isPresenceSupported(int subId) {
+        return isCapabilityTypeSupported(mContext, subId, CAPABILITY_PRESENCE);
     }
 
     /*
      * Check if the given type of capability is supported.
      */
     private static boolean isCapabilityTypeSupported(
-        Context context, int slotId, int capabilityType) {
+        Context context, int subId, int capabilityType) {
 
-        int subId = sSubscriptionManagerProxy.getSubId(slotId);
         if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-            Log.e(TAG, "isCapabilityTypeSupported: Getting subIds is failure! slotId=" + slotId);
+            Log.e(TAG, "isCapabilityTypeSupported: Invalid subId=" + subId);
             return false;
         }
 
         CarrierConfigManager configManager =
             (CarrierConfigManager) context.getSystemService(Context.CARRIER_CONFIG_SERVICE);
         if (configManager == null) {
-            Log.e(TAG, "isCapabilityTypeSupported: CarrierConfigManager is null, " + slotId);
+            Log.e(TAG, "isCapabilityTypeSupported: CarrierConfigManager is null, " + subId);
             return false;
         }
 
         PersistableBundle b = configManager.getConfigForSubId(subId);
         if (b == null) {
-            Log.e(TAG, "isCapabilityTypeSupported: PersistableBundle is null, " + slotId);
+            Log.e(TAG, "isCapabilityTypeSupported: PersistableBundle is null, " + subId);
             return false;
         }
 

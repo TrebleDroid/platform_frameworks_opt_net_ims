@@ -113,6 +113,13 @@ public class EabControllerImpl implements EabController {
         mEabBulkCapabilityUpdater.onDestroy();
     }
 
+    @Override
+    public void onCarrierConfigChanged() {
+        // Pick up changes to CarrierConfig and run any applicable cleanup tasks associated with
+        // that configuration.
+        mCapabilityCleanupRunnable.run();
+    }
+
     /**
      * Set the callback for sending the request to UceController.
      */
