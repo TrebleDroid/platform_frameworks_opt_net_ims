@@ -274,6 +274,8 @@ public class UceController {
             mRcsFeatureManager.removeCapabilityEventCallback(mCapabilityEventListener);
             mRcsFeatureManager = null;
         }
+        // Reset Service specific state
+        mServerState.updateRequestForbidden(false, null, 0L);
         // Notify each controllers that RCS is disconnected.
         mEabController.onRcsDisconnected();
         mPublishController.onRcsDisconnected();
