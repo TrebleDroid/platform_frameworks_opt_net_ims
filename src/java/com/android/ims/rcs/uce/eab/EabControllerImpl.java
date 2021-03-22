@@ -637,18 +637,18 @@ public class EabControllerImpl implements EabController {
         Uri result = mContext.getContentResolver().insert(EabProvider.COMMON_URI, contentValues);
 
         int commonId = Integer.valueOf(result.getLastPathSegment());
-        ContentValues[] optionContent =
-                new ContentValues[capability.getOptionsFeatureTags().size()];
-
-        for (int i = 0; i < optionContent.length; i++) {
-            String feature = capability.getOptionsFeatureTags().get(i);
+        List<ContentValues> optionContentList = new ArrayList<>();
+        for (String feature : capability.getFeatureTags()) {
             contentValues = new ContentValues();
             contentValues.put(EabProvider.OptionsColumns.EAB_COMMON_ID, commonId);
             contentValues.put(EabProvider.OptionsColumns.FEATURE_TAG, feature);
             contentValues.put(EabProvider.OptionsColumns.REQUEST_TIMESTAMP,
                     Instant.now().getEpochSecond());
-            optionContent[i] = contentValues;
+            optionContentList.add(contentValues);
         }
+
+        ContentValues[] optionContent = new ContentValues[optionContentList.size()];
+        optionContent = optionContentList.toArray(optionContent);
         mContext.getContentResolver().bulkInsert(EabProvider.OPTIONS_URI, optionContent);
     }
 
