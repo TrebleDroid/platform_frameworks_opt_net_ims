@@ -27,7 +27,9 @@ import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The UceRequest to request the capabilities when the OPTIONS mechanism is supported by the
@@ -95,7 +97,7 @@ public class OptionsRequest extends UceRequest {
         }
 
         mContactUri = requestCapUris.get(0);
-        List<String> featureTags = deviceCap.getOptionsFeatureTags();
+        Set<String> featureTags = deviceCap.getFeatureTags();
 
         logi("requestCapabilities: featureTag size=" + featureTags.size());
         try {
@@ -134,7 +136,7 @@ public class OptionsRequest extends UceRequest {
 
         // Set the network response code and the remote contact capabilities
         mRequestResponse.setNetworkResponseCode(sipCode, reason);
-        mRequestResponse.setRemoteCapabilities(mContactUri, remoteCaps);
+        mRequestResponse.setRemoteCapabilities(mContactUri, new HashSet<>(remoteCaps));
 
         // Notify the request result
         if (mRequestResponse.isNetworkResponseOK()) {
