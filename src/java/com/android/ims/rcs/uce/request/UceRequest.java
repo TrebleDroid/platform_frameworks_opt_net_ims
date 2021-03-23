@@ -248,8 +248,11 @@ public abstract class UceRequest {
         logd("handleCapabilitiesUpdated: size=" + updatedCapabilities.size());
 
         if (!updatedCapabilities.isEmpty()) {
+            logd("handleCapabilitiesUpdated: ready to saveCapabilities");
             // Save the updated capabilities to the cache
             mRequestManagerCallback.saveCapabilities(updatedCapabilities);
+
+            logd("handleCapabilitiesUpdated: ready to triggerCapabilitiesCallback");
             // Trigger the capabilities received callback
             return mRequestResponse.triggerCapabilitiesCallback(updatedCapabilities);
         }
