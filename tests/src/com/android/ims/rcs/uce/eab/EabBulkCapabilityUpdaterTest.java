@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verify;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Handler;
-import android.os.Looper;
+import android.os.HandlerThread;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.ims.ImsException;
@@ -52,6 +52,10 @@ import java.util.List;
 public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     private final int mSubId = 1;
+
+    private Handler mHandler;
+    private HandlerThread mHandlerThread;
+
     @Mock
     private UceController.UceControllerCallback mMockUceControllerCallback;
     @Mock
@@ -71,6 +75,10 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
     public void setUp() throws Exception {
         super.setUp();
 
+        mHandlerThread = new HandlerThread("TestThread");
+        mHandlerThread.start();
+        mHandler = mHandlerThread.getThreadHandler();
+
         doReturn(mSharedPreferences).when(mContext).getSharedPreferences(anyString(), anyInt());
         doReturn(0L).when(mSharedPreferences).getLong(anyString(), anyInt());
         doReturn(mSharedPreferencesEditor).when(mSharedPreferences).edit();
@@ -81,11 +89,11 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        mHandlerThread.quit();
     }
 
     @Test
     public void testRefreshCapabilities() throws Exception {
-        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(true);
         mockBulkCapabilityCarrierConfig(true);
@@ -102,14 +110,10 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                handler);
+                mHandler);
 
-        // wait handler task finished
-        int retryTimes = 0;
-        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
-            Thread.sleep(1000);
-            retryTimes++;
-        }
+        waitHandlerThreadFinish();
+
         verify(mMockUceControllerCallback).refreshCapabilities(
                 anyList(),
                 any(IRcsUceControllerCallback.class));
@@ -117,7 +121,6 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     @Test
     public void testUceSettingsDisabled() throws Exception {
-        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(false);
         mockBulkCapabilityCarrierConfig(true);
@@ -134,14 +137,10 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                handler);
+                mHandler);
 
-        // wait handler task finished
-        int retryTimes = 0;
-        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
-            Thread.sleep(1000);
-            retryTimes++;
-        }
+        waitHandlerThreadFinish();
+
         verify(mMockUceControllerCallback, never()).refreshCapabilities(
                 any(),
                 any(IRcsUceControllerCallback.class));
@@ -149,7 +148,6 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
 
     @Test
     public void testCarrierConfigDisabled() throws Exception {
-        Handler handler = new Handler(Looper.getMainLooper());
         // mock user settings
         mockUceUserSettings(true);
         mockBulkCapabilityCarrierConfig(false);
@@ -166,14 +164,10 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
                 mMockEabControllerImpl,
                 mEabContactSyncController,
                 mMockUceControllerCallback,
-                handler);
+                mHandler);
 
-        // wait handler task finished
-        int retryTimes = 0;
-        while (handler.hasMessagesOrCallbacks() && retryTimes < 2) {
-            Thread.sleep(1000);
-            retryTimes++;
-        }
+        waitHandlerThreadFinish();
+
         verify(mMockUceControllerCallback, never()).refreshCapabilities(
                 anyList(),
                 any(IRcsUceControllerCallback.class));
@@ -194,5 +188,13 @@ public class EabBulkCapabilityUpdaterTest extends ImsTestBase {
         doReturn(mImsRcsManager).when(imsManager).getImsRcsManager(eq(mSubId));
         doReturn(mRcsUceAdapter).when(mImsRcsManager).getUceAdapter();
         doReturn(isEnabled).when(mRcsUceAdapter).isUceSettingEnabled();
+    }
+
+    private void waitHandlerThreadFinish() throws Exception {
+        int retryTimes = 0;
+        do {
+            Thread.sleep(1000);
+            retryTimes++;
+        } while(mHandler.hasMessagesOrCallbacks() && retryTimes < 2);
     }
 }
