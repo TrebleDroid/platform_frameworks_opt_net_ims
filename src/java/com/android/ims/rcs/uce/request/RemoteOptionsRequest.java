@@ -19,67 +19,152 @@ package com.android.ims.rcs.uce.request;
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS;
 
 import android.net.Uri;
-import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
-import android.telephony.ims.aidl.IOptionsRequestCallback;
+import android.util.Log;
 
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Handle the OPTIONS request from the network.
  */
-public class RemoteOptionsRequest extends UceRequest {
+public class RemoteOptionsRequest implements UceRequest {
 
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "RemoteOptRequest";
+
+    /**
+     * The response of the remote capability request.
+     */
+    public static class RemoteOptResponse {
+        private boolean mIsNumberBlocked;
+        private RcsContactUceCapability mRcsContactCapability;
+        private Optional<Integer> mErrorSipCode;
+        private Optional<String> mErrorReason;
+
+        public RemoteOptResponse() {
+            mErrorSipCode = Optional.empty();
+            mErrorReason = Optional.empty();
+        }
+
+        void setRespondToRequest(RcsContactUceCapability capability, boolean isBlocked) {
+            mIsNumberBlocked = isBlocked;
+            mRcsContactCapability = capability;
+        }
+
+        void setRespondToRequestWithError(int code, String reason) {
+            mErrorSipCode = Optional.of(code);
+            mErrorReason = Optional.of(reason);
+        }
+
+        public boolean isNumberBlocked() {
+            return mIsNumberBlocked;
+        }
+
+        public RcsContactUceCapability getRcsContactCapability() {
+            return mRcsContactCapability;
+        }
+
+        public Optional<Integer> getErrorSipCode() {
+            return mErrorSipCode;
+        }
+
+        public Optional<String> getErrorReason() {
+            return mErrorReason;
+        }
+    }
+
+    private final int mSubId;
+    private final long mTaskId;
+    private volatile long mCoordinatorId;
+    private volatile boolean mIsFinished;
+    private volatile boolean mIsRemoteNumberBlocked;
+
+    private List<Uri> mUriList;
     private final List<String> mRemoteFeatureTags;
-    private final IOptionsRequestCallback mRequestCallback;
-    private boolean mIsRemoteNumberBlocked = false;
+    private final RemoteOptResponse mRemoteOptResponse;
+    private final RequestManagerCallback mRequestManagerCallback;
 
-    public RemoteOptionsRequest(int subId, @UceRequestType int type,
-            RequestManagerCallback requestMgrCallback, IOptionsRequestCallback requestCallback) {
-        super(subId, type, requestMgrCallback);
-        mRequestCallback = requestCallback;
+    public RemoteOptionsRequest(int subId, RequestManagerCallback requestMgrCallback) {
+        mSubId = subId;
+        mTaskId = UceUtils.generateTaskId();
         mRemoteFeatureTags = new ArrayList<>();
-        logd("RemoteOptionsRequest: created");
+        mRemoteOptResponse = new RemoteOptResponse();
+        mRequestManagerCallback = requestMgrCallback;
+        logd("created");
+    }
+
+    @Override
+    public void setRequestCoordinatorId(long coordinatorId) {
+        mCoordinatorId = coordinatorId;
+    }
+
+    @Override
+    public long getRequestCoordinatorId() {
+        return mCoordinatorId;
+    }
+
+    @Override
+    public long getTaskId() {
+        return mTaskId;
+    }
+
+    @Override
+    public void onFinish() {
+        mIsFinished = true;
+    }
+
+    @Override
+    public void setContactUri(List<Uri> uris) {
+        mUriList = uris;
     }
 
     public void setRemoteFeatureTags(List<String> remoteFeatureTags) {
-        remoteFeatureTags.forEach(featureTag -> mRemoteFeatureTags.add(featureTag));
+        remoteFeatureTags.forEach(mRemoteFeatureTags::add);
     }
 
     public void setIsRemoteNumberBlocked(boolean isBlocked) {
         mIsRemoteNumberBlocked = isBlocked;
     }
 
+    /**
+     * @return The response of this request.
+     */
+    public RemoteOptResponse getRemoteOptResponse() {
+        return mRemoteOptResponse;
+    }
+
     @Override
     public void executeRequest() {
-        logd("RemoteOptionsRequest: executeRequest");
+        logd("executeRequest");
         try {
             executeRequestInternal();
-        } catch (RemoteException e) {
-            logw("RemoteOptionsRequest exception: " + e);
+        } catch (Exception e) {
+            logw("executeRequest: exception " + e);
+            setResponseWithError(NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR,
+                    NetworkSipCode.SIP_INTERNAL_SERVER_ERROR);
         } finally {
-            // Remove the remote options request from the UceRequestManager.
-            mRequestManagerCallback.onRequestFinished(mTaskId);
+            mRequestManagerCallback.notifyRemoteRequestDone(mCoordinatorId, mTaskId);
         }
     }
 
-    private void executeRequestInternal() throws RemoteException {
+    private void executeRequestInternal() {
         if (mUriList == null || mUriList.isEmpty()) {
-            logw("RemoteOptionsRequest: uri is empty");
-            triggerOptionsRequestWithErrorCallback(NetworkSipCode.SIP_CODE_BAD_REQUEST,
+            logw("executeRequest: uri is empty");
+            setResponseWithError(NetworkSipCode.SIP_CODE_BAD_REQUEST,
                     NetworkSipCode.SIP_BAD_REQUEST);
             return;
         }
 
         if (mIsFinished) {
-            logw("RemoteOptionsRequest: This request is finished");
-            triggerOptionsRequestWithErrorCallback(NetworkSipCode.SIP_CODE_SERVICE_UNAVAILABLE,
+            logw("executeRequest: This request is finished");
+            setResponseWithError(NetworkSipCode.SIP_CODE_SERVICE_UNAVAILABLE,
                     NetworkSipCode.SIP_SERVICE_UNAVAILABLE);
             return;
         }
@@ -94,29 +179,36 @@ public class RemoteOptionsRequest extends UceRequest {
         RcsContactUceCapability deviceCaps = mRequestManagerCallback.getDeviceCapabilities(
                 CAPABILITY_MECHANISM_OPTIONS);
         if (deviceCaps == null) {
-            logw("RemoteOptionsRequest: The device's capabilities is empty");
-            triggerOptionsRequestWithErrorCallback(NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR,
+            logw("executeRequest: The device's capabilities is empty");
+            setResponseWithError(NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR,
                     NetworkSipCode.SIP_INTERNAL_SERVER_ERROR);
         } else {
-            logd("RemoteOptionsRequest: Respond to capability request, blocked="
+            logd("executeRequest: Respond to capability request, blocked="
                     + mIsRemoteNumberBlocked);
-            triggerOptionsRequestCallback(deviceCaps, mIsRemoteNumberBlocked);
+            setResponse(deviceCaps, mIsRemoteNumberBlocked);
         }
     }
 
-    private void triggerOptionsRequestWithErrorCallback(int errorCode, String reason)
-            throws RemoteException {
-        mRequestCallback.respondToCapabilityRequestWithError(errorCode, reason);
+    private void setResponse(RcsContactUceCapability deviceCaps,
+            boolean isRemoteNumberBlocked) {
+        mRemoteOptResponse.setRespondToRequest(deviceCaps, isRemoteNumberBlocked);
     }
 
-    private void triggerOptionsRequestCallback(RcsContactUceCapability deviceCaps,
-            boolean isRemoteNumberBlocked)
-            throws RemoteException {
-        mRequestCallback.respondToCapabilityRequest(deviceCaps, isRemoteNumberBlocked);
+    private void setResponseWithError(int errorCode, String reason) {
+        mRemoteOptResponse.setRespondToRequestWithError(errorCode, reason);
     }
 
-    @Override
-    protected void requestCapabilities(List<Uri> requestCapUris) {
-        // The request is triggered by the network. It doesn't need to request capabilities.
+    private void logd(String log) {
+        Log.d(LOG_TAG, getLogPrefix().append(log).toString());
+    }
+
+    private void logw(String log) {
+        Log.d(LOG_TAG, getLogPrefix().append(log).toString());
+    }
+
+    private StringBuilder getLogPrefix() {
+        StringBuilder builder = new StringBuilder("[");
+        builder.append(mSubId).append("][taskId=").append(mTaskId).append("] ");
+        return builder;
     }
 }

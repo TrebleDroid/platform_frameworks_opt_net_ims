@@ -37,10 +37,14 @@ public class UceUtils {
     private static final String LOG_PREFIX = "RcsUce.";
     private static final String LOG_TAG = LOG_PREFIX + "UceUtils";
 
+    private static final int DEFAULT_RCL_MAX_NUM_ENTRIES = 100;
     private static final long DEFAULT_RCS_PUBLISH_SOURCE_THROTTLE_MS = 60000L;
 
     // The task ID of the UCE request
     private static long TASK_ID = 0L;
+
+    // The request coordinator ID
+    private static long REQUEST_COORDINATOR_ID = 0;
 
     /**
      * Get the log prefix of RCS UCE
@@ -54,6 +58,13 @@ public class UceUtils {
      */
     public static synchronized long generateTaskId() {
         return ++TASK_ID;
+    }
+
+    /**
+     * Generate the unique request coordinator id.
+     */
+    public static synchronized long generateRequestCoordinatorId() {
+        return ++REQUEST_COORDINATOR_ID;
     }
 
     public static boolean isEabProvisioned(Context context, int subId) {
@@ -130,6 +141,23 @@ public class UceUtils {
     }
 
     /**
+     * Check whether the PRESENCE group subscribe is enabled or not.
+     *
+     * @return true when the Presence group subscribe is enabled, false otherwise.
+     */
+    public static boolean isPresenceGroupSubscribeEnabled(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return false;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return false;
+        }
+        return config.getBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_GROUP_SUBSCRIBE_BOOL);
+    }
+
+    /**
      *  Returns {@code true} if {@code phoneNumber} is blocked.
      *
      * @param context the context of the caller.
@@ -166,5 +194,26 @@ public class UceUtils {
             Log.w(LOG_TAG, "getRcsPublishThrottle: exception=" + e.getMessage());
         }
         return throttle;
+    }
+
+    /**
+     * Retrieve the maximum number of contacts that is in one Request Contained List(RCL)
+     *
+     * @param subId The subscribe ID
+     * @return The maximum number of contacts.
+     */
+    public static int getRclMaxNumberEntries(int subId) {
+        int maxNumEntries = DEFAULT_RCL_MAX_NUM_ENTRIES;
+        try {
+            ProvisioningManager manager = ProvisioningManager.createForSubscriptionId(subId);
+            int provisioningValue = manager.getProvisioningIntValue(
+                    ProvisioningManager.KEY_RCS_MAX_NUM_ENTRIES_IN_RCL);
+            if (provisioningValue > 0) {
+                maxNumEntries = provisioningValue;
+            }
+        } catch (Exception e) {
+            Log.w(LOG_TAG, "getRclMaxNumberEntries: exception=" + e.getMessage());
+        }
+        return maxNumEntries;
     }
 }

@@ -22,11 +22,14 @@ import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IOptionsResponseCallback;
+import android.telephony.ims.stub.RcsCapabilityExchangeImplBase.CommandCode;
 
 import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
+import com.android.ims.rcs.uce.util.NetworkSipCode;
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,7 +38,7 @@ import java.util.Set;
  * The UceRequest to request the capabilities when the OPTIONS mechanism is supported by the
  * network.
  */
-public class OptionsRequest extends UceRequest {
+public class OptionsRequest extends CapabilityRequest {
 
     // The result callback of the capabilities request from the IMS service.
     private IOptionsResponseCallback mResponseCallback = new IOptionsResponseCallback.Stub() {
@@ -66,7 +69,6 @@ public class OptionsRequest extends UceRequest {
             CapabilityRequestResponse requestResponse) {
         super(subId, requestType, taskMgrCallback, requestResponse);
         mOptionsController = optionsController;
-        logd("OptionsRequest created");
     }
 
     @Override
@@ -81,8 +83,8 @@ public class OptionsRequest extends UceRequest {
         OptionsController optionsController = mOptionsController;
         if (optionsController == null) {
             logw("requestCapabilities: request is finished");
-            mRequestResponse.setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            handleRequestFailed(true);
+            mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            mRequestManagerCallback.notifyRequestError(mCoordinatorId, mTaskId);
             return;
         }
 
@@ -91,8 +93,8 @@ public class OptionsRequest extends UceRequest {
                 RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS);
         if (deviceCap == null) {
             logw("requestCapabilities: Cannot get device capabilities");
-            mRequestResponse.setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            handleRequestFailed(true);
+            mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            mRequestManagerCallback.notifyRequestError(mCoordinatorId, mTaskId);
             return;
         }
 
@@ -104,29 +106,22 @@ public class OptionsRequest extends UceRequest {
             optionsController.sendCapabilitiesRequest(mContactUri, featureTags, mResponseCallback);
         } catch (RemoteException e) {
             logw("requestCapabilities exception: " + e);
-            mRequestResponse.setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            handleRequestFailed(true);
+            mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            mRequestManagerCallback.notifyRequestError(mCoordinatorId, mTaskId);
         }
     }
 
-    @VisibleForTesting
-    public IOptionsResponseCallback getResponseCallback() {
-        return mResponseCallback;
-    }
-
-    // Handle the command error callback.
-    private void onCommandError(int cmdError) {
+    // Receive the command error callback which is triggered by IOptionsResponseCallback.
+    private void onCommandError(@CommandCode int cmdError) {
         logd("onCommandError: error code=" + cmdError);
         if (mIsFinished) {
             return;
         }
         mRequestResponse.setCommandError(cmdError);
-        int capError = CapabilityRequestResponse.convertCommandErrorToCapabilityError(cmdError);
-        mRequestResponse.setErrorCode(capError);
-        mRequestManagerCallback.onRequestFailed(mTaskId);
+        mRequestManagerCallback.notifyCommandError(mCoordinatorId, mTaskId);
     }
 
-    // Handle the network response callback.
+    // Receive the network response callback which is triggered by IOptionsResponseCallback.
     private void onNetworkResponse(int sipCode, String reason, List<String> remoteCaps) {
         logd("onNetworkResponse: sipCode=" + sipCode + ", reason=" + reason
                 + ", remoteCap size=" + ((remoteCaps == null) ? "null" : remoteCaps.size()));
@@ -134,18 +129,51 @@ public class OptionsRequest extends UceRequest {
             return;
         }
 
-        // Set the network response code and the remote contact capabilities
-        mRequestResponse.setNetworkResponseCode(sipCode, reason);
-        mRequestResponse.setRemoteCapabilities(mContactUri, new HashSet<>(remoteCaps));
-
-        // Notify the request result
-        if (mRequestResponse.isNetworkResponseOK()) {
-            mRequestManagerCallback.onCapabilityUpdate(mTaskId);
-            mRequestManagerCallback.onRequestSuccess(mTaskId);
-        } else {
-            int capErrorCode = mRequestResponse.getCapabilityErrorFromSipError();
-            mRequestResponse.setErrorCode(capErrorCode);
-            mRequestManagerCallback.onRequestFailed(mTaskId);
+        if (remoteCaps == null) {
+            remoteCaps = Collections.EMPTY_LIST;
         }
+
+        // Set the all the results to the request response.
+        mRequestResponse.setNetworkResponseCode(sipCode, reason);
+        mRequestResponse.setRemoteCapabilities(new HashSet<>(remoteCaps));
+        RcsContactUceCapability contactCapabilities = getContactCapabilities(mContactUri, sipCode,
+                new HashSet<>(remoteCaps));
+        mRequestResponse.addUpdatedCapabilities(Collections.singletonList(contactCapabilities));
+
+        // Notify that the network response is received.
+        mRequestManagerCallback.notifyNetworkResponse(mCoordinatorId, mTaskId);
+    }
+
+    private RcsContactUceCapability getContactCapabilities(Uri contact, int sipCode,
+            Set<String> featureTags) {
+        int requestResult = RcsContactUceCapability.REQUEST_RESULT_FOUND;
+        if (!mRequestResponse.isNetworkResponseOK()) {
+            switch (sipCode) {
+                case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
+                    // Intentional fallthrough
+                case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:
+                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_ONLINE;
+                    break;
+                case NetworkSipCode.SIP_CODE_NOT_FOUND:
+                    // Intentional fallthrough
+                case NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE:
+                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
+                    break;
+                default:
+                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
+                    break;
+            }
+        }
+
+        RcsContactUceCapability.OptionsBuilder optionsBuilder
+                = new RcsContactUceCapability.OptionsBuilder(contact);
+        optionsBuilder.setRequestResult(requestResult);
+        optionsBuilder.addFeatureTags(featureTags);
+        return optionsBuilder.build();
+    }
+
+    @VisibleForTesting
+    public IOptionsResponseCallback getResponseCallback() {
+        return mResponseCallback;
     }
 }
