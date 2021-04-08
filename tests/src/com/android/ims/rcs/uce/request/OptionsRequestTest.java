@@ -22,7 +22,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.net.Uri;
@@ -65,6 +64,7 @@ public class OptionsRequestTest extends ImsTestBase {
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel\";video";
 
     private int mSubId = 1;
+    private long mCoordId = 1L;
     private int mRequestType = UceRequest.REQUEST_TYPE_CAPABILITY;
     private Uri mTestContact;
     private Set<String> mFeatureTags;
@@ -120,10 +120,8 @@ public class OptionsRequestTest extends ImsTestBase {
         List<Uri> uriList = Collections.singletonList(mTestContact);
         request.requestCapabilities(uriList);
 
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-        verify(mRequestResponse).triggerErrorCallback();
-        verify(mRequestManagerCallback).onRequestFinished(anyLong());
-        verify(mOptionsController, never()).sendCapabilitiesRequest(any(), any(), any());
+        verify(mRequestResponse).setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+        verify(mRequestManagerCallback).notifyRequestError(eq(mCoordId), anyLong());
     }
 
     @Test
@@ -132,58 +130,32 @@ public class OptionsRequestTest extends ImsTestBase {
         OptionsRequest request = getOptionsRequest();
         IOptionsResponseCallback callback = request.getResponseCallback();
 
-        callback.onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_SUPPORTED);
+        int errorCode = RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_SUPPORTED;
+        callback.onCommandError(errorCode);
 
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-        verify(mRequestManagerCallback).onRequestFailed(anyLong());
+        verify(mRequestResponse).setCommandError(errorCode);
+        verify(mRequestManagerCallback).notifyCommandError(eq(mCoordId), anyLong());
     }
 
     @Test
     @SmallTest
-    public void testNetworkResponseWithSuccess() throws Exception {
-        OptionsRequest request = getOptionsRequest();
-        doReturn(true).when(mRequestResponse).isNetworkResponseOK();
+    public void testNetworkResponse() throws Exception {
+       OptionsRequest request = getOptionsRequest();
         IOptionsResponseCallback callback = request.getResponseCallback();
 
-        // Respond the SIP CODE 200 OK
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK,
-                new ArrayList<>(mFeatureTags));
+        int sipCode = NetworkSipCode.SIP_CODE_ACCEPTED;
+        String reason = NetworkSipCode.SIP_ACCEPTED;
+        callback.onNetworkResponse(sipCode, reason, new ArrayList<>(mFeatureTags));
 
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_OK,
-                NetworkSipCode.SIP_OK);
-        verify(mRequestResponse).setRemoteCapabilities(any(), eq(mFeatureTags));
-        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
-
-        // Respond the SIP CODE 202 ACCEPTED
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED,
-                new ArrayList<>(mFeatureTags));
-
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_ACCEPTED,
-                NetworkSipCode.SIP_ACCEPTED);
-        verify(mRequestResponse, times(2)).setRemoteCapabilities(any(), eq(mFeatureTags));
-        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
-    }
-
-    @Test
-    @SmallTest
-    public void testNetworkResponseWithNotSuccess() throws Exception {
-        OptionsRequest request = getOptionsRequest();
-        doReturn(RcsUceAdapter.ERROR_FORBIDDEN).when(mRequestResponse)
-                .getCapabilityErrorFromSipError();
-        IOptionsResponseCallback callback = request.getResponseCallback();
-
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_FORBIDDEN, "", Collections.EMPTY_LIST);
-
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_FORBIDDEN, "");
-        verify(mRequestResponse).setRemoteCapabilities(any(), eq(Collections.EMPTY_SET));
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback).onRequestFailed(anyLong());
+        verify(mRequestResponse).setNetworkResponseCode(sipCode, reason);
+        verify(mRequestResponse).setRemoteCapabilities(eq(mFeatureTags));
+        verify(mRequestManagerCallback).notifyNetworkResponse(eq(mCoordId), anyLong());
     }
 
     private OptionsRequest getOptionsRequest() {
-        return new OptionsRequest(mSubId, mRequestType, mRequestManagerCallback,
+        OptionsRequest request = new OptionsRequest(mSubId, mRequestType, mRequestManagerCallback,
                 mOptionsController, mRequestResponse);
+        request.setRequestCoordinatorId(mCoordId);
+        return request;
     }
 }
