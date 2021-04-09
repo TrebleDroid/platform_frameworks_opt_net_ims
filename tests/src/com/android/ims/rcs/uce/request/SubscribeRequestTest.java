@@ -16,19 +16,19 @@
 
 package com.android.ims.rcs.uce.request;
 
+import static android.telephony.ims.stub.RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_SUPPORTED;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.net.Uri;
 import android.telephony.ims.RcsContactTerminatedReason;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.ISubscribeResponseCallback;
-import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -55,7 +55,7 @@ public class SubscribeRequestTest extends ImsTestBase {
     @Mock RequestManagerCallback mRequestManagerCallback;
 
     private int mSubId = 1;
-    private int mRequestType = UceRequest.REQUEST_TYPE_CAPABILITY;
+    private long mCoordId = 1;
 
     @Before
     public void setUp() throws Exception {
@@ -87,9 +87,8 @@ public class SubscribeRequestTest extends ImsTestBase {
         List<Uri> uriList = new ArrayList<>();
         subscribeRequest.requestCapabilities(uriList);
 
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-        verify(mRequestResponse).triggerErrorCallback();
-        verify(mRequestManagerCallback).onRequestFinished(anyLong());
+        verify(mRequestResponse).setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+        verify(mRequestManagerCallback).notifyRequestError(eq(mCoordId), anyLong());
         verify(mSubscribeController, never()).requestCapabilities(any(), any());
     }
 
@@ -99,49 +98,24 @@ public class SubscribeRequestTest extends ImsTestBase {
         SubscribeRequest subscribeRequest = getSubscribeRequest();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
-        callback.onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NOT_SUPPORTED);
+        callback.onCommandError(COMMAND_CODE_NOT_SUPPORTED);
 
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-        verify(mRequestManagerCallback).onRequestFailed(anyLong());
+        verify(mRequestResponse).setCommandError(COMMAND_CODE_NOT_SUPPORTED);
+        verify(mRequestManagerCallback).notifyCommandError(eq(mCoordId), anyLong());
     }
 
     @Test
     @SmallTest
-    public void testNetworkResponseWithSuccess() throws Exception {
+    public void testNetworkResponse() throws Exception {
         SubscribeRequest subscribeRequest = getSubscribeRequest();
-        doReturn(true).when(mRequestResponse).isNetworkResponseOK();
+
+        int sipCode = NetworkSipCode.SIP_CODE_FORBIDDEN;
+        String reason = "forbidden";
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
+        callback.onNetworkResponse(sipCode, reason);
 
-        // Respond the SIP CODE 200 OK
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK);
-
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_OK,
-                NetworkSipCode.SIP_OK);
-        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
-
-        // Respond the SIP CODE 202 ACCEPTED
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED);
-
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_ACCEPTED,
-                NetworkSipCode.SIP_ACCEPTED);
-        verify(mRequestResponse, never()).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback, never()).onRequestFailed(anyLong());
-    }
-
-    @Test
-    @SmallTest
-    public void testNetworkResponseWithNotSuccess() throws Exception {
-        SubscribeRequest subscribeRequest = getSubscribeRequest();
-        doReturn(RcsUceAdapter.ERROR_FORBIDDEN).when(mRequestResponse)
-                .getCapabilityErrorFromSipError();
-        ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
-
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_FORBIDDEN, "");
-
-        verify(mRequestResponse).setNetworkResponseCode(NetworkSipCode.SIP_CODE_FORBIDDEN, "");
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_FORBIDDEN);
-        verify(mRequestManagerCallback).onRequestFailed(anyLong());
+        verify(mRequestResponse).setNetworkResponseCode(sipCode, reason);
+        verify(mRequestManagerCallback).notifyNetworkResponse(eq(mCoordId), anyLong());
     }
 
     @Test
@@ -155,8 +129,8 @@ public class SubscribeRequestTest extends ImsTestBase {
         list.add(new RcsContactTerminatedReason(contact, "terminated"));
         callback.onResourceTerminated(list);
 
-        verify(mRequestResponse).addTerminatedResource(any());
-        verify(mRequestManagerCallback).onResourceTerminated(anyLong());
+        verify(mRequestResponse).addTerminatedResource(list);
+        verify(mRequestManagerCallback).notifyResourceTerminated(eq(mCoordId), anyLong());
     }
 
     @Test
@@ -170,7 +144,7 @@ public class SubscribeRequestTest extends ImsTestBase {
         callback.onNotifyCapabilitiesUpdate(pidfXml);
 
         verify(mRequestResponse).addUpdatedCapabilities(any());
-        verify(mRequestManagerCallback).onCapabilityUpdate(anyLong());
+        verify(mRequestManagerCallback).notifyCapabilitiesUpdated(eq(mCoordId), anyLong());
     }
 
     @Test
@@ -180,39 +154,19 @@ public class SubscribeRequestTest extends ImsTestBase {
         doReturn(true).when(mRequestResponse).isNetworkResponseOK();
         ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
 
-        // Respond SIP CODE 200 OK
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_OK, NetworkSipCode.SIP_OK);
-        callback.onTerminated(null, 0L);
+        String reason = "forbidden";
+        long retryAfterMillis = 10000L;
+        callback.onTerminated(reason, retryAfterMillis);
 
-        verify(mRequestManagerCallback).onRequestSuccess(anyLong());
-
-        // Respond SIP CODE 202 ACCEPTED
-        callback.onNetworkResponse(NetworkSipCode.SIP_CODE_ACCEPTED, NetworkSipCode.SIP_ACCEPTED);
-        callback.onTerminated(null, 0L);
-
-        verify(mRequestManagerCallback, times(2)).onRequestSuccess(anyLong());
-    }
-
-    @Test
-    @SmallTest
-    public void testTerminatedCallbackWithRetry() throws Exception {
-        SubscribeRequest subscribeRequest = getSubscribeRequest();
-        doReturn(RcsUceAdapter.ERROR_GENERIC_FAILURE).when(mRequestResponse)
-                .getCapabilityErrorFromSipError();
-        ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
-
-        String reason = "Server is busy";
-        long retryAfterMilliseconds = 10000L;
-        callback.onTerminated(reason, retryAfterMilliseconds);
-
-        verify(mRequestResponse).setRequestTerminated(reason, retryAfterMilliseconds);
-        verify(mRequestResponse).setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-        verify(mRequestManagerCallback).onRequestFailed(anyLong());
+        verify(mRequestResponse).setTerminated(reason, retryAfterMillis);
+        verify(mRequestManagerCallback).notifyTerminated(eq(mCoordId), anyLong());
     }
 
     private SubscribeRequest getSubscribeRequest() {
-        return new SubscribeRequest(mSubId, mRequestType, mRequestManagerCallback,
-                mSubscribeController, mRequestResponse);
+        SubscribeRequest request = new SubscribeRequest(mSubId, UceRequest.REQUEST_TYPE_CAPABILITY,
+                mRequestManagerCallback, mSubscribeController, mRequestResponse);
+        request.setRequestCoordinatorId(mCoordId);
+        return request;
     }
 
     private String getPidfData() {
