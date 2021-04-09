@@ -16,19 +16,15 @@
 
 package com.android.ims.rcs.uce.request;
 
-import android.net.Uri;
-import android.os.RemoteException;
 import android.telephony.ims.RcsContactTerminatedReason;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsUceAdapter;
-import android.telephony.ims.aidl.IRcsUceControllerCallback;
+import android.telephony.ims.RcsUceAdapter.ErrorCode;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase.CommandCode;
-import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
-import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,52 +36,44 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Handle the result of the capability request.
+ * The container of the result of the capabilities request.
  */
 public class CapabilityRequestResponse {
-
-    private static final String LOG_TAG = UceUtils.getLogPrefix() + "CapRequestResponse";
+    // The error code when the request encounters internal errors.
+    private @ErrorCode Optional<Integer> mRequestInternalError;
 
     // The command error code of the request. It is assigned by the callback "onCommandError"
     private @CommandCode Optional<Integer> mCommandError;
 
-    // The SIP code of the network response. It is assigned by the callback "onNetworkResponse"
+    // The SIP code and reason of the network response.
     private Optional<Integer> mNetworkRespSipCode;
-
-    // The reason of the network response. It is assigned by the callback "onNetworkResponse"
     private Optional<String> mReasonPhrase;
 
-    // The response sip code from the reason header
+    // The SIP code and the phrase read from the reason header
     private Optional<Integer> mReasonHeaderCause;
-
-    // The phrase from the reason header
     private Optional<String> mReasonHeaderText;
 
-    // The reason why the this request was terminated. This value is assigned by the callback
-    // "onTerminated"
+    // The reason why the this request was terminated and how long after it can be retried.
+    // This value is assigned by the callback "onTerminated"
     private Optional<String> mTerminatedReason;
-
-    // How long after this request can be retried. This value is assigned by the callback
-    // "onTerminated"
     private Optional<Long> mRetryAfterMillis;
 
-    // The error code of this request.
-    private @RcsUceAdapter.ErrorCode Optional<Integer> mErrorCode;
-
-    // The list of the terminated resource. This is assigned by the callback "onResourceTerminated"
-    private final List<RcsContactUceCapability> mTerminatedResource;
+    // The list of the valid capabilities which is retrieved from the cache.
+    private List<RcsContactUceCapability> mCachedCapabilityList;
 
     // The list of the updated capabilities. This is assigned by the callback
     // "onNotifyCapabilitiesUpdate"
-    private final List<RcsContactUceCapability> mUpdatedCapabilityList;
+    private List<RcsContactUceCapability> mUpdatedCapabilityList;
+
+    // The list of the terminated resource. This is assigned by the callback
+    // "onResourceTerminated"
+    private List<RcsContactUceCapability> mTerminatedResource;
 
     // The list of the remote contact's capability.
-    private final Set<String> mRemoteCaps;
-
-    // The callback to notify the result of this request.
-    public IRcsUceControllerCallback mCapabilitiesCallback;
+    private Set<String> mRemoteCaps;
 
     public CapabilityRequestResponse() {
+        mRequestInternalError = Optional.empty();
         mCommandError = Optional.empty();
         mNetworkRespSipCode = Optional.empty();
         mReasonPhrase = Optional.empty();
@@ -94,42 +82,44 @@ public class CapabilityRequestResponse {
         mTerminatedReason = Optional.empty();
         mRetryAfterMillis = Optional.of(0L);
         mTerminatedResource = new ArrayList<>();
+        mCachedCapabilityList = new ArrayList<>();
         mUpdatedCapabilityList = new ArrayList<>();
         mRemoteCaps = new HashSet<>();
     }
 
     /**
-     * Set the callback to receive the contacts capabilities update.
+     * Set the error code when the request encounters internal unexpected errors.
+     * @param errorCode the error code of the internal request error.
      */
-    public void setCapabilitiesCallback(IRcsUceControllerCallback c) {
-        mCapabilitiesCallback = c;
+    public synchronized void setRequestInternalError(@ErrorCode int errorCode) {
+        mRequestInternalError = Optional.of(errorCode);
     }
 
     /**
-     * Set the error code when the request is failed.
+     * Get the request internal error code.
      */
-    public void setErrorCode(@RcsUceAdapter.ErrorCode int errorCode) {
-        mErrorCode = Optional.of(errorCode);
+    public synchronized Optional<Integer> getRequestInternalError() {
+        return mRequestInternalError;
     }
 
     /**
-     * Get the error code of this request.
+     * Set the command error code which is sent from ImsService and set the capability error code.
      */
-    public Optional<Integer> getErrorCode() {
-        return mErrorCode;
-    }
-
-    /**
-     * Set the command error code.
-     */
-    public void setCommandError(@CommandCode int commandError) {
+    public synchronized void setCommandError(@CommandCode int commandError) {
         mCommandError = Optional.of(commandError);
+    }
+
+    /**
+     * Get the command error codeof this request.
+     */
+    public synchronized Optional<Integer> getCommandError() {
+        return mCommandError;
     }
 
     /**
      * Set the network response of this request which is sent by the network.
      */
-    public void setNetworkResponseCode(int sipCode, String reason) {
+    public synchronized void setNetworkResponseCode(int sipCode, String reason) {
         mNetworkRespSipCode = Optional.of(sipCode);
         mReasonPhrase = Optional.ofNullable(reason);
     }
@@ -137,7 +127,7 @@ public class CapabilityRequestResponse {
     /**
      * Set the network response of this request which is sent by the network.
      */
-    public void setNetworkResponseCode(int sipCode, String reasonPhrase,
+    public synchronized void setNetworkResponseCode(int sipCode, String reasonPhrase,
             int reasonHeaderCause, String reasonHeaderText) {
         mNetworkRespSipCode = Optional.of(sipCode);
         mReasonPhrase = Optional.ofNullable(reasonPhrase);
@@ -145,65 +135,24 @@ public class CapabilityRequestResponse {
         mReasonHeaderText = Optional.ofNullable(reasonHeaderText);
     }
 
-    /**
-     * Get the sip code of the network response.
-     */
-    public Optional<Integer> getNetworkRespSipCode() {
+    // Get the sip code of the network response.
+    public synchronized Optional<Integer> getNetworkRespSipCode() {
         return mNetworkRespSipCode;
     }
 
-    /**
-     * Get the reason of the network response.
-     */
-    public Optional<String> getReasonPhrase() {
+    // Get the reason of the network response.
+    public synchronized Optional<String> getReasonPhrase() {
         return mReasonPhrase;
     }
 
-    /**
-     * Get the response sip code from the reason header.
-     */
-    public Optional<Integer> getReasonHeaderCause() {
+    // Get the response sip code from the reason header.
+    public synchronized Optional<Integer> getReasonHeaderCause() {
         return mReasonHeaderCause;
     }
 
-    /**
-     * Get the response phrae from the reason header.
-     */
-    public Optional<String> getReasonHeaderText() {
+    // Get the response phrae from the reason header.
+    public synchronized Optional<String> getReasonHeaderText() {
         return mReasonHeaderText;
-    }
-
-    /**
-     * Check if the network response is success.
-     * @return true if the network response code is OK or Accepted and the Reason header cause
-     * is either not present or OK.
-     */
-    public boolean isNetworkResponseOK() {
-        final int sipCodeOk = NetworkSipCode.SIP_CODE_OK;
-        final int sipCodeAccepted = NetworkSipCode.SIP_CODE_ACCEPTED;
-        Optional<Integer> respSipCode = getNetworkRespSipCode();
-        if (respSipCode.filter(c -> (c == sipCodeOk || c == sipCodeAccepted)).isPresent() &&
-                (!getReasonHeaderCause().isPresent()
-                        || getReasonHeaderCause().filter(c -> c == sipCodeOk).isPresent())) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Check if the request is forbidden.
-     * @return true if the Reason header sip code is 403(Forbidden) or the response sip code is 403.
-     */
-    public boolean isRequestForbidden() {
-        // Check the Reason header sip code if the Reason header is present, otherwise check the
-        // response sip code.
-        if (getReasonHeaderCause().isPresent()) {
-            return getReasonHeaderCause()
-                    .filter(c -> c == NetworkSipCode.SIP_CODE_FORBIDDEN).isPresent();
-        } else {
-            return getNetworkRespSipCode()
-            .filter(c -> c == NetworkSipCode.SIP_CODE_FORBIDDEN).isPresent();
-        }
     }
 
     /**
@@ -211,7 +160,7 @@ public class CapabilityRequestResponse {
      * @param reason The reason why this request is terminated.
      * @param retryAfterMillis How long to wait before retry this request.
      */
-    public void setRequestTerminated(String reason, long retryAfterMillis) {
+    public synchronized void setTerminated(String reason, long retryAfterMillis) {
         mTerminatedReason = Optional.ofNullable(reason);
         mRetryAfterMillis = Optional.of(retryAfterMillis);
     }
@@ -219,182 +168,164 @@ public class CapabilityRequestResponse {
     /**
      * @return Return the retryAfterMillis, 0L if the value is not present.
      */
-    public long getRetryAfterMillis() {
+    public synchronized long getRetryAfterMillis() {
         return mRetryAfterMillis.orElse(0L);
+    }
+
+    /**
+     * Add the capabilities which are retrieved from the cache.
+     */
+    public synchronized void addCachedCapabilities(List<RcsContactUceCapability> capabilityList) {
+        mCachedCapabilityList.addAll(capabilityList);
+    }
+
+    /**
+     * Clear the cached capabilities when the cached capabilities have been sent to client.
+     */
+    public synchronized void removeCachedContactCapabilities() {
+        mCachedCapabilityList.clear();
+    }
+
+    /**
+     * @return the cached capabilities.
+     */
+    public synchronized List<RcsContactUceCapability> getCachedContactCapability() {
+        return Collections.unmodifiableList(mCachedCapabilityList);
     }
 
     /**
      * Add the updated contact capabilities which sent from ImsService.
      */
-    public void addUpdatedCapabilities(List<RcsContactUceCapability> capabilityList) {
-        synchronized (mUpdatedCapabilityList) {
-            mUpdatedCapabilityList.addAll(capabilityList);
-        }
-    }
-
-    /**
-     * Get all the updated capabilities to trigger the capability receive callback.
-     */
-    public List<RcsContactUceCapability> getUpdatedContactCapability() {
-        synchronized (mUpdatedCapabilityList) {
-            return Collections.unmodifiableList(mUpdatedCapabilityList);
-        }
+    public synchronized void addUpdatedCapabilities(List<RcsContactUceCapability> capabilityList) {
+        mUpdatedCapabilityList.addAll(capabilityList);
     }
 
     /**
      * Remove the given capabilities from the UpdatedCapabilityList when these capabilities have
      * updated to the requester.
      */
-    private void removeCapabilities(List<RcsContactUceCapability> capabilityList) {
-        synchronized (mUpdatedCapabilityList) {
-            mUpdatedCapabilityList.removeAll(capabilityList);
-        }
+    public synchronized void removeUpdatedCapabilities(List<RcsContactUceCapability> capList) {
+        mUpdatedCapabilityList.removeAll(capList);
+    }
+
+    /**
+     * Get all the updated capabilities to trigger the capability receive callback.
+     */
+    public synchronized List<RcsContactUceCapability> getUpdatedContactCapability() {
+        return Collections.unmodifiableList(mUpdatedCapabilityList);
     }
 
     /**
      * Add the terminated resources which sent from ImsService.
      */
-    public void addTerminatedResource(List<RcsContactTerminatedReason> terminatedResource) {
+    public synchronized void addTerminatedResource(List<RcsContactTerminatedReason> resourceList) {
         // Convert the RcsContactTerminatedReason to RcsContactUceCapability
-        List<RcsContactUceCapability> capabilityList = terminatedResource.stream()
+        List<RcsContactUceCapability> capabilityList = resourceList.stream()
                 .filter(Objects::nonNull)
                 .map(reason -> PidfParserUtils.getTerminatedCapability(
                         reason.getContactUri(), reason.getReason())).collect(Collectors.toList());
 
-        synchronized (mTerminatedResource) {
-            mTerminatedResource.addAll(capabilityList);
-        }
+        // Save the terminated resource.
+        mTerminatedResource.addAll(capabilityList);
+    }
+
+    /*
+     * Remove the given capabilities from the mTerminatedResource when these capabilities have
+     * updated to the requester.
+     */
+    public synchronized void removeTerminatedResources(List<RcsContactUceCapability> resourceList) {
+        mTerminatedResource.removeAll(resourceList);
     }
 
     /**
      * Get the terminated resources which sent from ImsService.
      */
-    public List<RcsContactUceCapability> getTerminatedResources() {
-        synchronized (mTerminatedResource) {
-            return Collections.unmodifiableList(mTerminatedResource);
-        }
-    }
-
-    // Remove the given capabilities from the mTerminatedResource when these capabilities have
-    // updated to the requester.
-    private void removeTerminatedResources(List<RcsContactUceCapability> terminatedResourceList) {
-        synchronized (mTerminatedResource) {
-            mTerminatedResource.removeAll(terminatedResourceList);
-        }
+    public synchronized List<RcsContactUceCapability> getTerminatedResources() {
+        return Collections.unmodifiableList(mTerminatedResource);
     }
 
     /**
      * Set the remote's capabilities which are sent from the network.
      */
-    public void setRemoteCapabilities(Uri contact, Set<String> remoteCaps) {
-        // Set the remote capabilities
+    public synchronized void setRemoteCapabilities(Set<String> remoteCaps) {
         if (remoteCaps != null) {
-            remoteCaps.stream().filter(Objects::nonNull).forEach(cap -> mRemoteCaps.add(cap));
+            remoteCaps.stream().filter(Objects::nonNull).forEach(capability ->
+                    mRemoteCaps.add(capability));
         }
-
-        RcsContactUceCapability.OptionsBuilder optionsBuilder
-                = new RcsContactUceCapability.OptionsBuilder(contact);
-        int requestResult = RcsContactUceCapability.REQUEST_RESULT_FOUND;
-        if (!getNetworkRespSipCode().isPresent()) {
-            requestResult = RcsContactUceCapability.REQUEST_RESULT_UNKNOWN;
-        } else {
-            switch (getNetworkRespSipCode().get()) {
-                case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
-                    // Intentional fallthrough
-                case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:
-                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_ONLINE;
-                    break;
-                case NetworkSipCode.SIP_CODE_NOT_FOUND:
-                    // Intentional fallthrough
-                case NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE:
-                    requestResult = RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND;
-                    break;
-            }
-        }
-        optionsBuilder.setRequestResult(requestResult);
-        optionsBuilder.addFeatureTags(mRemoteCaps);
-
-        // Add the remote's capabilities to the updated capability list
-        addUpdatedCapabilities(Collections.singletonList(optionsBuilder.build()));
     }
 
     /**
-     * Trigger the capabilities callback. This capabilities is retrieved from the cache.
+     * Get the remote capability feature tags.
      */
-    public boolean triggerCachedCapabilitiesCallback(
-            List<RcsContactUceCapability> cachedCapabilities) {
-        // Return if there's no cached capabilities.
-        if (cachedCapabilities == null || cachedCapabilities.isEmpty()) {
+    public synchronized Set<String> getRemoteCapability() {
+        return Collections.unmodifiableSet(mRemoteCaps);
+    }
+
+    /**
+     * Get a copy of the this instance.
+     */
+    public synchronized CapabilityRequestResponse copy() {
+        CapabilityRequestResponse response = new CapabilityRequestResponse();
+        response.mRequestInternalError = mRequestInternalError;
+        response.mCommandError = mCommandError;
+        response.mNetworkRespSipCode = mNetworkRespSipCode;
+        response.mReasonPhrase = mReasonPhrase;
+        response.mReasonHeaderCause = mReasonHeaderCause;
+        response.mReasonHeaderText = mReasonHeaderText;
+        response.mTerminatedReason = mTerminatedReason;
+        response.mRetryAfterMillis = mRetryAfterMillis;
+        response.mTerminatedResource.addAll(mTerminatedResource);
+        response.mCachedCapabilityList.addAll(mCachedCapabilityList);
+        response.mUpdatedCapabilityList.addAll(mUpdatedCapabilityList);
+        response.mRemoteCaps.addAll(mRemoteCaps);
+        return response;
+    }
+
+    /**
+     * Check if the network response is success.
+     * @return true if the network response code is OK or Accepted and the Reason header cause
+     * is either not present or OK.
+     */
+    public synchronized boolean isNetworkResponseOK() {
+        final int sipCodeOk = NetworkSipCode.SIP_CODE_OK;
+        final int sipCodeAccepted = NetworkSipCode.SIP_CODE_ACCEPTED;
+        Optional<Integer> respSipCode = getNetworkRespSipCode();
+        if (respSipCode.filter(c -> (c == sipCodeOk || c == sipCodeAccepted)).isPresent()
+                && (!getReasonHeaderCause().isPresent()
+                        || getReasonHeaderCause().filter(c -> c == sipCodeOk).isPresent())) {
             return true;
         }
-
-        Log.d(LOG_TAG, "triggerCachedCapabilitiesCallback: size=" + cachedCapabilities.size());
-
-        try {
-            mCapabilitiesCallback.onCapabilitiesReceived(
-                    Collections.unmodifiableList(cachedCapabilities));
-        } catch (RemoteException e) {
-            Log.w(LOG_TAG, "triggerCachedCapabilitiesCallback exception: " + e);
-            setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            return false;
-        }
-        return true;
+        return false;
     }
 
     /**
-     * Trigger the capabilities updated callback and remove the given capability from the
-     * capability updated list.
+     * Check whether the request is forbidden or not.
+     * @return true if the Reason header sip code is 403(Forbidden) or the response sip code is 403.
      */
-    public boolean triggerCapabilitiesCallback(List<RcsContactUceCapability> capabilityList) {
-        try {
-            mCapabilitiesCallback.onCapabilitiesReceived(capabilityList);
-            // Remove the elements that have executed the callback onCapabilitiesReceived.
-            removeCapabilities(capabilityList);
-        } catch (RemoteException e) {
-            Log.w(LOG_TAG, "triggerCapabilitiesCallback exception: " + e);
-            setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Trigger the capabilities updated callback and remove the given capability from the resource
-     * terminated list.
-     */
-    public boolean triggerResourceTerminatedCallback(List<RcsContactUceCapability> capList) {
-        try {
-            mCapabilitiesCallback.onCapabilitiesReceived(capList);
-            // Remove the elements that have executed the callback onCapabilitiesReceived.
-            removeTerminatedResources(capList);
-        } catch (RemoteException e) {
-            Log.w(LOG_TAG, "triggerTerminatedResourceCallback exception: " + e);
-            setErrorCode(RcsUceAdapter.ERROR_GENERIC_FAILURE);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Trigger the onComplete callback to notify the request is completed.
-     */
-    public void triggerCompletedCallback() {
-        try {
-            mCapabilitiesCallback.onComplete();
-        } catch (RemoteException e) {
-            Log.w(LOG_TAG, "triggerCompletedCallback exception: " + e);
+    public synchronized boolean isRequestForbidden() {
+        final int sipCodeForbidden = NetworkSipCode.SIP_CODE_FORBIDDEN;
+        if (getReasonHeaderCause().isPresent()) {
+            return getReasonHeaderCause().filter(c -> c == sipCodeForbidden).isPresent();
+        } else {
+            return getNetworkRespSipCode().filter(c -> c == sipCodeForbidden).isPresent();
         }
     }
 
     /**
-     * Trigger the onError callback to notify the request is failed.
+     * Check the contacts of the request is not found.
+     * @return true if the sip code of the network response is NOT_FOUND(404) or
+     * DOES_NOT_EXIST_ANYWHERE(604)
      */
-    public void triggerErrorCallback() {
-        try {
-            mCapabilitiesCallback.onError(mErrorCode.get(), mRetryAfterMillis.orElse(0L));
-        } catch (RemoteException e) {
-            Log.w(LOG_TAG, "triggerErrorCallback exception: " + e);
+    public synchronized boolean isNotFound() {
+        final int notFound = NetworkSipCode.SIP_CODE_NOT_FOUND;
+        final int notExistAnywhere = NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE;
+        Optional<Integer> reasonHeaderCause = getReasonHeaderCause();
+        Optional<Integer> respSipCode = getNetworkRespSipCode();
+        if (reasonHeaderCause.filter(c -> c == notFound || c == notExistAnywhere).isPresent() ||
+                respSipCode.filter(c -> c == notFound || c == notExistAnywhere).isPresent()) {
+            return true;
         }
+        return false;
     }
 
     /**
@@ -402,7 +333,7 @@ public class CapabilityRequestResponse {
      * RcsCapabilityExchangeImplBase to the Capabilities error code which are defined in the
      * RcsUceAdapter.
      */
-    public static int convertCommandErrorToCapabilityError(@CommandCode int cmdError) {
+    public static int getCapabilityErrorFromCommandError(@CommandCode int cmdError) {
         int uceError;
         switch (cmdError) {
             case RcsCapabilityExchangeImplBase.COMMAND_CODE_SERVICE_UNKNOWN:
@@ -438,16 +369,16 @@ public class CapabilityRequestResponse {
     /**
      * Convert the SIP error code which sent by ImsService to the capability error code.
      */
-    public int getCapabilityErrorFromSipError() {
+    public static int getCapabilityErrorFromSipCode(CapabilityRequestResponse response) {
         int sipError;
         String respReason;
         // Check the sip code in the Reason header first if the Reason Header is present.
-        if (mReasonHeaderCause.isPresent()) {
-            sipError = mReasonHeaderCause.get();
-            respReason = mReasonHeaderText.orElse("");
+        if (response.getReasonHeaderCause().isPresent()) {
+            sipError = response.getReasonHeaderCause().get();
+            respReason = response.getReasonHeaderText().orElse("");
         } else {
-            sipError = mNetworkRespSipCode.orElse(-1);
-            respReason = mReasonPhrase.orElse("");
+            sipError = response.getNetworkRespSipCode().orElse(-1);
+            respReason = response.getReasonPhrase().orElse("");
         }
         int uceError;
         switch (sipError) {
@@ -484,9 +415,9 @@ public class CapabilityRequestResponse {
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         StringBuilder builder = new StringBuilder();
-        return builder.append("ErrorCode=").append(mErrorCode.orElse(-1))
+        return builder.append("RequestInternalError=").append(mRequestInternalError.orElse(-1))
                 .append(", CommandErrorCode=").append(mCommandError.orElse(-1))
                 .append(", NetworkResponseCode=").append(mNetworkRespSipCode.orElse(-1))
                 .append(", NetworkResponseReason=").append(mReasonPhrase.orElse(""))
@@ -494,9 +425,10 @@ public class CapabilityRequestResponse {
                 .append(", ReasonHeaderText=").append(mReasonHeaderText.orElse(""))
                 .append(", TerminatedReason=").append(mTerminatedReason.orElse(""))
                 .append(", RetryAfterMillis=").append(mRetryAfterMillis.orElse(0L))
-                .append(", RemoteCaps size=" + mRemoteCaps.size())
-                .append(", Updated capability size=" + mUpdatedCapabilityList.size())
                 .append(", Terminated resource size=" + mTerminatedResource.size())
+                .append(", cached capability size=" + mCachedCapabilityList.size())
+                .append(", Updated capability size=" + mUpdatedCapabilityList.size())
+                .append(", RemoteCaps size=" + mRemoteCaps.size())
                 .toString();
     }
 }
