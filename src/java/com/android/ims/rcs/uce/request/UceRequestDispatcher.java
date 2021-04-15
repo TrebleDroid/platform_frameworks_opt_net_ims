@@ -174,19 +174,25 @@ public class UceRequestDispatcher {
             baseTime = Instant.now();
         }
 
+        StringBuilder builder = new StringBuilder("notifyStartOfRequest: taskId=");
         for (int i = 0; i < requestList.size(); i++) {
             Instant startExecutingTime = baseTime.plusMillis((mIntervalTime * i));
             Request request = requestList.get(i);
             request.setExecutingTime(startExecutingTime);
 
+            // Add the request to the executing collection
+            mExecutingRequests.add(request);
+
+            // Notify RequestManager to execute this task.
             long taskId = request.getTaskId();
             long coordId = request.getCoordinatorId();
             long delayTime = getDelayTime(startExecutingTime);
             mRequestManagerCallback.notifySendingRequest(coordId, taskId, delayTime);
-            logd("notifyStartOfRequest: taskId=" + request.getTaskId()
-                    + ", startingTime=" + startExecutingTime
-                    + ", delayTime=" + delayTime);
+
+            builder.append(request.getTaskId() + ", ");
         }
+        builder.append("ExecutingRequests size=" + mExecutingRequests.size());
+        logd(builder.toString());
     }
 
     private Instant getLastRequestTime() {
