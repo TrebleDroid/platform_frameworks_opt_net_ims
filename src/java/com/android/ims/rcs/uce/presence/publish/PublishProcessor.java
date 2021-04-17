@@ -57,10 +57,13 @@ public class PublishProcessor {
     private PublishProcessorState mProcessorState;
 
     // The information of the device's capabilities.
-    private DeviceCapabilityInfo mDeviceCapabilities;
+    private final DeviceCapabilityInfo mDeviceCapabilities;
 
     // The callback of the PublishController
-    private PublishControllerCallback mPublishCtrlCallback;
+    private final PublishControllerCallback mPublishCtrlCallback;
+
+    // The lock of processing the pending request.
+    private final Object mPendingRequestLock = new Object();
 
     private final LocalLog mLocalLog = new LocalLog(UceUtils.LOG_SIZE);
 
@@ -108,43 +111,55 @@ public class PublishProcessor {
      * @param triggerType The type of triggering the publish request.
      */
     public void doPublish(@PublishTriggerType int triggerType) {
-        if (mIsDestroyed) return;
+        mProcessorState.setPublishingFlag(true);
+        if (!doPublishInternal(triggerType)) {
+            // Reset the publishing flag if the request cannot be sent to the IMS service.
+            mProcessorState.setPublishingFlag(false);
+        }
+    }
+    /**
+     * Execute the publish request internally.
+     * @param triggerType The type of triggering the publish request.
+     * @return true if the publish is sent to the IMS service successfully, false otherwise.
+     */
+    private boolean doPublishInternal(@PublishTriggerType int triggerType) {
+        if (mIsDestroyed) return false;
 
-        mLocalLog.log("doPublish: trigger type=" + triggerType);
-        logi("doPublish: trigger type=" + triggerType);
+        mLocalLog.log("doPublishInternal: trigger type=" + triggerType);
+        logi("doPublishInternal: trigger type=" + triggerType);
 
         // Return if this request is not allowed to be executed.
         if (!isRequestAllowed(triggerType)) {
-            mLocalLog.log("doPublish: The request is not allowed.");
-            return;
+            mLocalLog.log("doPublishInternal: The request is not allowed.");
+            return false;
         }
 
         // Get the latest device's capabilities.
         RcsContactUceCapability deviceCapability =
                 mDeviceCapabilities.getDeviceCapabilities(CAPABILITY_MECHANISM_PRESENCE, mContext);
         if (deviceCapability == null) {
-            logw("doPublish: device capability is null");
-            return;
+            logw("doPublishInternal: device capability is null");
+            return false;
         }
 
         // Convert the device's capabilities to pidf format.
         String pidfXml = PidfParser.convertToPidf(deviceCapability);
         if (TextUtils.isEmpty(pidfXml)) {
-            logw("doPublish: pidfXml is empty");
-            return;
+            logw("doPublishInternal: pidfXml is empty");
+            return false;
         }
 
         // Set the pending request and return if RCS is not connected. When the RCS is connected
         // afterward, it will send a new request if there's a pending request.
         RcsFeatureManager featureManager = mRcsFeatureManager;
         if (featureManager == null) {
-            logw("doPublish: RCS is not connected.");
+            logw("doPublishInternal: RCS is not connected.");
             setPendingRequest(triggerType);
-            return;
+            return false;
         }
 
         // Publish to the Presence server.
-        publishCapabilities(featureManager, pidfXml);
+        return publishCapabilities(featureManager, pidfXml);
     }
 
     /*
@@ -172,14 +187,6 @@ public class PublishProcessor {
             return false;
         }
 
-        // Set the pending flag if there's already a request running now. When the running request
-        // is finished and there is a pending request, it will send a new request.
-        if (mProcessorState.isPublishingNow()) {
-            logd("isPublishAllowed: There is already a request running now");
-            setPendingRequest(triggerType);
-            return false;
-        }
-
         // Skip this request if the PUBLISH is not allowed at current time. Resend the PUBLISH
         // request and it will be triggered with an appropriate delay time.
         if (!mProcessorState.isPublishAllowedAtThisTime()) {
@@ -191,15 +198,12 @@ public class PublishProcessor {
     }
 
     // Publish the device capabilities with the given pidf.
-    private void publishCapabilities(@NonNull RcsFeatureManager featureManager,
+    private boolean publishCapabilities(@NonNull RcsFeatureManager featureManager,
             @NonNull String pidfXml) {
         PublishRequestResponse requestResponse = null;
         try {
-            // Set publishing flag
-            mProcessorState.setPublishingFlag(true);
-
             // Clear the pending flag because it is going to send the latest device's capabilities.
-            mProcessorState.clearPendingRequest();
+            clearPendingRequest();
 
             // Generate a unique taskId to track this request.
             long taskId = mProcessorState.generatePublishTaskId();
@@ -213,13 +217,14 @@ public class PublishProcessor {
 
             // Send a request canceled timer to avoid waiting too long for the response callback.
             mPublishCtrlCallback.setupRequestCanceledTimer(taskId, RESPONSE_CALLBACK_WAITING_TIME);
-
+            return true;
         } catch (RemoteException e) {
             mLocalLog.log("publish capability exception: " + e.getMessage());
             logw("publishCapabilities: exception=" + e.getMessage());
             // Exception occurred, end this request.
             setRequestEnded(requestResponse);
             checkAndSendPendingRequest();
+            return false;
         }
    }
 
@@ -307,7 +312,7 @@ public class PublishProcessor {
         mProcessorState.increaseRetryCount();
 
         // Reset the pending flag because it is going to resend a request.
-        mProcessorState.clearPendingRequest();
+        clearPendingRequest();
 
         // Finish this request and resend a new publish request
         setRequestEnded(requestResponse);
@@ -369,23 +374,37 @@ public class PublishProcessor {
      * Set the pending flag when it cannot be executed now.
      */
     public void setPendingRequest(@PublishTriggerType int triggerType) {
-        mProcessorState.setPendingRequest(triggerType);
+        synchronized (mPendingRequestLock) {
+            mProcessorState.setPendingRequest(triggerType);
+        }
     }
 
     /**
      * Check and trigger a new publish request if there is a pending request.
      */
     public void checkAndSendPendingRequest() {
-        if (mIsDestroyed) return;
-        if (mProcessorState.hasPendingRequest()) {
-            // Retrieve the trigger type of the pending request
-            int type = mProcessorState.getPendingRequestTriggerType()
-                    .orElse(PublishController.PUBLISH_TRIGGER_RETRY);
-            logd("checkAndSendPendingRequest: send pending request, type=" + type);
+        synchronized (mPendingRequestLock) {
+            if (mIsDestroyed) return;
+            if (mProcessorState.hasPendingRequest()) {
+                // Retrieve the trigger type of the pending request
+                int type = mProcessorState.getPendingRequestTriggerType()
+                        .orElse(PublishController.PUBLISH_TRIGGER_RETRY);
+                logd("checkAndSendPendingRequest: send pending request, type=" + type);
 
-            // Clear the pending flag because it is going to send a PUBLISH request.
+                // Clear the pending flag because it is going to send a PUBLISH request.
+                mProcessorState.clearPendingRequest();
+                mPublishCtrlCallback.requestPublishFromInternal(type);
+            }
+        }
+    }
+
+    /**
+     * Clear the pending request. It means that the publish request is triggered and this flag can
+     * be removed.
+     */
+    private void clearPendingRequest() {
+        synchronized (mPendingRequestLock) {
             mProcessorState.clearPendingRequest();
-            mPublishCtrlCallback.requestPublishFromInternal(type);
         }
     }
 
@@ -411,6 +430,13 @@ public class PublishProcessor {
      */
     public void updatePublishThrottle(int publishThrottle) {
         mProcessorState.updatePublishThrottle(publishThrottle);
+    }
+
+    /**
+     * @return true if the publish request is running now.
+     */
+    public boolean isPublishingNow() {
+        return mProcessorState.isPublishingNow();
     }
 
     @VisibleForTesting
