@@ -19,13 +19,11 @@ package com.android.ims.rcs.uce.presence.publish;
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_RETRY;
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_VT_SETTING_CHANGE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.os.Handler;
@@ -45,6 +43,7 @@ import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapL
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
 import com.android.ims.ImsTestBase;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.After;
@@ -83,9 +82,11 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testRcsConnected() throws Exception {
-        PublishController publishController = createPublishController();
+        PublishControllerImpl publishController = createPublishController();
 
         publishController.onRcsConnected(mFeatureManager);
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
 
         verify(mPublishProcessor).onRcsConnected(mFeatureManager);
     }
@@ -93,9 +94,11 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testRcsDisconnected() throws Exception {
-        PublishController publishController = createPublishController();
+        PublishControllerImpl publishController = createPublishController();
 
         publishController.onRcsDisconnected();
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
 
         verify(mPublishProcessor).onRcsDisconnected();
     }
@@ -103,26 +106,28 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testDestroyed() throws Exception {
-        PublishController publishController = createPublishController();
+        PublishControllerImpl publishController = createPublishController();
 
         publishController.onDestroy();
 
-        verify(mPublishProcessor).onDestroy();
-        verify(mDeviceCapListener).onDestroy();
+        verify(mPublishProcessor, never()).doPublish(anyInt());
     }
 
     @Test
     @SmallTest
     public void testGetPublishState() throws Exception {
-        PublishController publishController = createPublishController();
+        PublishControllerImpl publishController = createPublishController();
 
         int initState = publishController.getUcePublishState();
         assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED, initState);
 
-        publishController.onDestroy();
+        publishController.getPublishControllerCallback().updatePublishRequestResult(
+                RcsUceAdapter.PUBLISH_STATE_OK, Instant.now(), null);
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
 
-        int destroyedState = publishController.getUcePublishState();
-        assertEquals(RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR, destroyedState);
+        int latestState = publishController.getUcePublishState();
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, latestState);
     }
 
     @Test
@@ -173,6 +178,8 @@ public class PublishControllerImplTest extends ImsTestBase {
 
         IImsCapabilityCallback callback = publishController.getRcsCapabilitiesCallback();
         callback.onCapabilitiesStatusChanged(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+        waitForHandlerAction(handler, 1000);
+
         verify(mPublishProcessor).checkAndSendPendingRequest();
     }
 

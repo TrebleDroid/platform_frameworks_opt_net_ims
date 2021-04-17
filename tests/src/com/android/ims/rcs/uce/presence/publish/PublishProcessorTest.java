@@ -108,18 +108,6 @@ public class PublishProcessorTest extends ImsTestBase {
 
     @Test
     @SmallTest
-    public void testNotPublishWhenAlreadyPublishing() throws Exception {
-        doReturn(true).when(mProcessorState).isPublishingNow();
-        PublishProcessor publishProcessor = getPublishProcessor();
-
-        publishProcessor.doPublish(PublishController.PUBLISH_TRIGGER_RETRY);
-
-        verify(mProcessorState).setPendingRequest(PublishController.PUBLISH_TRIGGER_RETRY);
-        verify(mRcsFeatureManager, never()).requestPublication(any(), any());
-    }
-
-    @Test
-    @SmallTest
     public void testNotPublishWhenReachMaximumRetries() throws Exception {
         doReturn(true).when(mProcessorState).isPublishingNow();
         doReturn(mTaskId).when(mProcessorState).getCurrentTaskId();
