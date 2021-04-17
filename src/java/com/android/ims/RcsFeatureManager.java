@@ -413,6 +413,8 @@ public class RcsFeatureManager implements FeatureUpdates {
     public void addRcsUceCapability(CapabilityChangeRequest request,
             @RcsImsCapabilities.RcsImsCapabilityFlag int capability) {
         request.addCapabilitiesToEnableForTech(capability,
+                ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+        request.addCapabilitiesToEnableForTech(capability,
                 ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
         request.addCapabilitiesToEnableForTech(capability,
                 ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
@@ -437,11 +439,14 @@ public class RcsFeatureManager implements FeatureUpdates {
      * Disable all of the UCE capabilities.
      */
     private void disableAllRcsUceCapabilities() throws android.telephony.ims.ImsException {
+        final int techNr = ImsRegistrationImplBase.REGISTRATION_TECH_NR;
         final int techLte = ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
         final int techIWlan = ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN;
         CapabilityChangeRequest request = new CapabilityChangeRequest();
+        request.addCapabilitiesToDisableForTech(CAPABILITY_OPTIONS, techNr);
         request.addCapabilitiesToDisableForTech(CAPABILITY_OPTIONS, techLte);
         request.addCapabilitiesToDisableForTech(CAPABILITY_OPTIONS, techIWlan);
+        request.addCapabilitiesToDisableForTech(CAPABILITY_PRESENCE, techNr);
         request.addCapabilitiesToDisableForTech(CAPABILITY_PRESENCE, techLte);
         request.addCapabilitiesToDisableForTech(CAPABILITY_PRESENCE, techIWlan);
         sendCapabilityChangeRequest(request);
