@@ -46,6 +46,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
+import com.android.ims.rcs.uce.presence.publish.PublishController.PublishTriggerType;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.util.HandlerExecutor;
@@ -135,7 +136,8 @@ public class DeviceCapabilityListener {
             sendEmptyMessage(EVENT_UNREGISTER_IMS_CHANGE);
         }
 
-        public void sendTriggeringPublishMessage(int type) {
+        public void sendTriggeringPublishMessage(@PublishTriggerType int type) {
+            logd("sendTriggeringPublishMessage: type=" + type);
             // Remove the existing message and resend a new message.
             removeMessages(EVENT_REQUEST_PUBLISH);
             Message message = obtainMessage();
