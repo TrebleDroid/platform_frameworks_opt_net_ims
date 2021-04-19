@@ -31,7 +31,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.provider.ContactsContract;
