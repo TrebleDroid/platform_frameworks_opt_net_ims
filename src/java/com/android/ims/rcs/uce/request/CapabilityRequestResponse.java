@@ -262,26 +262,6 @@ public class CapabilityRequestResponse {
     }
 
     /**
-     * Get a copy of the this instance.
-     */
-    public synchronized CapabilityRequestResponse copy() {
-        CapabilityRequestResponse response = new CapabilityRequestResponse();
-        response.mRequestInternalError = mRequestInternalError;
-        response.mCommandError = mCommandError;
-        response.mNetworkRespSipCode = mNetworkRespSipCode;
-        response.mReasonPhrase = mReasonPhrase;
-        response.mReasonHeaderCause = mReasonHeaderCause;
-        response.mReasonHeaderText = mReasonHeaderText;
-        response.mTerminatedReason = mTerminatedReason;
-        response.mRetryAfterMillis = mRetryAfterMillis;
-        response.mTerminatedResource.addAll(mTerminatedResource);
-        response.mCachedCapabilityList.addAll(mCachedCapabilityList);
-        response.mUpdatedCapabilityList.addAll(mUpdatedCapabilityList);
-        response.mRemoteCaps.addAll(mRemoteCaps);
-        return response;
-    }
-
-    /**
      * Check if the network response is success.
      * @return true if the network response code is OK or Accepted and the Reason header cause
      * is either not present or OK.
@@ -394,6 +374,9 @@ public class CapabilityRequestResponse {
                     // The network has responded SIP 403 error with no reason.
                     uceError = RcsUceAdapter.ERROR_FORBIDDEN;
                 }
+                break;
+            case NetworkSipCode.SIP_CODE_NOT_FOUND:              // 404
+                uceError = RcsUceAdapter.ERROR_NOT_FOUND;
                 break;
             case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:        // 408
                 uceError = RcsUceAdapter.ERROR_REQUEST_TIMEOUT;
