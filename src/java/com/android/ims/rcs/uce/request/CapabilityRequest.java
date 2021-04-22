@@ -118,10 +118,10 @@ public abstract class CapabilityRequest implements UceRequest {
     }
 
     /**
-     * @return A copy of the RequestResponse instance associated with this request.
+     * @return The RequestResponse instance associated with this request.
      */
     public CapabilityRequestResponse getRequestResponse() {
-        return mRequestResponse.copy();
+        return mRequestResponse;
     }
 
     /**

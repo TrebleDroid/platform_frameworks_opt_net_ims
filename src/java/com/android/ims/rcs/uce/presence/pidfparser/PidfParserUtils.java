@@ -298,4 +298,15 @@ public class PidfParserUtils {
                         contact, RcsContactUceCapability.SOURCE_TYPE_NETWORK, requestResult);
         return builder.build();
     }
+
+    /**
+     * Get the RcsContactUceCapability instance which the request result is NOT FOUND.
+     */
+    public static RcsContactUceCapability getNotFoundContactCapabilities(Uri contact) {
+        RcsContactUceCapability.PresenceBuilder builder =
+                new RcsContactUceCapability.PresenceBuilder(contact,
+                        RcsContactUceCapability.SOURCE_TYPE_NETWORK,
+                        RcsContactUceCapability.REQUEST_RESULT_NOT_FOUND);
+        return builder.build();
+    }
 }
