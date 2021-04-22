@@ -260,7 +260,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         if (response.isNotFound()) {
             List<Uri> uriList = request.getContactUri();
             List<RcsContactUceCapability> capabilityList = uriList.stream().map(uri ->
-                    PidfParserUtils.getTerminatedCapability(uri, null))
+                    PidfParserUtils.getNotFoundContactCapabilities(uri))
                     .collect(Collectors.toList());
             response.addUpdatedCapabilities(capabilityList);
         }
