@@ -20,12 +20,15 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
-import android.database.DatabaseUtils;
 import android.net.Uri;
 import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -243,11 +246,10 @@ public class EabContactSyncController {
                     ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID));
             String dataId = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data._ID));
-            String number = contactCursor.getString(
-                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
+            String number = formatNumber(context, contactCursor.getString(
+                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
             String mimeType = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
-
 
             if (!mimeType.equals(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)) {
                 continue;
@@ -328,5 +330,21 @@ public class EabContactSyncController {
         SharedPreferences sharedPreferences =
                 PreferenceManager.getDefaultSharedPreferences(context);
         return sharedPreferences.getLong(LAST_UPDATED_TIME_KEY, NOT_INIT_LAST_UPDATED_TIME);
+    }
+
+    private String formatNumber(Context context, String number) {
+        TelephonyManager manager = context.getSystemService(TelephonyManager.class);
+        String simCountryIso = manager.getSimCountryIso();
+        if (simCountryIso != null) {
+            simCountryIso = simCountryIso.toUpperCase();
+            PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+            try {
+                Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+                return util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+            } catch (NumberParseException e) {
+                Log.w(TAG, "formatNumber: could not format " + number + ", error: " + e);
+            }
+        }
+        return number;
     }
 }
