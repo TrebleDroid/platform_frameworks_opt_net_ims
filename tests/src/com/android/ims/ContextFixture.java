@@ -27,6 +27,7 @@ import static org.mockito.Mockito.spy;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.IContentProvider;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -71,6 +72,7 @@ public class ContextFixture {
                 .when(mPackageManager).hasSystemFeature(any());
 
         doReturn(mResources).when(mPackageManager).getResourcesForApplication(anyString());
+        doReturn(mTelephonyManager).when(mTelephonyManager).createForSubscriptionId(anyInt());
     }
 
     public void destroy() {
@@ -140,6 +142,11 @@ public class ContextFixture {
         @Override
         public Executor getMainExecutor() {
             return Runnable::run;
+        }
+
+        @Override
+        public Context getApplicationContext() {
+            return mContext;
         }
     }
 
