@@ -165,10 +165,16 @@ public class EabContactSyncController {
         Map<String, List<String>> phoneNumberMap = new HashMap<>();
         cursor.moveToPosition(-1);
         while (cursor.moveToNext()) {
+            String mimeType = cursor.getString(
+                    cursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
+            if (!mimeType.equals(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)) {
+                continue;
+            }
+
             String rawContactId = cursor.getString(
                     cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID));
-            String number = cursor.getString(
-                    cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
+            String number = formatNumber(context, cursor.getString(
+                    cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
 
             if (phoneNumberMap.containsKey(rawContactId)) {
                 phoneNumberMap.get(rawContactId).add(number);
@@ -246,14 +252,15 @@ public class EabContactSyncController {
                     ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID));
             String dataId = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data._ID));
-            String number = formatNumber(context, contactCursor.getString(
-                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
             String mimeType = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
 
             if (!mimeType.equals(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)) {
                 continue;
             }
+
+            String number = formatNumber(context, contactCursor.getString(
+                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
 
             int index = searchDataIdIndex(eabContact, Integer.parseInt(dataId));
             if (index == -1) {
