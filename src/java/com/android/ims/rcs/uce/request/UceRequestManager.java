@@ -31,6 +31,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
@@ -160,21 +161,14 @@ public class UceRequestManager {
         RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int capMechanism);
 
         /**
-         * Check if UCE requests are forbidden by the network.
-         * @return true when the UCE requests are forbidden by the network.
+         * Get the device state to check whether the device is disallowed by the network or not.
          */
-        boolean isRequestForbidden();
+        DeviceStateResult getDeviceState();
 
         /**
-         * Notify UceController that the UCE request is forbidden.
+         * Refresh the device state. It is called when receive the UCE request response.
          */
-        void onRequestForbidden(boolean isForbidden, Integer errorCode, long retryAfterMillis);
-
-        /**
-         * Get the milliseconds need to wait for retry.
-         * @return The milliseconds need to wait
-         */
-        long getRetryAfterMillis();
+        void refreshDeviceState(int sipCode, String reason);
 
         /**
          * Notify that the UceRequest associated with the given taskId encounters error.
@@ -264,18 +258,13 @@ public class UceRequestManager {
         }
 
         @Override
-        public boolean isRequestForbidden() {
-            return mControllerCallback.isRequestForbiddenByNetwork();
+        public DeviceStateResult getDeviceState() {
+            return mControllerCallback.getDeviceState();
         }
 
         @Override
-        public void onRequestForbidden(boolean isForbidden, Integer errorCode, long retryAfter) {
-            mControllerCallback.updateRequestForbidden(isForbidden, errorCode, retryAfter);
-        }
-
-        @Override
-        public long getRetryAfterMillis() {
-            return mControllerCallback.getRetryAfterMillis();
+        public void refreshDeviceState(int sipCode, String reason) {
+            mControllerCallback.refreshDeviceState(sipCode, reason);
         }
 
         @Override

@@ -122,6 +122,24 @@ public class PublishRequestResponse {
     }
 
     /**
+     * Retrieve the SIP code from the network response. It will get the value from the Reason
+     * Header first. If the ReasonHeader is not present, it will get the value from the Network
+     * response instead.
+     */
+    public Optional<Integer> getResponseSipCode() {
+        return (mReasonHeaderCause.isPresent()) ? mReasonHeaderCause : mNetworkRespSipCode;
+    }
+
+    /**
+     * Retrieve the REASON from the network response. It will get the value from the Reason Header
+     * first. If the ReasonHeader is not present, it will get the value from the Network response
+     * instead.
+     */
+    public Optional<String> getResponseReason() {
+        return (mReasonHeaderText.isPresent()) ? mReasonHeaderText : mReasonPhrase;
+    }
+
+    /**
      * Get the timestamp of receiving the network response callback.
      */
     public @Nullable Instant getResponseTimestamp() {

@@ -160,11 +160,11 @@ public class UceRequestManagerTest extends ImsTestBase {
         requestMgrCallback.getDeviceCapabilities(CAPABILITY_MECHANISM_PRESENCE);
         verify(mCallback).getDeviceCapabilities(CAPABILITY_MECHANISM_PRESENCE);
 
-        requestMgrCallback.isRequestForbidden();
-        verify(mCallback).isRequestForbiddenByNetwork();
+        requestMgrCallback.getDeviceState();
+        verify(mCallback).getDeviceState();
 
-        requestMgrCallback.onRequestForbidden(true, 403, 10000L);
-        verify(mCallback).updateRequestForbidden(true, 403, 10000L);
+        requestMgrCallback.refreshDeviceState(200, "OK");
+        verify(mCallback).refreshDeviceState(200, "OK");
 
         requestMgrCallback.notifyRequestError(mCoordId, mTaskId);
         waitForHandlerAction(handler, 400L);

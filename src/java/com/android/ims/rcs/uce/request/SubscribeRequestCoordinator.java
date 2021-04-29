@@ -21,8 +21,10 @@ import static android.telephony.ims.stub.RcsCapabilityExchangeImplBase.COMMAND_C
 import android.net.Uri;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IRcsUceControllerCallback;
 
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.internal.annotations.VisibleForTesting;
@@ -74,18 +76,21 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
      */
     @FunctionalInterface
     private interface RequestResultCreator {
-        RequestResult createRequestResult(long taskId, CapabilityRequestResponse response);
+        RequestResult createRequestResult(long taskId, CapabilityRequestResponse response,
+                RequestManagerCallback requestMgrCallback);
     }
 
     // The RequestResult creator of the request error.
-    private static final RequestResultCreator sRequestErrorCreator = (taskId, response) -> {
+    private static final RequestResultCreator sRequestErrorCreator = (taskId, response,
+            requestMgrCallback) -> {
         int errorCode = response.getRequestInternalError().orElse(DEFAULT_ERROR_CODE);
         long retryAfter = response.getRetryAfterMillis();
         return RequestResult.createFailedResult(taskId, errorCode, retryAfter);
     };
 
     // The RequestResult creator of the command error.
-    private static final RequestResultCreator sCommandErrorCreator = (taskId, response) -> {
+    private static final RequestResultCreator sCommandErrorCreator = (taskId, response,
+            requestMgrCallback) -> {
         int cmdError = response.getCommandError().orElse(COMMAND_CODE_GENERIC_FAILURE);
         int errorCode = CapabilityRequestResponse.getCapabilityErrorFromCommandError(cmdError);
         long retryAfter = response.getRetryAfterMillis();
@@ -93,14 +98,23 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
     };
 
     // The RequestResult creator of the network response error.
-    private static final RequestResultCreator sNetworkRespErrorCreator = (taskId, response) -> {
-        int errorCode = CapabilityRequestResponse.getCapabilityErrorFromSipCode(response);
-        long retryAfter = response.getRetryAfterMillis();
-        return RequestResult.createFailedResult(taskId, errorCode, retryAfter);
+    private static final RequestResultCreator sNetworkRespErrorCreator = (taskId, response,
+            requestMgrCallback) -> {
+        DeviceStateResult deviceState = requestMgrCallback.getDeviceState();
+        if (deviceState.isRequestForbidden()) {
+            int errorCode = deviceState.getErrorCode().orElse(RcsUceAdapter.ERROR_FORBIDDEN);
+            long retryAfter = deviceState.getRequestRetryAfterMillis();
+            return RequestResult.createFailedResult(taskId, errorCode, retryAfter);
+        } else {
+            int errorCode = CapabilityRequestResponse.getCapabilityErrorFromSipCode(response);
+            long retryAfter = response.getRetryAfterMillis();
+            return RequestResult.createFailedResult(taskId, errorCode, retryAfter);
+        }
     };
 
     // The RequestResult creator of the request terminated.
-    private static final RequestResultCreator sTerminatedCreator = (taskId, response) -> {
+    private static final RequestResultCreator sTerminatedCreator = (taskId, response,
+            requestMgrCallback) -> {
         long retryAfterMillis = response.getRetryAfterMillis();
         int errorCode = CapabilityRequestResponse.getCapabilityErrorFromSipCode(response);
         // If the network response is failed or the retryAfter is not zero, this request is failed.
@@ -113,7 +127,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
     // The RequestResult creator for does not need to request from the network.
     private static final RequestResultCreator sNotNeedRequestFromNetworkCreator =
-            (taskId, response) -> RequestResult.createSuccessResult(taskId);
+            (taskId, response, requestMgrCallback) -> RequestResult.createSuccessResult(taskId);
 
     // The callback to notify the result of the capabilities request.
     private volatile IRcsUceControllerCallback mCapabilitiesCallback;
@@ -191,7 +205,8 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
         // Remove this request from the activated collection and notify RequestManager.
         Long taskId = request.getTaskId();
-        RequestResult requestResult = sRequestErrorCreator.createRequestResult(taskId, response);
+        RequestResult requestResult = sRequestErrorCreator.createRequestResult(taskId, response,
+                mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
     }
 
@@ -208,7 +223,8 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
         // Remove this request from the activated collection and notify RequestManager.
         Long taskId = request.getTaskId();
-        RequestResult requestResult = sCommandErrorCreator.createRequestResult(taskId, response);
+        RequestResult requestResult = sCommandErrorCreator.createRequestResult(taskId, response,
+                mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
     }
 
@@ -220,13 +236,19 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         CapabilityRequestResponse response = request.getRequestResponse();
         logd("handleNetworkResponse: " + response.toString());
 
+        // Refresh the device state with the request result.
+        response.getResponseSipCode().ifPresent(sipCode -> {
+            String reason = response.getResponseReason().orElse("");
+            mRequestManagerCallback.refreshDeviceState(sipCode, reason);
+        });
+
         // When the network response is unsuccessful, there is no subsequent callback for this
         // request. Check the forbidden state and finish this request. Otherwise, keep waiting for
         // the subsequent callback of this request.
         if (!response.isNetworkResponseOK()) {
             Long taskId = request.getTaskId();
             RequestResult requestResult = sNetworkRespErrorCreator.createRequestResult(taskId,
-                    response);
+                    response, mRequestManagerCallback);
 
             // handle forbidden and not found case.
             handleNetworkResponseFailed(request, requestResult);
@@ -249,13 +271,6 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
     private void handleNetworkResponseFailed(SubscribeRequest request, RequestResult result) {
         CapabilityRequestResponse response = request.getRequestResponse();
-
-        // Update the forbidden state when the sip code is forbidden
-        if (response.isRequestForbidden()) {
-            Long retryMillis =  result.getRetryMillis().orElse(0L);
-            int errorCode = result.getErrorCode().orElse(DEFAULT_ERROR_CODE);
-            mRequestManagerCallback.onRequestForbidden(true, errorCode, retryMillis);
-        }
 
         if (response.isNotFound()) {
             List<Uri> uriList = request.getContactUri();
@@ -343,7 +358,8 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
         // Remove this request from the activated collection and notify RequestManager.
         Long taskId = request.getTaskId();
-        RequestResult requestResult = sTerminatedCreator.createRequestResult(taskId, response);
+        RequestResult requestResult = sTerminatedCreator.createRequestResult(taskId, response,
+                mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
     }
 
@@ -361,7 +377,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         // Remove this request from the activated collection and notify RequestManager.
         long taskId = request.getTaskId();
         RequestResult requestResult = sNotNeedRequestFromNetworkCreator.createRequestResult(taskId,
-                response);
+                response, mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
     }
 
