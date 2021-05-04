@@ -130,8 +130,12 @@ public class FeatureConnector<U extends FeatureUpdates> {
         public void imsFeatureRemoved(@UnavailableReason int reason) {
             log("imsFeatureRemoved: reason=" + reason);
             synchronized (mLock) {
-                // only generate new events if the disconnect event isn't the same as before.
-                if (mDisconnectedReason != null && mDisconnectedReason.equals(reason)) {
+                // only generate new events if the disconnect event isn't the same as before, except
+                // for UNAVAILABLE_REASON_SERVER_UNAVAILABLE, which indicates a local issue and
+                // each event is actionable.
+                if (mDisconnectedReason != null
+                        && (mDisconnectedReason == reason
+                        && mDisconnectedReason != UNAVAILABLE_REASON_SERVER_UNAVAILABLE)) {
                     log("imsFeatureRemoved: ignore");
                     return;
                 }
