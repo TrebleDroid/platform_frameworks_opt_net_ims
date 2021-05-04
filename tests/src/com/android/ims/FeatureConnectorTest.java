@@ -265,6 +265,34 @@ public class FeatureConnectorTest extends ImsTestBase {
 
     @Test
     @SmallTest
+    public void testCantConnectToServer() throws Exception {
+        ArrayList<Integer> filterList = new ArrayList<>();
+        filterList.add(ImsFeature.STATE_READY);
+        filterList.add(ImsFeature.STATE_INITIALIZING);
+        filterList.add(ImsFeature.STATE_UNAVAILABLE);
+        createFeatureConnector(filterList);
+
+        mFeatureConnector.connect();
+        mTestManager.callback.imsFeatureRemoved(
+                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+        verify(mListener).connectionUnavailable(
+                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+
+        // Clear callback and ensure that the second connect tries to register a callback.
+        mTestManager.registerFeatureCallback(PHONE_ID, null);
+        mFeatureConnector.connect();
+        assertNotNull("The register request should happen the second time as well.",
+                mTestManager.callback);
+        mTestManager.callback.imsFeatureRemoved(
+                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+        // In the special case that UNAVAILABLE_REASON_SERVER_UNAVAILABLE is returned, we should get
+        // an unavailable callback every time because it will require connect to be called again.
+        verify(mListener,times(2)).connectionUnavailable(
+                FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE);
+    }
+
+    @Test
+    @SmallTest
     public void testConnectReadyRemovedReady() throws Exception {
         createFeatureConnector();
         mFeatureConnector.connect();
