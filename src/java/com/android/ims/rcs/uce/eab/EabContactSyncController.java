@@ -85,6 +85,10 @@ public class EabContactSyncController {
         if (updatedContact != null) {
             Log.d(TAG, "Contact changed count: " + updatedContact.getCount());
 
+            if (updatedContact.getCount() == 0) {
+                return new ArrayList<>();
+            }
+
             // Delete the EAB phone number that not in contact provider (case 2). Updated phone
             // number(case 3) also delete in here and re-insert in next step.
             handlePhoneNumberDeletedCase(context, updatedContact);
@@ -214,15 +218,11 @@ public class EabContactSyncController {
             }
         }
 
-        if (deleteClause.length() > 1) {
-            int number = context.getContentResolver().delete(
-                    EabProvider.CONTACT_URI,
-                    deleteClause.toString(),
-                    deleteClauseArgs.toArray(new String[0]));
-            Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count= " + number);
-        } else {
-            Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count is empty.");
-        }
+        int number = context.getContentResolver().delete(
+                EabProvider.CONTACT_URI,
+                deleteClause.toString(),
+                deleteClauseArgs.toArray(new String[0]));
+        Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count= " + number);
     }
 
     /**
