@@ -113,6 +113,8 @@ public class EabContactSyncControllerTest extends ImsTestBase {
         // Insert 2 deleted contacts
         insertDeletedContactToContactProvider(1, 1);
         insertDeletedContactToContactProvider(2, 1);
+        // Keep id:3 in contact provider
+        insertContactToContactProvider(3, 3, 3, "12345678");
 
         new EabContactSyncController().syncContactToEabProvider(mContext);
 

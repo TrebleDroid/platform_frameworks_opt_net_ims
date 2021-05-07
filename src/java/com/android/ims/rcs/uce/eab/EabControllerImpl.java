@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
+import android.telephony.TelephonyManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
@@ -44,6 +45,9 @@ import android.text.format.Time;
 import android.util.Log;
 import android.util.TimeFormatException;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.internal.annotations.VisibleForTesting;
@@ -186,7 +190,7 @@ public class EabControllerImpl implements EabController {
 
         // Update the capabilities
         for (RcsContactUceCapability capability : contactCapabilities) {
-            String phoneNumber = getNumberFromUri(capability.getContactUri());
+            String phoneNumber = getNumberFromUri(mContext, capability.getContactUri());
             Cursor c = mContext.getContentResolver().query(
                     EabProvider.CONTACT_URI, null,
                     EabProvider.ContactColumns.PHONE_NUMBER + "=?",
@@ -246,7 +250,7 @@ public class EabControllerImpl implements EabController {
         // query EAB provider
         Uri queryUri = Uri.withAppendedPath(
                 Uri.withAppendedPath(EabProvider.ALL_DATA_URI, String.valueOf(mSubId)),
-                getNumberFromUri(contactUri));
+                getNumberFromUri(mContext, contactUri));
         Cursor cursor = mContext.getContentResolver().query(
                 queryUri, null, null, null, null);
 
@@ -759,12 +763,28 @@ public class EabControllerImpl implements EabController {
         return cursor.getInt(cursor.getColumnIndex(column));
     }
 
-    private static String getNumberFromUri(Uri uri) {
+    private static String getNumberFromUri(Context context, Uri uri) {
         String number = uri.getSchemeSpecificPart();
         String[] numberParts = number.split("[@;:]");
         if (numberParts.length == 0) {
             return null;
         }
-        return numberParts[0];
+        return formatNumber(context, numberParts[0]);
+    }
+
+    private static String formatNumber(Context context, String number) {
+        TelephonyManager manager = context.getSystemService(TelephonyManager.class);
+        String simCountryIso = manager.getSimCountryIso();
+        if (simCountryIso != null) {
+            simCountryIso = simCountryIso.toUpperCase();
+            PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+            try {
+                Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+                return util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+            } catch (NumberParseException e) {
+                Log.w(TAG, "formatNumber: could not format " + number + ", error: " + e);
+            }
+        }
+        return number;
     }
 }
