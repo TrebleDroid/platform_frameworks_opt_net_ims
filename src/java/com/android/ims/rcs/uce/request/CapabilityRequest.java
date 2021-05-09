@@ -21,6 +21,7 @@ import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsContactUceCapability;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.ims.rcs.uce.util.UceUtils;
@@ -178,9 +179,11 @@ public abstract class CapabilityRequest implements UceRequest {
             return false;
         }
 
-        if (mRequestManagerCallback.isRequestForbidden()) {
-            logw("isRequestAllowed: The request is forbidden");
-            mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_FORBIDDEN);
+        DeviceStateResult deviceStateResult = mRequestManagerCallback.getDeviceState();
+        if (deviceStateResult.isRequestForbidden()) {
+            logw("isRequestAllowed: The device is disallowed.");
+            mRequestResponse.setRequestInternalError(
+                    deviceStateResult.getErrorCode().orElse(RcsUceAdapter.ERROR_GENERIC_FAILURE));
             return false;
         }
         return true;
