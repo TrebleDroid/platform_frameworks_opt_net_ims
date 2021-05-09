@@ -17,19 +17,21 @@
 package com.android.ims.rcs.uce.util;
 
 import android.content.Context;
-import android.net.Uri;
-import android.os.Bundle;
+import android.content.SharedPreferences;
 import android.os.PersistableBundle;
+import android.preference.PreferenceManager;
 import android.provider.BlockedNumberContract;
 import android.telephony.CarrierConfigManager;
-import android.telephony.PhoneNumberUtils;
 import android.telephony.SubscriptionManager;
-import android.telephony.TelephonyManager;
 import android.telephony.ims.ProvisioningManager;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.android.telephony.Rlog;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 public class UceUtils {
 
@@ -37,8 +39,13 @@ public class UceUtils {
     private static final String LOG_PREFIX = "RcsUce.";
     private static final String LOG_TAG = LOG_PREFIX + "UceUtils";
 
+    private static final String SHARED_PREF_DEVICE_STATE_KEY = "UceDeviceState";
+
     private static final int DEFAULT_RCL_MAX_NUM_ENTRIES = 100;
     private static final long DEFAULT_RCS_PUBLISH_SOURCE_THROTTLE_MS = 60000L;
+    private static final long DEFAULT_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC =
+            TimeUnit.DAYS.toSeconds(30);
+    private static final long DEFAULT_REQUEST_RETRY_INTERVAL_MS = TimeUnit.MINUTES.toMillis(20);
 
     // The task ID of the UCE request
     private static long TASK_ID = 0L;
@@ -215,5 +222,123 @@ public class UceUtils {
             Log.w(LOG_TAG, "getRclMaxNumberEntries: exception=" + e.getMessage());
         }
         return maxNumEntries;
+    }
+
+    public static long getNonRcsCapabilitiesCacheExpiration(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return DEFAULT_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return DEFAULT_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC;
+        }
+        return config.getInt(
+                CarrierConfigManager.Ims.KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT);
+    }
+
+    public static boolean isRequestForbiddenBySip489(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return false;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return false;
+        }
+        return config.getBoolean(
+                CarrierConfigManager.Ims.KEY_RCS_REQUEST_FORBIDDEN_BY_SIP_489_BOOL);
+    }
+
+    public static long getRequestRetryInterval(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return DEFAULT_REQUEST_RETRY_INTERVAL_MS;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return DEFAULT_REQUEST_RETRY_INTERVAL_MS;
+        }
+        return config.getLong(
+                CarrierConfigManager.Ims.KEY_RCS_REQUEST_RETRY_INTERVAL_MILLIS_LONG);
+    }
+
+    public static boolean saveDeviceStateToPreference(Context context, int subId,
+            DeviceStateResult deviceState) {
+        SharedPreferences sharedPreferences =
+                PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString(getDeviceStateSharedPrefKey(subId),
+                getDeviceStateSharedPrefValue(deviceState));
+        return editor.commit();
+    }
+
+    public static Optional<DeviceStateResult> restoreDeviceState(Context context, int subId) {
+        SharedPreferences sharedPreferences =
+                PreferenceManager.getDefaultSharedPreferences(context);
+        final String sharedPrefKey = getDeviceStateSharedPrefKey(subId);
+        String sharedPrefValue = sharedPreferences.getString(sharedPrefKey, "");
+        if (TextUtils.isEmpty(sharedPrefValue)) {
+            return Optional.empty();
+        }
+        String[] valueAry = sharedPrefValue.split(",");
+        if (valueAry == null || valueAry.length != 4) {
+            return Optional.empty();
+        }
+        try {
+            int deviceState = Integer.valueOf(valueAry[0]);
+            Optional<Integer> errorCode = (Integer.valueOf(valueAry[1]) == -1L) ?
+                    Optional.empty() : Optional.of(Integer.valueOf(valueAry[1]));
+
+            long retryTimeMillis = Long.valueOf(valueAry[2]);
+            Optional<Instant> retryTime = (retryTimeMillis == -1L) ?
+                    Optional.empty() : Optional.of(Instant.ofEpochMilli(retryTimeMillis));
+
+            long exitStateTimeMillis = Long.valueOf(valueAry[3]);
+            Optional<Instant> exitStateTime = (exitStateTimeMillis == -1L) ?
+                    Optional.empty() : Optional.of(Instant.ofEpochMilli(exitStateTimeMillis));
+
+            return Optional.of(new DeviceStateResult(deviceState, errorCode, retryTime,
+                    exitStateTime));
+        } catch (Exception e) {
+            Log.d(LOG_TAG, "restoreDeviceState: exception " + e);
+            return Optional.empty();
+        }
+    }
+
+    public static boolean removeDeviceStateFromPreference(Context context, int subId) {
+        SharedPreferences sharedPreferences =
+                PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.remove(getDeviceStateSharedPrefKey(subId));
+        return editor.commit();
+    }
+
+    private static String getDeviceStateSharedPrefKey(int subId) {
+        return SHARED_PREF_DEVICE_STATE_KEY + subId;
+    }
+
+    /**
+     * Build the device state preference value.
+     */
+    private static String getDeviceStateSharedPrefValue(DeviceStateResult deviceState) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(deviceState.getDeviceState())  // device state
+                .append(",").append(deviceState.getErrorCode().orElse(-1));  // error code
+
+        long retryTimeMillis = -1L;
+        Optional<Instant> retryTime = deviceState.getRequestRetryTime();
+        if (retryTime.isPresent()) {
+            retryTimeMillis = retryTime.get().toEpochMilli();
+        }
+        builder.append(",").append(retryTimeMillis);   // retryTime
+
+        long exitStateTimeMillis = -1L;
+        Optional<Instant> exitStateTime = deviceState.getExitStateTime();
+        if (exitStateTime.isPresent()) {
+            exitStateTimeMillis = exitStateTime.get().toEpochMilli();
+        }
+        builder.append(",").append(exitStateTimeMillis);   // exit state time
+        return builder.toString();
     }
 }

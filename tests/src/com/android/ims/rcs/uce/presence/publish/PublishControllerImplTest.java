@@ -38,6 +38,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapListenerFactory;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
@@ -62,6 +63,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Mock DeviceCapListenerFactory mDeviceCapListenerFactory;
     @Mock UceController.UceControllerCallback mUceCtrlCallback;
     @Mock RemoteCallbackList<IRcsUcePublishStateCallback> mPublishStateCallbacks;
+    @Mock DeviceStateResult mDeviceStateResult;
 
     private int mSubId = 1;
 
@@ -72,6 +74,8 @@ public class PublishControllerImplTest extends ImsTestBase {
                 eq(mSubId), any(), any());
         doReturn(mDeviceCapListener).when(mDeviceCapListenerFactory).createDeviceCapListener(any(),
                 eq(mSubId), any(), any());
+        doReturn(mDeviceStateResult).when(mUceCtrlCallback).getDeviceState();
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
     }
 
     @After
