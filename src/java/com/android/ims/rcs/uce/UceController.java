@@ -18,7 +18,6 @@ package com.android.ims.rcs.uce;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.content.Context;
 import android.net.Uri;
 import android.os.HandlerThread;
@@ -37,6 +36,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.eab.EabController;
 import com.android.ims.rcs.uce.eab.EabControllerImpl;
@@ -54,9 +54,6 @@ import com.android.internal.os.SomeArgs;
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -96,25 +93,31 @@ public class UceController {
         RcsContactUceCapability getDeviceCapabilities(@CapabilityMechanism int mechanism);
 
         /**
-         * The network reply that the request is forbidden.
-         * @param isForbidden If UCE requests are forbidden by the network.
-         * @param errorCode The {@link RcsUceAdapter#ErrorCode} of the forbidden reason.
-         * @param retryAfterMillis The time to wait for the retry.
+         * Refresh the device state. It is called when receive the UCE request response.
+         * @param sipCode The SIP code of the request response.
+         * @param reason The reason from the network response.
          */
-        void updateRequestForbidden(boolean isForbidden, @Nullable Integer errorCode,
-                long retryAfterMillis);
+        void refreshDeviceState(int sipCode, String reason);
 
         /**
-         * Get the milliseconds need to wait for retry.
-         * @return The milliseconds need to wait
+         * Reset the device state when then device disallowed state is expired.
          */
-        long getRetryAfterMillis();
+        void resetDeviceState();
 
         /**
-         * Check if UCE request is forbidden by the network.
-         * @return true when the UCE is forbidden by the network
+         * Get the current device state to check if the device is allowed to send UCE requests.
          */
-        boolean isRequestForbiddenByNetwork();
+        DeviceStateResult getDeviceState();
+
+        /**
+         * Setup timer to exit device disallowed state.
+         */
+        void setupResetDeviceStateTimer(long resetAfterSec);
+
+        /**
+         * The device state is already reset, clear the timer.
+         */
+        void clearResetDeviceStateTimer();
 
         /**
          * The method is called when the given contacts' capabilities are expired and need to be
@@ -283,17 +286,14 @@ public class UceController {
     private SubscribeController mSubscribeController;
     private OptionsController mOptionsController;
     private UceRequestManager mRequestManager;
-
-    // The server state for UCE requests.
-    private final ServerState mServerState;
-
+    // The device state to execute UCE requests.
+    private UceDeviceState mDeviceState;
     // The cache of the capability request event triggered by ImsService
     private final CachedCapabilityEvent mCachedCapabilityEvent;
 
     public UceController(Context context, int subId) {
         mSubId = subId;
         mContext = context;
-        mServerState = new ServerState();
         mCachedCapabilityEvent = new CachedCapabilityEvent();
         mRcsConnectedState = RCS_STATE_DISCONNECTED;
         logi("create");
@@ -301,14 +301,15 @@ public class UceController {
         initLooper();
         initControllers();
         initRequestManager();
+        initUceDeviceState();
     }
 
     @VisibleForTesting
-    public UceController(Context context, int subId, ServerState serverState,
+    public UceController(Context context, int subId, UceDeviceState deviceState,
             ControllerFactory controllerFactory, RequestManagerFactory requestManagerFactory) {
         mSubId = subId;
         mContext = context;
-        mServerState = serverState;
+        mDeviceState = deviceState;
         mControllerFactory = controllerFactory;
         mRequestManagerFactory = requestManagerFactory;
         mCachedCapabilityEvent = new CachedCapabilityEvent();
@@ -339,6 +340,11 @@ public class UceController {
                 mCtrlCallback);
         mRequestManager.setSubscribeController(mSubscribeController);
         mRequestManager.setOptionsController(mOptionsController);
+    }
+
+    private void initUceDeviceState() {
+        mDeviceState = new UceDeviceState(mSubId, mContext, mCtrlCallback);
+        mDeviceState.checkSendResetDeviceStateTimer();
     }
 
     /**
@@ -376,8 +382,6 @@ public class UceController {
             mRcsFeatureManager.removeCapabilityEventCallback(mCapabilityEventListener);
             mRcsFeatureManager = null;
         }
-        // Reset Service specific state
-        mServerState.updateRequestForbidden(false, null, 0L);
         // Notify each controllers that RCS is disconnected.
         mEabController.onRcsDisconnected();
         mPublishController.onRcsDisconnected();
@@ -459,19 +463,28 @@ public class UceController {
         }
 
         @Override
-        public void updateRequestForbidden(boolean isForbidden, @Nullable Integer errorCode,
-                long retryAfterMillis) {
-            mServerState.updateRequestForbidden(isForbidden, errorCode, retryAfterMillis);
+        public void refreshDeviceState(int sipCode, String reason) {
+            mDeviceState.refreshDeviceState(sipCode, reason);
         }
 
         @Override
-        public long getRetryAfterMillis() {
-            return mServerState.getRetryAfterMillis();
+        public void resetDeviceState() {
+            mDeviceState.resetDeviceState();
         }
 
         @Override
-        public boolean isRequestForbiddenByNetwork() {
-            return (mServerState.getForbiddenErrorCode() != null) ? true : false;
+        public DeviceStateResult getDeviceState() {
+            return mDeviceState.getCurrentState();
+        }
+
+        @Override
+        public void setupResetDeviceStateTimer(long resetAfterSec) {
+            mPublishController.setupResetDeviceStateTimer(resetAfterSec);
+        }
+
+        @Override
+        public void clearResetDeviceStateTimer() {
+            mPublishController.clearResetDeviceStateTimer();
         }
 
         @Override
@@ -553,19 +566,21 @@ public class UceController {
             return;
         }
 
-        // Check if UCE requests are forbidden by the network.
-        if (mServerState.isRequestForbidden()) {
-            Integer errorCode = mServerState.getForbiddenErrorCode();
-            long retryAfter = mServerState.getRetryAfterMillis();
-            logw("requestCapabilities: The request is forbidden, errorCode=" + errorCode
-                    + ", retryAfter=" + retryAfter);
-            errorCode = (errorCode != null) ? errorCode : RcsUceAdapter.ERROR_FORBIDDEN;
-            c.onError(errorCode, retryAfter);
+        // Return if the device is not allowed to execute UCE requests.
+        DeviceStateResult deviceStateResult = mDeviceState.getCurrentState();
+        if (deviceStateResult.isRequestForbidden()) {
+            int deviceState = deviceStateResult.getDeviceState();
+            int errorCode = deviceStateResult.getErrorCode()
+                    .orElse(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            long retryAfterMillis = deviceStateResult.getRequestRetryAfterMillis();
+            logw("requestCapabilities: The device is disallowed, deviceState= " + deviceState +
+                    ", errorCode=" + errorCode + ", retryAfterMillis=" + retryAfterMillis);
+            c.onError(errorCode, retryAfterMillis);
             return;
         }
 
         // Trigger the capabilities request task
-        logd("requestCapabilities: " + uriList.size());
+        logd("requestCapabilities: size=" + uriList.size());
         mRequestManager.sendCapabilityRequest(uriList, skipFromCache, c);
     }
 
@@ -590,14 +605,16 @@ public class UceController {
             return;
         }
 
-        // Check if UCE requests are forbidden by the network.
-        if (mServerState.isRequestForbidden()) {
-            Integer errorCode = mServerState.getForbiddenErrorCode();
-            long retryAfter = mServerState.getRetryAfterMillis();
-            logw("requestAvailability: The request is forbidden, errorCode=" + errorCode
-                + ", retryAfter=" + retryAfter);
-            errorCode = (errorCode != null) ? errorCode : RcsUceAdapter.ERROR_FORBIDDEN;
-            c.onError(errorCode, retryAfter);
+        // Return if the device is not allowed to execute UCE requests.
+        DeviceStateResult deviceStateResult = mDeviceState.getCurrentState();
+        if (deviceStateResult.isRequestForbidden()) {
+            int deviceState = deviceStateResult.getDeviceState();
+            int errorCode = deviceStateResult.getErrorCode()
+                    .orElse(RcsUceAdapter.ERROR_GENERIC_FAILURE);
+            long retryAfterMillis = deviceStateResult.getRequestRetryAfterMillis();
+            logw("requestAvailability: The device is disallowed, deviceState= " + deviceState +
+                    ", errorCode=" + errorCode + ", retryAfterMillis=" + retryAfterMillis);
+            c.onError(errorCode, retryAfterMillis);
             return;
         }
 
@@ -611,8 +628,8 @@ public class UceController {
      */
     public void onRequestPublishCapabilitiesFromService(@StackPublishTriggerType int triggerType) {
         logd("onRequestPublishCapabilitiesFromService: " + triggerType);
-        // Reset the forbidden status if the service requests to publish the device's capabilities
-        mServerState.updateRequestForbidden(false, null, 0L);
+        // Reset the device state when the service triggers to publish the device's capabilities
+        mDeviceState.resetDeviceState();
         // Send the publish request.
         mPublishController.requestPublishCapabilitiesFromService(triggerType);
     }
@@ -703,6 +720,16 @@ public class UceController {
     }
 
     /**
+     * Remove the device disallowed state.
+     * <p>
+     * Used for testing ONLY.
+     */
+    public void removeRequestDisallowedStatus() {
+        logd("removeRequestDisallowedStatus");
+        mDeviceState.resetDeviceState();
+    }
+
+    /**
      * Get the subscription ID.
      */
     public int getSubId() {
@@ -726,77 +753,6 @@ public class UceController {
 
     private boolean isRcsConnected() {
         return mRcsConnectedState == RCS_STATE_CONNECTED;
-    }
-
-    /**
-     * The internal class to store the server state which sent from the network. It will help to
-     * check if the network allows the UCE request.
-     */
-    @VisibleForTesting
-    public static class ServerState {
-        private boolean mIsForbidden;
-        private Integer mForbiddenErrorCode;
-
-        // The timestamp when the network allows the UCE requests. This value may be null if the
-        // network doesn't specified any retryAfter info.
-        private Instant mAllowedTimestamp;
-
-        private final Object mServerStateLock = new Object();
-
-        public ServerState() {
-            mIsForbidden = false;
-            mForbiddenErrorCode = null;
-            mAllowedTimestamp = null;
-        }
-
-        public void updateRequestForbidden(boolean isForbidden, @Nullable Integer errorCode,
-                long retryAfterMillis) {
-            synchronized (mServerStateLock) {
-                mIsForbidden = isForbidden;
-                if (!mIsForbidden) {
-                    mForbiddenErrorCode = null;
-                    mAllowedTimestamp = null;
-                } else {
-                    mForbiddenErrorCode =
-                        (errorCode == null) ? RcsUceAdapter.ERROR_FORBIDDEN : errorCode;
-                    mAllowedTimestamp = Instant.now().plus(retryAfterMillis, ChronoUnit.MILLIS);
-                }
-                Log.i(LOG_TAG, "updateRequestForbidden: isForbidden=" + mIsForbidden
-                        + ", errorCode=" + mForbiddenErrorCode + ", time=" + mAllowedTimestamp);
-            }
-        }
-
-        public boolean isRequestForbidden() {
-            synchronized (mServerStateLock) {
-                if (mIsForbidden && mAllowedTimestamp != null) {
-                    return Instant.now().isBefore(mAllowedTimestamp);
-                }
-                return mIsForbidden;
-            }
-        }
-
-        public @Nullable Integer getForbiddenErrorCode() {
-            synchronized (mServerStateLock) {
-                if (!mIsForbidden) {
-                    return null;
-                }
-                return mForbiddenErrorCode;
-            }
-        }
-
-        public long getRetryAfterMillis() {
-            synchronized (mServerStateLock) {
-                if (!mIsForbidden || mAllowedTimestamp == null) {
-                    return 0L;
-                }
-                Duration duration = Duration.between(Instant.now(), mAllowedTimestamp);
-                long retryAfterMillis = duration.toMillis();
-                if (retryAfterMillis < 0) {
-                    return 0L;
-                }
-                return retryAfterMillis;
-            }
-        }
     }
 
     public void dump(PrintWriter printWriter) {
