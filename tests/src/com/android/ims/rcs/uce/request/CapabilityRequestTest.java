@@ -38,6 +38,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.ims.ImsTestBase;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,7 @@ public class CapabilityRequestTest extends ImsTestBase {
 
     @Mock CapabilityRequestResponse mRequestResponse;
     @Mock UceRequestManager.RequestManagerCallback mReqMgrCallback;
+    @Mock DeviceStateResult mDeviceStateResult;
 
     private final int mSubId = 1;
     private final long mCoordId = 1L;
@@ -64,6 +66,7 @@ public class CapabilityRequestTest extends ImsTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        doReturn(mDeviceStateResult).when(mReqMgrCallback).getDeviceState();
     }
 
     @After
@@ -91,6 +94,7 @@ public class CapabilityRequestTest extends ImsTestBase {
         eabResultList.add(eabResult1);
         eabResultList.add(eabResult2);
 
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
         doReturn(eabResultList).when(mReqMgrCallback).getCapabilitiesFromCache(any());
 
         // Execute the request.
@@ -124,6 +128,7 @@ public class CapabilityRequestTest extends ImsTestBase {
         eabResultList.add(eabResult1);
         eabResultList.add(eabResult2);
 
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
         doReturn(eabResultList).when(mReqMgrCallback).getCapabilitiesFromCache(any());
 
         // Assume that skip getting capabilities from the cache.
@@ -155,6 +160,7 @@ public class CapabilityRequestTest extends ImsTestBase {
         List<EabCapabilityResult> eabResultList = new ArrayList<>();
         eabResultList.add(eabResult);
 
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
         doReturn(eabResultList).when(mReqMgrCallback).getCapabilitiesFromCache(any());
 
         // Execute the request.
