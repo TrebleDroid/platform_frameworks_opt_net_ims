@@ -136,6 +136,11 @@ public interface PublishController extends ControllerBase {
          * Update the value of the publish throttle.
          */
         void updatePublishThrottle(int value);
+
+        /**
+         * Update the device state with the publish request result.
+         */
+        void refreshDeviceState(int SipCode, String reason);
     }
 
     /**
@@ -201,6 +206,16 @@ public interface PublishController extends ControllerBase {
      * Removes an existing {@link PublishStateCallback}.
      */
     void unregisterPublishStateCallback(@NonNull IRcsUcePublishStateCallback c);
+
+    /**
+     * Setup the timer to reset the device state.
+     */
+    void setupResetDeviceStateTimer(long resetAfterSec);
+
+    /**
+     * Clear the reset device state timer.
+     */
+    void clearResetDeviceStateTimer();
 
     /**
      * Dump the state of this PublishController to the printWriter.

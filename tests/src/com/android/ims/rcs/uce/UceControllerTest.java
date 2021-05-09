@@ -35,15 +35,16 @@ import androidx.test.filters.SmallTest;
 
 import com.android.ims.ImsTestBase;
 import com.android.ims.RcsFeatureManager;
-import com.android.ims.rcs.uce.UceController.ServerState;
 import com.android.ims.rcs.uce.eab.EabController;
 import com.android.ims.rcs.uce.options.OptionsController;
 import com.android.ims.rcs.uce.presence.publish.PublishController;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
 import com.android.ims.rcs.uce.request.UceRequestManager;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.After;
 import org.junit.Before;
@@ -63,7 +64,8 @@ public class UceControllerTest extends ImsTestBase {
     @Mock UceRequestManager mTaskManager;
     @Mock UceController.RequestManagerFactory mTaskManagerFactory;
 
-    @Mock UceController.ServerState mServerState;
+    @Mock UceDeviceState mDeviceState;
+    @Mock DeviceStateResult mDeviceStateResult;
     @Mock RcsFeatureManager mFeatureManager;
     @Mock UceController.UceControllerCallback mCallback;
     @Mock IRcsUceControllerCallback mCapabilitiesCallback;
@@ -84,6 +86,7 @@ public class UceControllerTest extends ImsTestBase {
                 eq(mSubId));
         doReturn(mTaskManager).when(mTaskManagerFactory).createRequestManager(any(), eq(mSubId),
                 any(), any());
+        doReturn(mDeviceStateResult).when(mDeviceState).getCurrentState();
     }
 
     @After
@@ -152,16 +155,15 @@ public class UceControllerTest extends ImsTestBase {
     public void testRequestCapabilitiesWithForbidden() throws Exception {
         UceController uceController = createUceController();
         uceController.onRcsConnected(mFeatureManager);
-        long retryAfter = 5000L;
-        doReturn(true).when(mServerState).isRequestForbidden();
-        doReturn(retryAfter).when(mServerState).getRetryAfterMillis();
-        doReturn(RcsUceAdapter.ERROR_FORBIDDEN).when(mServerState).getForbiddenErrorCode();
+        doReturn(true).when(mDeviceStateResult).isRequestForbidden();
+        doReturn(Optional.of(RcsUceAdapter.ERROR_FORBIDDEN)).when(mDeviceStateResult)
+                .getErrorCode();
 
         List<Uri> uriList = new ArrayList<>();
         uriList.add(Uri.fromParts("sip", "test", null));
         uceController.requestCapabilities(uriList, mCapabilitiesCallback);
 
-        verify(mCapabilitiesCallback).onError(RcsUceAdapter.ERROR_FORBIDDEN, retryAfter);
+        verify(mCapabilitiesCallback).onError(RcsUceAdapter.ERROR_FORBIDDEN, 0L);
         verify(mTaskManager, never()).sendCapabilityRequest(any(), eq(false), any());
     }
 
@@ -170,7 +172,7 @@ public class UceControllerTest extends ImsTestBase {
     public void testRequestCapabilitiesWithRcsConnected() throws Exception {
         UceController uceController = createUceController();
         uceController.onRcsConnected(mFeatureManager);
-        doReturn(null).when(mServerState).getForbiddenErrorCode();
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
 
         List<Uri> uriList = new ArrayList<>();
         uriList.add(Uri.fromParts("sip", "test", null));
@@ -197,15 +199,14 @@ public class UceControllerTest extends ImsTestBase {
     public void testRequestAvailabilityWithForbidden() throws Exception {
         UceController uceController = createUceController();
         uceController.onRcsConnected(mFeatureManager);
-        long retryAfter = 5000L;
-        doReturn(true).when(mServerState).isRequestForbidden();
-        doReturn(retryAfter).when(mServerState).getRetryAfterMillis();
-        doReturn(RcsUceAdapter.ERROR_FORBIDDEN).when(mServerState).getForbiddenErrorCode();
+        doReturn(true).when(mDeviceStateResult).isRequestForbidden();
+        doReturn(Optional.of(RcsUceAdapter.ERROR_FORBIDDEN)).when(mDeviceStateResult)
+                .getErrorCode();
 
         Uri contact = Uri.fromParts("sip", "test", null);
         uceController.requestAvailability(contact, mCapabilitiesCallback);
 
-        verify(mCapabilitiesCallback).onError(RcsUceAdapter.ERROR_FORBIDDEN, retryAfter);
+        verify(mCapabilitiesCallback).onError(RcsUceAdapter.ERROR_FORBIDDEN, 0L);
         verify(mTaskManager, never()).sendCapabilityRequest(any(), eq(false), any());
     }
 
@@ -214,7 +215,7 @@ public class UceControllerTest extends ImsTestBase {
     public void testRequestAvailabilityWithRcsConnected() throws Exception {
         UceController uceController = createUceController();
         uceController.onRcsConnected(mFeatureManager);
-        doReturn(null).when(mServerState).getForbiddenErrorCode();
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
 
         Uri contact = Uri.fromParts("sip", "test", null);
         uceController.requestAvailability(contact, mCapabilitiesCallback);
@@ -273,30 +274,8 @@ public class UceControllerTest extends ImsTestBase {
         verify(mPublishController).getUcePublishState();
     }
 
-    @Test
-    @SmallTest
-    public void testUceRequestForbid() {
-        ServerState testServerState = new ServerState();
-        UceController uceController = createUceController(testServerState);
-        boolean isForbidden = true;
-        long retryAfter = 3000L;
-        int errorCode = RcsUceAdapter.ERROR_NOT_AUTHORIZED;
-
-        testServerState.updateRequestForbidden(isForbidden, errorCode, retryAfter);
-        Integer resultErrorCode = testServerState.getForbiddenErrorCode();
-
-        assertEquals(errorCode, resultErrorCode.intValue());
-    }
-
     private UceController createUceController() {
-        UceController uceController = new UceController(mContext, mSubId, mServerState,
-                mControllerFactory, mTaskManagerFactory);
-        uceController.setUceControllerCallback(mCallback);
-        return uceController;
-    }
-
-    private UceController createUceController(ServerState serverState) {
-        UceController uceController = new UceController(mContext, mSubId, serverState,
+        UceController uceController = new UceController(mContext, mSubId, mDeviceState,
                 mControllerFactory, mTaskManagerFactory);
         uceController.setUceControllerCallback(mCallback);
         return uceController;

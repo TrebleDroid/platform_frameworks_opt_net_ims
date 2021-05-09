@@ -32,6 +32,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
@@ -45,6 +46,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.ims.ImsTestBase;
+import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.request.UceRequestCoordinator.RequestResult;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 
@@ -67,6 +69,7 @@ public class SubscribeCoordinatorTest extends ImsTestBase {
     @Mock CapabilityRequestResponse mResponse;
     @Mock RequestManagerCallback mRequestMgrCallback;
     @Mock IRcsUceControllerCallback mUceCallback;
+    @Mock DeviceStateResult mDeviceStateResult;
 
     private int mSubId = 1;
     private long mTaskId = 1L;
@@ -78,6 +81,7 @@ public class SubscribeCoordinatorTest extends ImsTestBase {
         doReturn(mTaskId).when(mRequest).getTaskId();
         doReturn(mResponse).when(mRequest).getRequestResponse();
         doReturn(Optional.empty()).when(mResponse).getReasonHeaderCause();
+        doReturn(mDeviceStateResult).when(mRequestMgrCallback).getDeviceState();
     }
 
     @After
@@ -134,13 +138,15 @@ public class SubscribeCoordinatorTest extends ImsTestBase {
         SubscribeRequestCoordinator coordinator = getSubscribeCoordinator();
         doReturn(false).when(mResponse).isNetworkResponseOK();
         doReturn(true).when(mResponse).isRequestForbidden();
-        doReturn(Optional.empty()).when(mResponse).getNetworkRespSipCode();
-        doReturn(Optional.empty()).when(mResponse).getReasonPhrase();
+        Optional<Integer> respSipCode = Optional.of(400);
+        Optional<String> respReason = Optional.of("Bad Request");
+        doReturn(respSipCode).when(mResponse).getResponseSipCode();
+        doReturn(respReason).when(mResponse).getResponseReason();
+        doReturn(false).when(mDeviceStateResult).isRequestForbidden();
 
         coordinator.onRequestUpdated(mTaskId, REQUEST_UPDATE_NETWORK_RESPONSE);
 
-        verify(mRequestMgrCallback).onRequestForbidden(eq(TRUE), anyInt(), anyLong());
-
+        verify(mRequestMgrCallback).refreshDeviceState(respSipCode.get(), respReason.get());
         verify(mRequest).onFinish();
 
         Collection<UceRequest> requestList = coordinator.getActivatedRequest();

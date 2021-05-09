@@ -337,6 +337,12 @@ public class PublishProcessor {
         String pidfXml = requestResponse.getPidfXml();
         mPublishCtrlCallback.updatePublishRequestResult(publishState, responseTime, pidfXml);
 
+        // Refresh the device state with the publish request result.
+        requestResponse.getResponseSipCode().ifPresent(sipCode -> {
+            String reason = requestResponse.getResponseReason().orElse("");
+            mPublishCtrlCallback.refreshDeviceState(sipCode, reason);
+        });
+
         // Finish the request and check if there is pending request.
         setRequestEnded(requestResponse);
         checkAndSendPendingRequest();
