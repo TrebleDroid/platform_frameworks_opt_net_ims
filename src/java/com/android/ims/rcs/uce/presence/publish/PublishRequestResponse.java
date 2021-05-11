@@ -207,21 +207,8 @@ public class PublishRequestResponse {
     }
 
     private void updateRetryFlagByNetworkResponse() {
-        int networkRespSipCode = getReasonHeaderCause().orElseGet(
-                () -> getNetworkRespSipCode().orElse(-1));
-        switch (networkRespSipCode) {
-            case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
-            case NetworkSipCode.SIP_CODE_INTERVAL_TOO_BRIEF:
-            case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:
-            case NetworkSipCode.SIP_CODE_BUSY:
-            case NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR:
-            case NetworkSipCode.SIP_CODE_SERVICE_UNAVAILABLE:
-            case NetworkSipCode.SIP_CODE_SERVER_TIMEOUT:
-            case NetworkSipCode.SIP_CODE_BUSY_EVERYWHERE:
-            case NetworkSipCode.SIP_CODE_DECLINE:
-                mNeedRetry = true;
-                break;
-        }
+        // Disable retry flag because the retry mechanism is implemented in the ImsService.
+        mNeedRetry = false;
     }
 
     /*
