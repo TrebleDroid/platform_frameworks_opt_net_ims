@@ -317,6 +317,23 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * Events that will be triggered as part of metrics collection.
+     */
+    public interface ImsStatsCallback {
+        /**
+         * The MmTel capabilities that are enabled have changed.
+         * @param capability The MmTel capability
+         * @param regTech The IMS registration technology associated with the capability.
+         * @param isEnabled {@code true} if the capability is enabled, {@code false} if it is
+         *                  disabled.
+         */
+        void onEnabledMmTelCapabilitiesChanged(
+                @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                @ImsRegistrationImplBase.ImsRegistrationTech int regTech,
+                boolean isEnabled);
+    }
+
+    /**
      * Internally we will create a FeatureConnector when {@link #getInstance(Context, int)} is
      * called to keep the MmTelFeatureConnection instance fresh as new SIM cards are
      * inserted/removed and MmTelFeature potentially changes.
@@ -419,8 +436,10 @@ public class ImsManager implements FeatureUpdates {
 
     public static final String TRUE = "true";
     public static final String FALSE = "false";
-
+    // Map of phoneId -> InstanceManager
     private static final SparseArray<InstanceManager> IMS_MANAGER_INSTANCES = new SparseArray<>(2);
+    // Map of phoneId -> ImsStatsCallback
+    private static final SparseArray<ImsStatsCallback> IMS_STATS_CALLBACKS = new SparseArray<>(2);
 
     // A log prefix added to some instances of ImsManager to make it distinguishable from others.
     // - "IM" added to ImsManager for ImsManagers created using getInstance.
@@ -480,6 +499,31 @@ public class ImsManager implements FeatureUpdates {
 
     public static boolean isImsSupportedOnDevice(Context context) {
         return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
+    }
+
+    /**
+     * Sets the callback that will be called when events related to IMS metric collection occur.
+     * <p>
+     * Note: Subsequent calls to this method will replace the previous stats callback.
+     */
+    public static void setImsStatsCallback(int phoneId, ImsStatsCallback cb) {
+        synchronized (IMS_STATS_CALLBACKS) {
+            if (cb == null) {
+                IMS_STATS_CALLBACKS.remove(phoneId);
+            } else {
+                IMS_STATS_CALLBACKS.put(phoneId, cb);
+            }
+        }
+    }
+
+    /**
+     * @return the {@link ImsStatsCallback} instance associated with the provided phoneId or
+     * {@link null} if none currently exists.
+     */
+    private static ImsStatsCallback getStatsCallback(int phoneId) {
+        synchronized (IMS_STATS_CALLBACKS) {
+            return IMS_STATS_CALLBACKS.get(phoneId);
+        }
     }
 
     /**
@@ -1949,10 +1993,6 @@ public class ImsManager implements FeatureUpdates {
         return mMmTelConnectionRef.get().isBinderReady();
     }
 
-    public void setConfigListener(ImsConfigListener listener) {
-        mImsConfigListener = listener;
-    }
-
     /**
      * Opens the IMS service for making calls and/or receiving generic IMS calls as well as
      * register listeners for ECBM, Multiendpoint, and UT if the ImsService supports it.
@@ -2426,19 +2466,18 @@ public class ImsManager implements FeatureUpdates {
             logi("changeMmTelCapability: changing capabilities for sub: " + getSubId()
                     + ", request: " + r);
             c.changeEnabledCapabilities(r, null);
-            if (mImsConfigListener == null) {
+            ImsStatsCallback cb = getStatsCallback(mPhoneId);
+            if (cb == null) {
                 return;
             }
             for (CapabilityChangeRequest.CapabilityPair enabledCaps : r.getCapabilitiesToEnable()) {
-                mImsConfigListener.onSetFeatureResponse(enabledCaps.getCapability(),
-                        enabledCaps.getRadioTech(),
-                        ProvisioningManager.PROVISIONING_VALUE_ENABLED, -1);
+                cb.onEnabledMmTelCapabilitiesChanged(enabledCaps.getCapability(),
+                        enabledCaps.getRadioTech(), true);
             }
             for (CapabilityChangeRequest.CapabilityPair disabledCaps :
                     r.getCapabilitiesToDisable()) {
-                mImsConfigListener.onSetFeatureResponse(disabledCaps.getCapability(),
-                        disabledCaps.getRadioTech(),
-                        ProvisioningManager.PROVISIONING_VALUE_DISABLED, -1);
+                cb.onEnabledMmTelCapabilitiesChanged(disabledCaps.getCapability(),
+                        disabledCaps.getRadioTech(), false);
             }
         } catch (RemoteException e) {
             throw new ImsException("changeMmTelCapability(CCR)", e,
