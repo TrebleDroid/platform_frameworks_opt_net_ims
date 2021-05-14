@@ -406,7 +406,9 @@ public class UceController {
         mPublishController.onDestroy();
         mSubscribeController.onDestroy();
         mOptionsController.onDestroy();
-        mLooper.quit();
+
+        // Execute all the existing requests before quitting the looper.
+        mLooper.quitSafely();
     }
 
     /**
