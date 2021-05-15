@@ -17,6 +17,7 @@
 package com.android.ims;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyInt;
@@ -37,10 +38,14 @@ import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.ISipTransport;
+import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsConfigImplBase;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+
+import com.android.internal.os.SomeArgs;
 
 import org.junit.After;
 import org.junit.Before;
@@ -176,6 +181,31 @@ public class ImsManagerTest extends ImsTestBase {
                 anyInt(),
                 eq(SubscriptionManager.VT_IMS_ENABLED),
                 anyInt());
+    }
+
+    @SmallTest
+    @Test
+    public void testImsStats() {
+        setWfcEnabledByUser(true);
+        SomeArgs args = SomeArgs.obtain();
+        ImsManager.setImsStatsCallback(mPhoneId, new ImsManager.ImsStatsCallback() {
+            @Override
+            public void onEnabledMmTelCapabilitiesChanged(int capability, int regTech,
+                    boolean isEnabled) {
+                args.arg1 = capability;
+                args.arg2 = regTech;
+                args.arg3 = isEnabled;
+            }
+        });
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Assert that the IMS stats callback is called properly when a setting changes.
+        imsManager.setWfcSetting(true);
+        assertEquals(args.arg1, MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE);
+        assertEquals(args.arg2, ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+        assertEquals(args.arg3, true);
+        args.recycle();
     }
 
     @Test @SmallTest
