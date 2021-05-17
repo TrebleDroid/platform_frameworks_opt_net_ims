@@ -46,6 +46,7 @@ public class UceUtils {
     private static final long DEFAULT_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC =
             TimeUnit.DAYS.toSeconds(30);
     private static final long DEFAULT_REQUEST_RETRY_INTERVAL_MS = TimeUnit.MINUTES.toMillis(20);
+    private static final long DEFAULT_MINIMUM_REQUEST_RETRY_AFTER_MS = TimeUnit.SECONDS.toMillis(3);
 
     // The task ID of the UCE request
     private static long TASK_ID = 0L;
@@ -340,5 +341,12 @@ public class UceUtils {
         }
         builder.append(",").append(exitStateTimeMillis);   // exit state time
         return builder.toString();
+    }
+
+    /**
+     * Get the minimum value of the capabilities request retry after.
+     */
+    public static long getMinimumRequestRetryAfterMillis() {
+        return DEFAULT_MINIMUM_REQUEST_RETRY_AFTER_MS;
     }
 }
