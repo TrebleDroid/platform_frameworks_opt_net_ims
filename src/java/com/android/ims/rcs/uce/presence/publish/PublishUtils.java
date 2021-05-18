@@ -59,17 +59,23 @@ class PublishUtils {
         String[] impus = telephonyManager.getIsimImpu();
 
         if (TextUtils.isEmpty(domain) || impus == null) {
+            Log.d(LOG_TAG, "getContactUriFromIsim: domain is null=" + TextUtils.isEmpty(domain));
+            Log.d(LOG_TAG, "getContactUriFromIsim: impu is null=" +
+                    ((impus == null || impus.length == 0) ? "true" : "false"));
             return null;
         }
 
         for (String impu : impus) {
             if (TextUtils.isEmpty(impu)) continue;
             Uri impuUri = Uri.parse(impu);
-            if (SCHEME_SIP.equals(impuUri.getScheme()) &&
-                    impuUri.getSchemeSpecificPart().endsWith(domain)) {
+            String scheme = impuUri.getScheme();
+            String schemeSpecificPart = impuUri.getSchemeSpecificPart();
+            if (SCHEME_SIP.equals(scheme) && !TextUtils.isEmpty(schemeSpecificPart) &&
+                    schemeSpecificPart.endsWith(domain)) {
                 return impuUri;
             }
         }
+        Log.d(LOG_TAG, "getContactUriFromIsim: there is no impu matching the domain");
         return null;
     }
 
