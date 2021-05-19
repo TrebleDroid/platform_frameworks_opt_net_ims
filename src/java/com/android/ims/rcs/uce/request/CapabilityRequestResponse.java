@@ -182,6 +182,14 @@ public class CapabilityRequestResponse {
     }
 
     /**
+     * @return The reason of terminating the subscription request. empty string if it has not
+     * been given.
+     */
+    public synchronized String getTerminatedReason() {
+        return mTerminatedReason.orElse("");
+    }
+
+    /**
      * @return Return the retryAfterMillis, 0L if the value is not present.
      */
     public synchronized long getRetryAfterMillis() {
