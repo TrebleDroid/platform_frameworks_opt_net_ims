@@ -26,6 +26,7 @@ import android.telephony.ims.aidl.IRcsUceControllerCallback;
 
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
+import com.android.ims.rcs.uce.request.SubscriptionTerminatedHelper.TerminatedResult;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -115,10 +116,18 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
     // The RequestResult creator of the request terminated.
     private static final RequestResultCreator sTerminatedCreator = (taskId, response,
             requestMgrCallback) -> {
-        long retryAfterMillis = response.getRetryAfterMillis();
-        int errorCode = CapabilityRequestResponse.getCapabilityErrorFromSipCode(response);
-        // If the network response is failed or the retryAfter is not zero, this request is failed.
-        if (!response.isNetworkResponseOK() || retryAfterMillis > 0L) {
+        // Check the given terminated reason to determine whether clients should retry or not.
+        TerminatedResult terminatedResult = SubscriptionTerminatedHelper.getAnalysisResult(
+                response.getTerminatedReason(), response.getRetryAfterMillis());
+        if (terminatedResult.getErrorCode().isPresent()) {
+            // If the terminated error code is present, it means that the request is failed.
+            int errorCode = terminatedResult.getErrorCode().get();
+            long terminatedRetry = terminatedResult.getRetryAfterMillis();
+            return RequestResult.createFailedResult(taskId, errorCode, terminatedRetry);
+        } else if (!response.isNetworkResponseOK() || response.getRetryAfterMillis() > 0L) {
+            // If the network response is failed or the retryAfter is not 0, this request is failed.
+            long retryAfterMillis = response.getRetryAfterMillis();
+            int errorCode = CapabilityRequestResponse.getCapabilityErrorFromSipCode(response);
             return RequestResult.createFailedResult(taskId, errorCode, retryAfterMillis);
         } else {
             return RequestResult.createSuccessResult(taskId);
