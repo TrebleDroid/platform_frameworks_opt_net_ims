@@ -118,7 +118,8 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             requestMgrCallback) -> {
         // Check the given terminated reason to determine whether clients should retry or not.
         TerminatedResult terminatedResult = SubscriptionTerminatedHelper.getAnalysisResult(
-                response.getTerminatedReason(), response.getRetryAfterMillis());
+                response.getTerminatedReason(), response.getRetryAfterMillis(),
+                response.haveAllRequestCapsUpdatedBeenReceived());
         if (terminatedResult.getErrorCode().isPresent()) {
             // If the terminated error code is present, it means that the request is failed.
             int errorCode = terminatedResult.getErrorCode().get();
