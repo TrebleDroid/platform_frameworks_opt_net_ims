@@ -16,6 +16,8 @@
 
 package com.android.ims.rcs.uce.request;
 
+import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_CACHED;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -74,7 +76,7 @@ public class RemoteOptionsRequestTest extends ImsTestBase {
         featureTags.add(FEATURE_TAG_CHAT);
         featureTags.add(FEATURE_TAG_FILE_TRANSFER);
 
-        OptionsBuilder builder = new OptionsBuilder(mTestContact);
+        OptionsBuilder builder = new OptionsBuilder(mTestContact, SOURCE_TYPE_CACHED);
         builder.addFeatureTag(FEATURE_TAG_CHAT);
         builder.addFeatureTag(FEATURE_TAG_FILE_TRANSFER);
         mDeviceCapability = builder.build();

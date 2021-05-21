@@ -16,6 +16,8 @@
 
 package com.android.ims.rcs.uce.presence.publish;
 
+import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_CACHED;
+
 import android.content.Context;
 import android.net.Uri;
 import android.telecom.TelecomManager;
@@ -460,7 +462,7 @@ public class DeviceCapabilityInfo {
 
         Set<String> capableFromReg = mServiceCapRegTracker.copyRegistrationFeatureTags();
 
-        OptionsBuilder optionsBuilder = new OptionsBuilder(uri);
+        OptionsBuilder optionsBuilder = new OptionsBuilder(uri, SOURCE_TYPE_CACHED);
         optionsBuilder.setRequestResult(RcsContactUceCapability.REQUEST_RESULT_FOUND);
         FeatureTags.addFeatureTags(optionsBuilder, hasVolteCapability(), hasVtCapability(),
                 isPresenceCapable(), hasCallComposerCapability(), capableFromReg);
