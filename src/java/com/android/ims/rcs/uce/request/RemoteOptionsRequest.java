@@ -17,6 +17,7 @@
 package com.android.ims.rcs.uce.request;
 
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS;
+import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_NETWORK;
 
 import android.net.Uri;
 import android.telephony.ims.RcsContactUceCapability;
@@ -172,7 +173,7 @@ public class RemoteOptionsRequest implements UceRequest {
         // Store the remote capabilities
         Uri contactUri = mUriList.get(0);
         RcsContactUceCapability remoteCaps = FeatureTags.getContactCapability(contactUri,
-                mRemoteFeatureTags);
+                SOURCE_TYPE_NETWORK, mRemoteFeatureTags);
         mRequestManagerCallback.saveCapabilities(Collections.singletonList(remoteCaps));
 
         // Get the device's capabilities and trigger the request callback

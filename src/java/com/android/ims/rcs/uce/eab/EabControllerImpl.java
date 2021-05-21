@@ -320,7 +320,10 @@ public class EabControllerImpl implements EabController {
             builder.addCapabilityTuple(createPresenceTuple(contactUri, cursor));
             builderWrapper.setPresenceBuilder(builder);
         } else {
-            builderWrapper.setOptionsBuilder(new OptionsBuilder(contactUri));
+            OptionsBuilder builder = new OptionsBuilder(contactUri, SOURCE_TYPE_CACHED);
+            builder.setRequestResult(result);
+            builder.addFeatureTag(createOptionTuple(cursor));
+            builderWrapper.setOptionsBuilder(builder);
         }
         return builderWrapper;
     }
