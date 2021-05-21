@@ -143,8 +143,9 @@ public class OptionsRequestCoordinator extends UceRequestCoordinator {
                 break;
             case REQUEST_UPDATE_NO_NEED_REQUEST_FROM_NETWORK:
                 handleNoNeedRequestFromNetwork(request);
+                break;
             default:
-                logw("onRequestUpdated: invalid event " + event);
+                logw("onRequestUpdated(OptionsRequest): invalid event " + event);
                 break;
         }
 
