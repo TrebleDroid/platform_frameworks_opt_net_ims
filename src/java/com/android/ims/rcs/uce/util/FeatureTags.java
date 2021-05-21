@@ -19,6 +19,7 @@ package com.android.ims.rcs.uce.util;
 import android.net.Uri;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
+import android.telephony.ims.RcsContactUceCapability.SourceType;
 
 import java.util.List;
 import java.util.Set;
@@ -126,8 +127,8 @@ public class FeatureTags {
      * Get RcsContactUceCapabilities from the given feature tags.
      */
     public static RcsContactUceCapability getContactCapability(Uri contact,
-            List<String> featureTags) {
-        OptionsBuilder builder = new OptionsBuilder(contact);
+            @SourceType int sourceType, List<String> featureTags) {
+        OptionsBuilder builder = new OptionsBuilder(contact, sourceType);
         builder.setRequestResult(RcsContactUceCapability.REQUEST_RESULT_FOUND);
         featureTags.forEach(feature -> builder.addFeatureTag(feature));
         return builder.build();
