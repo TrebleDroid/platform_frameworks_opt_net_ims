@@ -167,7 +167,9 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             return;
         }
 
-        logd("onRequestUpdated: taskId=" + taskId + ", event=" + REQUEST_EVENT_DESC.get(event));
+        logd("onRequestUpdated(SubscribeRequest): taskId=" + taskId + ", event=" +
+                REQUEST_EVENT_DESC.get(event));
+
         switch (event) {
             case REQUEST_UPDATE_ERROR:
                 handleRequestError(request);
@@ -418,7 +420,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             // Notify UceRequestManager to remove this instance from the collection.
             mRequestManagerCallback.notifyRequestCoordinatorFinished(mCoordinatorId);
 
-            logd("checkAndFinishRequestCoordinator: id=" + mCoordinatorId);
+            logd("checkAndFinishRequestCoordinator(SubscribeRequest) done, id=" + mCoordinatorId);
         }
     }
 
