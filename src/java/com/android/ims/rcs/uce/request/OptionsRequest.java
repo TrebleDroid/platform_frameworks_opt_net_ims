@@ -16,6 +16,8 @@
 
 package com.android.ims.rcs.uce.request;
 
+import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_NETWORK;
+
 import android.annotation.NonNull;
 import android.net.Uri;
 import android.os.RemoteException;
@@ -144,6 +146,9 @@ public class OptionsRequest extends CapabilityRequest {
         mRequestManagerCallback.notifyNetworkResponse(mCoordinatorId, mTaskId);
     }
 
+    /**
+     * Convert the remote capabilities from string list type to RcsContactUceCapability.
+     */
     private RcsContactUceCapability getContactCapabilities(Uri contact, int sipCode,
             Set<String> featureTags) {
         int requestResult = RcsContactUceCapability.REQUEST_RESULT_FOUND;
@@ -166,7 +171,7 @@ public class OptionsRequest extends CapabilityRequest {
         }
 
         RcsContactUceCapability.OptionsBuilder optionsBuilder
-                = new RcsContactUceCapability.OptionsBuilder(contact);
+                = new RcsContactUceCapability.OptionsBuilder(contact, SOURCE_TYPE_NETWORK);
         optionsBuilder.setRequestResult(requestResult);
         optionsBuilder.addFeatureTags(featureTags);
         return optionsBuilder.build();
