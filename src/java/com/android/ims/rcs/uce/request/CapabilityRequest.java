@@ -94,6 +94,7 @@ public abstract class CapabilityRequest implements UceRequest {
     @Override
     public void setContactUri(List<Uri> uris) {
         mUriList.addAll(uris);
+        mRequestResponse.setRequestContacts(uris);
     }
 
     public List<Uri> getContactUri() {
