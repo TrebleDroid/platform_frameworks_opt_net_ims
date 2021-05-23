@@ -83,8 +83,10 @@ public class SubscriptionTerminatedHelper {
      * @param reason The reason why the subscribe request is terminated. The reason is given by the
      * network and it could be empty.
      * @param retryAfterMillis How long should clients wait before retrying.
+     * @param allCapsHaveReceived Whether all the request contact capabilities have been received.
      */
-    public static TerminatedResult getAnalysisResult(String reason, long retryAfterMillis) {
+    public static TerminatedResult getAnalysisResult(String reason, long retryAfterMillis,
+            boolean allCapsHaveReceived) {
         TerminatedResult result = null;
         if (TextUtils.isEmpty(reason)) {
             /*
@@ -113,14 +115,29 @@ public class SubscriptionTerminatedHelper {
              * due to chang in authorization policy. Clients should NOT retry.
              */
             result = new TerminatedResult(Optional.of(RcsUceAdapter.ERROR_NOT_AUTHORIZED), 0L);
-        } else if (REASON_TIMEOUT.equalsIgnoreCase(reason) && retryAfterMillis > 0L) {
-            /*
-             * The subscription has been terminated because it was not refreshed before it expired.
-             * The request completes successfully when the retryAfter is not set. Otherwise, the
-             * request should retry if the retryAfter is set.
-             */
-            long retry = getRequestRetryAfterMillis(retryAfterMillis);
-            result = new TerminatedResult(Optional.of(RcsUceAdapter.ERROR_REQUEST_TIMEOUT), retry);
+        } else if (REASON_TIMEOUT.equalsIgnoreCase(reason)) {
+            if (retryAfterMillis > 0L) {
+                /*
+                 * When the parameter "retryAfterMillis" is greater than zero, it means that the
+                 * ImsService requires clients should retry later.
+                 */
+                long retry = getRequestRetryAfterMillis(retryAfterMillis);
+                result = new TerminatedResult(Optional.of(RcsUceAdapter.ERROR_REQUEST_TIMEOUT),
+                        retry);
+            } else if (!allCapsHaveReceived) {
+                /*
+                 * The ImsService does not require to retry when the parameter "retryAfterMillis"
+                 * is zero. However, the request is still failed because it has not received all
+                 * the capabilities updated from the network.
+                 */
+                result = new TerminatedResult(Optional.of(RcsUceAdapter.ERROR_REQUEST_TIMEOUT), 0L);
+            } else {
+                /*
+                 * The subscribe request is successfully when the parameter retryAfter is zero and
+                 * all the request capabilities have been received.
+                 */
+                result = new TerminatedResult(Optional.empty(), 0L);
+            }
         } else if (REASON_GIVEUP.equalsIgnoreCase(reason)) {
             /*
              * The subscription has been terminated because the notifier could no obtain
@@ -149,7 +166,7 @@ public class SubscriptionTerminatedHelper {
         }
 
         Log.d(LOG_TAG, "getAnalysisResult: reason=" + reason + ", retry=" + retryAfterMillis +
-                ", " + result);
+                ", allCapsHaveReceived=" + allCapsHaveReceived + ", " + result);
         return result;
     }
 
