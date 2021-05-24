@@ -18,6 +18,7 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import android.annotation.NonNull;
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -948,7 +949,13 @@ public class PublishControllerImpl implements PublishController {
         pw.println(mPublishStateUpdatedTime);
         pw.println("Last PIDF XML:");
         pw.increaseIndent();
-        pw.println(mPidfXml);
+        if (Build.IS_ENG) {
+            pw.println(mPidfXml);
+        } else if (Build.IS_DEBUGGABLE) {
+            pw.println(PublishUtils.removeNumbersFromUris(mPidfXml));
+        } else {
+            pw.println(mPidfXml != null ? "***" : "null");
+        }
         pw.decreaseIndent();
 
         if (mPublishProcessor != null) {

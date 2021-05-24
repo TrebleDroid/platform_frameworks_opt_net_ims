@@ -18,6 +18,9 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_RETRY;
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_VT_SETTING_CHANGE;
+
+import static junit.framework.Assert.assertFalse;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -270,6 +273,46 @@ public class PublishControllerImplTest extends ImsTestBase {
 
         // Verify the publish request can be processed immediately
         verify(mPublishProcessor).doPublish(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
+    }
+
+    @Test
+    @SmallTest
+    public void testRemoveNumber() {
+        // Contrived example, usually formatting of URIs will be consistent in doc.
+        final String testString = "<?xml version='1.0' encoding='utf-8' standalone='yes' "
+                + "?><presence entity=\"sip:15555551212@example.com\" "
+                + "xmlns=\"urn:ietf:params:xml:ns:pidf\" "
+                + "xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\" "
+                + "xmlns:caps=\"urn:ietf:params:xml:ns:pidf:caps\"><tuple "
+                + "id=\"tid0\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse"
+                + ".dp</op:service-id><op:version>1.0</op:version><op:description>Capabilities "
+                + "Discovery Service</op:description></op:service-description><contact>sips"
+                + ":15555551212@example.com</contact></tuple><tuple "
+                + "id=\"tid1\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-service.ims.icsi"
+                + ".mmtel</op:service-id><op:version>1.0</op:version><op:description>Voice and "
+                + "Video Service</op:description></op:service-description><caps:servcaps><caps"
+                + ":audio>true</caps:audio><caps:video>true</caps:video><caps:duplex><caps"
+                + ":supported><caps:full /></caps:supported></caps:duplex></caps:servcaps"
+                + "><contact>tel:15555551212@example.com</contact></tuple><tuple "
+                + "id=\"tid2\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcs"
+                + ".geopush</op:service-id><op:version>1"
+                + ".0</op:version></op:service-description><contact>sip:1-555-555-1212@example.com"
+                + "</contact></tuple><tuple "
+                + "id=\"tid3\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.openmobilealliance:File-Transfer-HTTP</op:service-id><op"
+                + ":version>1.0</op:version></op:service-description><contact>tel:1-555-555-1212@"
+                + "example.com</contact></tuple><tuple "
+                + "id=\"tid4\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.openmobilealliance:ChatSession</op:service-id><op:version>2"
+                + ".0</op:version></op:service-description><contact>sip:+15555551212@example.com"
+                + "</contact></tuple></presence>";
+        String result = PublishUtils.removeNumbersFromUris(testString);
+        // only check for substrings of the full number and variations.
+        assertFalse("still contained 5555551212: " + testString, result.contains("5555551212"));
+        assertFalse("still contained 555-555-1212: " + testString, result.contains("555-555-1212"));
     }
 
     private PublishControllerImpl createPublishController() {

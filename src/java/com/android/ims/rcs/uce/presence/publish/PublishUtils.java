@@ -28,7 +28,7 @@ import com.android.ims.rcs.uce.util.UceUtils;
 /**
  * The util class of publishing device's capabilities.
  */
-class PublishUtils {
+public class PublishUtils {
     private static final String LOG_TAG = UceUtils.getLogPrefix() + "PublishUtils";
 
     private static final String SCHEME_SIP = "sip";
@@ -51,6 +51,18 @@ class PublishUtils {
             Log.d(LOG_TAG, "getDeviceContactUri: line number");
             return getContactUriFromLine1Number(telephonyManager);
         }
+    }
+
+    /**
+     * Find all instances of sip/sips/tel URIs containing PII and replace them.
+     * <p>
+     * This is used for removing PII in logging.
+     * @param source The source string to remove the phone numbers from.
+     * @return A version of the given string with SIP URIs removed.
+     */
+    public static String removeNumbersFromUris(String source) {
+        // Replace only the number portion in the sip/sips/tel URI
+        return source.replaceAll("(?:sips?|tel):(\\+?[\\d\\-]+)", "[removed]");
     }
 
     private static Uri getContactUriFromIsim(TelephonyManager telephonyManager) {
