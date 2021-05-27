@@ -732,6 +732,16 @@ public class UceController {
     }
 
     /**
+     * Set the milliseconds of capabilities request timeout.
+     * <p>
+     * Used for testing ONLY.
+     */
+    public void setCapabilitiesRequestTimeout(long timeoutAfterMs) {
+        logd("setCapabilitiesRequestTimeout: " + timeoutAfterMs);
+        UceUtils.setCapRequestTimeoutAfterMillis(timeoutAfterMs);
+    }
+
+    /**
      * Get the subscription ID.
      */
     public int getSubId() {

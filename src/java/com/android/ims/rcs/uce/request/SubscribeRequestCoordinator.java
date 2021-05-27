@@ -139,6 +139,11 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
     private static final RequestResultCreator sNotNeedRequestFromNetworkCreator =
             (taskId, response, requestMgrCallback) -> RequestResult.createSuccessResult(taskId);
 
+    // The RequestResult creator of the request timeout.
+    private static final RequestResultCreator sRequestTimeoutCreator =
+            (taskId, response, requestMgrCallback) -> RequestResult.createFailedResult(taskId,
+                    RcsUceAdapter.ERROR_REQUEST_TIMEOUT, 0L);
+
     // The callback to notify the result of the capabilities request.
     private volatile IRcsUceControllerCallback mCapabilitiesCallback;
 
@@ -196,8 +201,11 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             case REQUEST_UPDATE_NO_NEED_REQUEST_FROM_NETWORK:
                 handleNoNeedRequestFromNetwork(request);
                 break;
+            case REQUEST_UPDATE_TIMEOUT:
+                handleRequestTimeout(request);
+                break;
             default:
-                logw("onRequestUpdated: invalid event " + event);
+                logw("onRequestUpdated(SubscribeRequest): invalid event " + event);
                 break;
         }
 
@@ -389,6 +397,24 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         // Remove this request from the activated collection and notify RequestManager.
         long taskId = request.getTaskId();
         RequestResult requestResult = sNotNeedRequestFromNetworkCreator.createRequestResult(taskId,
+                response, mRequestManagerCallback);
+        moveRequestToFinishedCollection(taskId, requestResult);
+    }
+
+    /**
+     * This method is called when the framework does not receive receive the result for
+     * capabilities request.
+     */
+    private void handleRequestTimeout(SubscribeRequest request) {
+        CapabilityRequestResponse response = request.getRequestResponse();
+        logd("handleRequestTimeout: " + response);
+
+        // Finish this request
+        request.onFinish();
+
+        // Remove this request from the activated collection and notify RequestManager.
+        long taskId = request.getTaskId();
+        RequestResult requestResult = sRequestTimeoutCreator.createRequestResult(taskId,
                 response, mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
     }
