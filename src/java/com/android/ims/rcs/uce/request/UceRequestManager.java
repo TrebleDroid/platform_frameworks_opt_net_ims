@@ -220,6 +220,16 @@ public class UceRequestManager {
         void notifyRemoteRequestDone(long requestCoordinatorId, long taskId);
 
         /**
+         * Set the timer for the request timeout. It will cancel the request when the time is up.
+         */
+        void setRequestTimeoutTimer(long requestCoordinatorId, long taskId, long timeoutAfterMs);
+
+        /**
+         * Remove the timeout timer of the capabilities request.
+         */
+        void removeRequestTimeoutTimer(long taskId);
+
+        /**
          * Notify that the UceRequest has finished. This is sent by UceRequestCoordinator.
          */
         void notifyUceRequestFinished(long requestCoordinatorId, long taskId);
@@ -316,6 +326,16 @@ public class UceRequestManager {
         public void notifyRemoteRequestDone(long requestCoordinatorId, long taskId) {
             mHandler.sendRequestUpdatedMessage(requestCoordinatorId, taskId,
                     UceRequestCoordinator.REQUEST_UPDATE_REMOTE_REQUEST_DONE);
+        }
+
+        @Override
+        public void setRequestTimeoutTimer(long coordinatorId, long taskId, long timeoutAfterMs) {
+            mHandler.sendRequestTimeoutTimerMessage(coordinatorId, taskId, timeoutAfterMs);
+        }
+
+        @Override
+        public void removeRequestTimeoutTimer(long taskId) {
+            mHandler.removeRequestTimeoutTimer(taskId);
         }
 
         @Override
@@ -547,13 +567,16 @@ public class UceRequestManager {
     private static class UceRequestHandler extends Handler {
         private static final int EVENT_EXECUTE_REQUEST = 1;
         private static final int EVENT_REQUEST_UPDATED = 2;
-        private static final int EVENT_REQUEST_FINISHED = 3;
-        private static final int EVENT_COORDINATOR_FINISHED = 4;
+        private static final int EVENT_REQUEST_TIMEOUT = 3;
+        private static final int EVENT_REQUEST_FINISHED = 4;
+        private static final int EVENT_COORDINATOR_FINISHED = 5;
 
+        private final Map<Long, SomeArgs> mRequestTimeoutTimers;
         private final WeakReference<UceRequestManager> mUceRequestMgrRef;
 
         public UceRequestHandler(UceRequestManager requestManager, Looper looper) {
             super(looper);
+            mRequestTimeoutTimers = new HashMap<>();
             mUceRequestMgrRef = new WeakReference<>(requestManager);
         }
 
@@ -587,6 +610,41 @@ public class UceRequestManager {
             sendMessage(message);
         }
 
+        /**
+         * Set the timeout timer to cancel the capabilities request.
+         */
+        public void sendRequestTimeoutTimerMessage(Long coordId, Long taskId, Long timeoutAfterMs) {
+            synchronized (mRequestTimeoutTimers) {
+                SomeArgs args = SomeArgs.obtain();
+                args.arg1 = coordId;
+                args.arg2 = taskId;
+
+                // Add the message object to the collection. It can be used to find this message
+                // when the request is completed and remove the timeout timer.
+                mRequestTimeoutTimers.put(taskId, args);
+
+                Message message = obtainMessage();
+                message.what = EVENT_REQUEST_TIMEOUT;
+                message.obj = args;
+                sendMessageDelayed(message, timeoutAfterMs);
+            }
+        }
+
+        /**
+         * Remove the timeout timer because the capabilities request is finished.
+         */
+        public void removeRequestTimeoutTimer(Long taskId) {
+            synchronized (mRequestTimeoutTimers) {
+                SomeArgs args = mRequestTimeoutTimers.remove(taskId);
+                if (args == null) {
+                    return;
+                }
+                Log.d(LOG_TAG, "removeRequestTimeoutTimer: taskId=" + taskId);
+                removeMessages(EVENT_REQUEST_TIMEOUT, args);
+                args.recycle();
+            }
+        }
+
         public void sendRequestFinishedMessage(Long coordinatorId, Long taskId) {
             SomeArgs args = SomeArgs.obtain();
             args.arg1 = coordinatorId;
@@ -616,6 +674,15 @@ public class UceRequestManager {
          */
         public void onDestroy() {
             removeCallbacksAndMessages(null);
+            // Recycle all the arguments in the mRequestTimeoutTimers
+            synchronized (mRequestTimeoutTimers) {
+                mRequestTimeoutTimers.forEach((taskId, args) -> {
+                    try {
+                        args.recycle();
+                    } catch (Exception e) {}
+                });
+                mRequestTimeoutTimers.clear();
+            }
         }
 
         @Override
@@ -652,7 +719,24 @@ public class UceRequestManager {
                     requestCoordinator.onRequestUpdated(taskId, requestEvent);
                     break;
                 }
+                case EVENT_REQUEST_TIMEOUT: {
+                    UceRequestCoordinator requestCoordinator =
+                            requestManager.getRequestCoordinator(coordinatorId);
+                    if (requestCoordinator == null) {
+                        requestManager.logw("handleMessage: cannot find UceRequestCoordinator");
+                        return;
+                    }
+                    // The timeout timer is triggered, remove this record from the collection.
+                    synchronized (mRequestTimeoutTimers) {
+                        mRequestTimeoutTimers.remove(taskId);
+                    }
+                    // Notify that the request is timeout.
+                    requestCoordinator.onRequestUpdated(taskId,
+                            UceRequestCoordinator.REQUEST_UPDATE_TIMEOUT);
+                    break;
+                }
                 case EVENT_REQUEST_FINISHED: {
+                    // Notify the repository that the request is finished.
                     requestManager.notifyRepositoryRequestFinished(taskId);
                     break;
                 }
@@ -674,6 +758,7 @@ public class UceRequestManager {
         static {
             EVENT_DESCRIPTION.put(EVENT_EXECUTE_REQUEST, "EXECUTE_REQUEST");
             EVENT_DESCRIPTION.put(EVENT_REQUEST_UPDATED, "REQUEST_UPDATE");
+            EVENT_DESCRIPTION.put(EVENT_REQUEST_TIMEOUT, "REQUEST_TIMEOUT");
             EVENT_DESCRIPTION.put(EVENT_REQUEST_FINISHED, "REQUEST_FINISHED");
             EVENT_DESCRIPTION.put(EVENT_COORDINATOR_FINISHED, "REMOVE_COORDINATOR");
         }
