@@ -89,6 +89,8 @@ public abstract class CapabilityRequest implements UceRequest {
     @Override
     public void onFinish() {
         mIsFinished = true;
+        // Remove the timeout timer of this request
+        mRequestManagerCallback.removeRequestTimeoutTimer(mTaskId);
     }
 
     @Override
@@ -215,14 +217,22 @@ public abstract class CapabilityRequest implements UceRequest {
 
     /**
      * Get the contact uris which cannot retrieve capabilities from the cache.
-     * @param cachedCapabilityList The capabilities which are already stored in the cache.
+     * @param cachedCapList The capabilities which are already stored in the cache.
      */
-    private List<Uri> getRequestingFromNetworkUris(
-            List<RcsContactUceCapability> cachedCapabilityList) {
+    private List<Uri> getRequestingFromNetworkUris(List<RcsContactUceCapability> cachedCapList) {
         return mUriList.stream()
-                .filter(uri -> cachedCapabilityList.stream()
+                .filter(uri -> cachedCapList.stream()
                         .noneMatch(cap -> cap.getContactUri().equals(uri)))
                         .collect(Collectors.toList());
+    }
+
+    /**
+     * Set the timeout timer of this request.
+     */
+    protected void setupRequestTimeoutTimer() {
+        long timeoutAfterMs = UceUtils.getCapRequestTimeoutAfterMillis();
+        logd("setupRequestTimeoutTimer(ms): " + timeoutAfterMs);
+        mRequestManagerCallback.setRequestTimeoutTimer(mCoordinatorId, mTaskId, timeoutAfterMs);
     }
 
     /*
