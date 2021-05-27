@@ -108,7 +108,10 @@ public class SubscribeRequest extends CapabilityRequest {
 
         logi("requestCapabilities: size=" + requestCapUris.size());
         try {
+            // Send the capabilities request.
             subscribeController.requestCapabilities(requestCapUris, mResponseCallback);
+            // Setup the timeout timer.
+            setupRequestTimeoutTimer();
         } catch (RemoteException e) {
             logw("requestCapabilities exception: " + e);
             mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
@@ -120,6 +123,7 @@ public class SubscribeRequest extends CapabilityRequest {
     private void onCommandError(@CommandCode int cmdError) {
         logd("onCommandError: error code=" + cmdError);
         if (mIsFinished) {
+            logw("onCommandError: request is already finished");
             return;
         }
         mRequestResponse.setCommandError(cmdError);
@@ -130,6 +134,7 @@ public class SubscribeRequest extends CapabilityRequest {
     private void onNetworkResponse(int sipCode, String reason) {
         logd("onNetworkResponse: code=" + sipCode + ", reason=" + reason);
         if (mIsFinished) {
+            logw("onNetworkResponse: request is already finished");
             return;
         }
         mRequestResponse.setNetworkResponseCode(sipCode, reason);
@@ -143,6 +148,7 @@ public class SubscribeRequest extends CapabilityRequest {
                 ", reasonHeaderCause=" + reasonHeaderCause +
                 ", reasonHeaderText=" + reasonHeaderText);
         if (mIsFinished) {
+            logw("onNetworkResponse: request is already finished");
             return;
         }
         mRequestResponse.setNetworkResponseCode(sipCode, reasonPhrase, reasonHeaderCause,
@@ -158,6 +164,7 @@ public class SubscribeRequest extends CapabilityRequest {
         }
 
         if (terminatedResource == null) {
+            logw("onResourceTerminated: the parameter is null");
             terminatedResource = Collections.emptyList();
         }
 
@@ -177,6 +184,7 @@ public class SubscribeRequest extends CapabilityRequest {
         }
 
         if (pidfXml == null) {
+            logw("onCapabilitiesUpdate: The parameter is null");
             pidfXml = Collections.EMPTY_LIST;
         }
 
@@ -199,6 +207,7 @@ public class SubscribeRequest extends CapabilityRequest {
     private void onTerminated(String reason, long retryAfterMillis) {
         logd("onTerminated: reason=" + reason + ", retryAfter=" + retryAfterMillis);
         if (mIsFinished) {
+            logd("onTerminated: This request is already finished");
             return;
         }
         mRequestResponse.setTerminated(reason, retryAfterMillis);
