@@ -100,12 +100,13 @@ public class EabUtil {
     private static int getEabContactId(String contactNumber, Context context) {
         int contactId = -1;
         Cursor cursor = null;
+        String formattedNumber = EabControllerImpl.formatNumber(context, contactNumber);
         try {
             cursor = context.getContentResolver().query(
                     EabProvider.CONTACT_URI,
                     new String[] { EabProvider.EabCommonColumns._ID },
                     EabProvider.ContactColumns.PHONE_NUMBER + "=?",
-                    new String[] { contactNumber }, null);
+                    new String[] { formattedNumber }, null);
             if (cursor != null && cursor.moveToFirst()) {
                 contactId = cursor.getInt(cursor.getColumnIndex(EabProvider.ContactColumns._ID));
             }
