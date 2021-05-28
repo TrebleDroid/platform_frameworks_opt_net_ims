@@ -105,7 +105,10 @@ public class OptionsRequest extends CapabilityRequest {
 
         logi("requestCapabilities: featureTag size=" + featureTags.size());
         try {
+            // Send the capabilities request.
             optionsController.sendCapabilitiesRequest(mContactUri, featureTags, mResponseCallback);
+            // Setup the timeout timer.
+            setupRequestTimeoutTimer();
         } catch (RemoteException e) {
             logw("requestCapabilities exception: " + e);
             mRequestResponse.setRequestInternalError(RcsUceAdapter.ERROR_GENERIC_FAILURE);
@@ -117,6 +120,7 @@ public class OptionsRequest extends CapabilityRequest {
     private void onCommandError(@CommandCode int cmdError) {
         logd("onCommandError: error code=" + cmdError);
         if (mIsFinished) {
+            logw("onCommandError: The request is already finished");
             return;
         }
         mRequestResponse.setCommandError(cmdError);
@@ -128,6 +132,7 @@ public class OptionsRequest extends CapabilityRequest {
         logd("onNetworkResponse: sipCode=" + sipCode + ", reason=" + reason
                 + ", remoteCap size=" + ((remoteCaps == null) ? "null" : remoteCaps.size()));
         if (mIsFinished) {
+            logw("onNetworkResponse: The request is already finished");
             return;
         }
 

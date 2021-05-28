@@ -87,6 +87,11 @@ public abstract class UceRequestCoordinator {
      */
     public static final int REQUEST_UPDATE_REMOTE_REQUEST_DONE = 8;
 
+    /**
+     * The capabilities request is timeout.
+     */
+    public static final int REQUEST_UPDATE_TIMEOUT = 9;
+
     @IntDef(value = {
             REQUEST_UPDATE_ERROR,
             REQUEST_UPDATE_COMMAND_ERROR,
@@ -97,6 +102,7 @@ public abstract class UceRequestCoordinator {
             REQUEST_UPDATE_CACHED_CAPABILITY_UPDATE,
             REQUEST_UPDATE_NO_NEED_REQUEST_FROM_NETWORK,
             REQUEST_UPDATE_REMOTE_REQUEST_DONE,
+            REQUEST_UPDATE_TIMEOUT,
     }, prefix="REQUEST_UPDATE_")
     @Retention(RetentionPolicy.SOURCE)
     @interface UceRequestUpdate {}
@@ -111,7 +117,8 @@ public abstract class UceRequestCoordinator {
         REQUEST_EVENT_DESC.put(REQUEST_UPDATE_CAPABILITY_UPDATE, "REQUEST_CAPABILITY_UPDATE");
         REQUEST_EVENT_DESC.put(REQUEST_UPDATE_CACHED_CAPABILITY_UPDATE, "REQUEST_CACHE_CAP_UPDATE");
         REQUEST_EVENT_DESC.put(REQUEST_UPDATE_NO_NEED_REQUEST_FROM_NETWORK, "NO_NEED_REQUEST");
-        REQUEST_EVENT_DESC.put(REQUEST_UPDATE_REMOTE_REQUEST_DONE, "REMOTE_REQ_DONE");
+        REQUEST_EVENT_DESC.put(REQUEST_UPDATE_REMOTE_REQUEST_DONE, "REMOTE_REQUEST_DONE");
+        REQUEST_EVENT_DESC.put(REQUEST_UPDATE_TIMEOUT, "REQUEST_TIMEOUT");
     }
 
     /**
