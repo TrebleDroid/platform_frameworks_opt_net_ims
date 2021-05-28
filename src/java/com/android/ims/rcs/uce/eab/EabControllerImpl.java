@@ -775,7 +775,7 @@ public class EabControllerImpl implements EabController {
         return formatNumber(context, numberParts[0]);
     }
 
-    private static String formatNumber(Context context, String number) {
+    static String formatNumber(Context context, String number) {
         TelephonyManager manager = context.getSystemService(TelephonyManager.class);
         String simCountryIso = manager.getSimCountryIso();
         if (simCountryIso != null) {
