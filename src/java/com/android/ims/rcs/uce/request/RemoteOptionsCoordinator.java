@@ -143,17 +143,23 @@ public class RemoteOptionsCoordinator extends UceRequestCoordinator {
     private void triggerOptionsReqCallback(RcsContactUceCapability deviceCaps,
             boolean isRemoteNumberBlocked) {
         try {
+            logd("triggerOptionsReqCallback: start");
             mOptionsReqCallback.respondToCapabilityRequest(deviceCaps, isRemoteNumberBlocked);
         } catch (RemoteException e) {
             logw("triggerOptionsReqCallback exception: " + e);
+        } finally {
+            logd("triggerOptionsReqCallback: done");
         }
     }
 
     private void triggerOptionsReqWithErrorCallback(int errorCode, String reason) {
         try {
+            logd("triggerOptionsReqWithErrorCallback: start");
             mOptionsReqCallback.respondToCapabilityRequestWithError(errorCode, reason);
         } catch (RemoteException e) {
             logw("triggerOptionsReqWithErrorCallback exception: " + e);
+        } finally {
+            logd("triggerOptionsReqWithErrorCallback: done");
         }
     }
 
