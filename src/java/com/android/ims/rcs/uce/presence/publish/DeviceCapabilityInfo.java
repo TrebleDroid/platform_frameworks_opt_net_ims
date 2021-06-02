@@ -40,8 +40,12 @@ import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Stores the device's capabilities information.
@@ -76,8 +80,14 @@ public class DeviceCapabilityInfo {
     // The network type which ims mmtel registers on.
     private int mMmtelNetworkRegType;
 
+    // The list of the mmtel associated uris
+    private List<Uri> mMmtelAssociatedUris = Collections.emptyList();
+
     // The rcs feature is registered or not
     private boolean mRcsRegistered;
+
+    // The list of the rcs associated uris
+    private List<Uri> mRcsAssociatedUris = Collections.emptyList();
 
     // Whether or not presence is reported as capable
     private boolean mPresenceCapable;
@@ -114,6 +124,8 @@ public class DeviceCapabilityInfo {
         mMobileData = true;
         mVtSetting = true;
         mMmTelCapabilities = new MmTelCapabilities();
+        mMmtelAssociatedUris = Collections.EMPTY_LIST;
+        mRcsAssociatedUris = Collections.EMPTY_LIST;
     }
 
     /**
@@ -164,8 +176,31 @@ public class DeviceCapabilityInfo {
         mMmtelNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
     }
 
-    public synchronized void updatePresenceCapable(boolean isCapable) {
-        mPresenceCapable = isCapable;
+    /**
+     * Update the MMTel associated URIs which are provided by the IMS service.
+     */
+    public synchronized void updateMmTelAssociatedUri(Uri[] uris) {
+        int originalSize = mMmtelAssociatedUris.size();
+        if (uris != null) {
+            mMmtelAssociatedUris = Arrays.stream(uris)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } else {
+            mMmtelAssociatedUris.clear();
+        }
+        int currentSize = mMmtelAssociatedUris.size();
+        logd("updateMmTelAssociatedUri: size from " + originalSize + " to " + currentSize);
+    }
+
+    /**
+     * Get the MMTEL associated URI. When there are multiple uris in the list, take the first uri.
+     * Return null if the list of the MMTEL associated uri is empty.
+     */
+    public synchronized Uri getMmtelAssociatedUri() {
+        if (!mMmtelAssociatedUris.isEmpty()) {
+            return mMmtelAssociatedUris.get(0);
+        }
+        return null;
     }
 
     /**
@@ -208,6 +243,47 @@ public class DeviceCapabilityInfo {
         }
         mRcsNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         return changed;
+    }
+
+    /**
+     * Update the RCS associated URIs which is provided by the IMS service.
+     */
+    public synchronized void updateRcsAssociatedUri(Uri[] uris) {
+        int originalSize = mRcsAssociatedUris.size();
+        if (uris != null) {
+            mRcsAssociatedUris = Arrays.stream(uris)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } else {
+            mRcsAssociatedUris.clear();
+        }
+        int currentSize = mRcsAssociatedUris.size();
+        logd("updateRcsAssociatedUri: size from " + originalSize + " to " + currentSize);
+    }
+
+    /**
+     * Get the RCS associated URI. When there are multiple uris in the list, take the first uri.
+     * Return null if the list of the RCS associated uri is empty.
+     */
+    public synchronized Uri getRcsAssociatedUri() {
+        if (!mRcsAssociatedUris.isEmpty()) {
+            return mRcsAssociatedUris.get(0);
+        }
+        return null;
+    }
+
+    /**
+     * Get the IMS associated URI. It will first get the uri of MMTEL if it is not empty, otherwise
+     * it will try to get the uri of RCS. The null will be returned if both MMTEL and RCS are empty.
+     */
+    public synchronized Uri getImsAssociatedUri() {
+        if (!mRcsAssociatedUris.isEmpty()) {
+            return mRcsAssociatedUris.get(0);
+        } else if (!mMmtelAssociatedUris.isEmpty()) {
+            return mMmtelAssociatedUris.get(0);
+        } else {
+            return null;
+        }
     }
 
     public synchronized boolean addRegistrationOverrideCapabilities(Set<String> featureTags) {
@@ -346,6 +422,10 @@ public class DeviceCapabilityInfo {
         return false;
     }
 
+    public synchronized void updatePresenceCapable(boolean isCapable) {
+        mPresenceCapable = isCapable;
+    }
+
     public synchronized boolean isPresenceCapable() {
         return mPresenceCapable;
     }
@@ -393,7 +473,7 @@ public class DeviceCapabilityInfo {
 
     // Get the device's capabilities with the PRESENCE mechanism.
     private RcsContactUceCapability getPresenceCapabilities(Context context) {
-        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId);
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this);
         if (uri == null) {
             logw("getPresenceCapabilities: uri is empty");
             return null;
@@ -454,7 +534,7 @@ public class DeviceCapabilityInfo {
 
     // Get the device's capabilities with the OPTIONS mechanism.
     private RcsContactUceCapability getOptionsCapabilities(Context context) {
-        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId);
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this);
         if (uri == null) {
             logw("getOptionsCapabilities: uri is empty");
             return null;
