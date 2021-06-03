@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.net.Uri;
 import android.telephony.ims.RcsContactPresenceTuple;
@@ -34,6 +35,7 @@ import androidx.test.filters.SmallTest;
 import com.android.ims.ImsTestBase;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.After;
@@ -105,6 +107,93 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("2001-01-01T01:00:00Z", presenceTuple1.getTime().toString());
         assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
         assertFalse(presenceTuple1.getServiceCapabilities().isVideoCapable());
+    }
+
+    @Test
+    @SmallTest
+    public void testConvertFromNewlineIncludedPidfToRcsContactUceCapability() throws Exception {
+        final String contact = "tel:+11234567890";
+
+        final RcsContactPresenceTuple.Builder tuple1Builder = new RcsContactPresenceTuple.Builder(
+                "open",
+                "org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse.dp",
+                "1.0");
+        tuple1Builder.setServiceDescription("DiscoveryPresence")
+                .setContactUri(Uri.parse(contact));
+
+        final RcsContactPresenceTuple.Builder tuple2Builder = new RcsContactPresenceTuple.Builder(
+                "open",
+                "org.openmobilealliance:StandaloneMsg",
+                "2.0");
+        tuple2Builder.setServiceDescription("StandaloneMsg")
+                .setContactUri(Uri.parse(contact));
+
+        final RcsContactPresenceTuple.Builder tuple3Builder = new RcsContactPresenceTuple.Builder(
+                "open",
+                "org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel",
+                "1.0");
+        tuple3Builder.setServiceDescription("VoLTE service");
+        ServiceCapabilities.Builder capBuilder = new ServiceCapabilities.Builder(true, true);
+        tuple3Builder.setServiceCapabilities(capBuilder.build())
+                .setContactUri(Uri.parse(contact));
+
+        final List<RcsContactPresenceTuple> expectedTupleList = new ArrayList<>(3);
+        expectedTupleList.add(tuple1Builder.build());
+        expectedTupleList.add(tuple2Builder.build());
+        expectedTupleList.add(tuple3Builder.build());
+
+        // Create the newline included PIDF data
+        String pidfData = getPidfDataWithNewlineCharacters(contact);
+
+        // Convert to the class RcsContactUceCapability
+        RcsContactUceCapability capabilities = PidfParser.getRcsContactUceCapability(pidfData);
+
+        assertNotNull(capabilities);
+        assertEquals(Uri.parse(contact), capabilities.getContactUri());
+        assertEquals(RcsContactUceCapability.SOURCE_TYPE_NETWORK, capabilities.getSourceType());
+        assertEquals(RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE,
+                capabilities.getCapabilityMechanism());
+
+        List<RcsContactPresenceTuple> presenceTupleList = capabilities.getCapabilityTuples();
+        assertNotNull(presenceTupleList);
+        assertEquals(expectedTupleList.size(), presenceTupleList.size());
+
+        for(RcsContactPresenceTuple tuple : presenceTupleList) {
+            String serviceId = tuple.getServiceId();
+            RcsContactPresenceTuple expectedTuple = findTuple(serviceId, expectedTupleList);
+            if (expectedTuple == null) {
+                fail("The service ID is invalid");
+            }
+
+            assertEquals(expectedTuple.getStatus(), tuple.getStatus());
+            assertEquals(expectedTuple.getServiceVersion(), tuple.getServiceVersion());
+            assertEquals(expectedTuple.getServiceDescription(), tuple.getServiceDescription());
+            assertEquals(expectedTuple.getTime(), tuple.getTime());
+            assertEquals(expectedTuple.getContactUri(), tuple.getContactUri());
+
+            ServiceCapabilities expectedCap = expectedTuple.getServiceCapabilities();
+            ServiceCapabilities resultCap = tuple.getServiceCapabilities();
+            if (expectedCap != null) {
+                assertNotNull(resultCap);
+                assertEquals(expectedCap.isAudioCapable(), resultCap.isAudioCapable());
+                assertEquals(expectedCap.isVideoCapable(), resultCap.isVideoCapable());
+            } else {
+                assertNull(resultCap);
+            }
+        }
+    }
+
+    private RcsContactPresenceTuple findTuple(String serviceId,
+            List<RcsContactPresenceTuple> expectedTupleList) {
+        if (serviceId == null) {
+            return null;
+        }
+        for (RcsContactPresenceTuple tuple : expectedTupleList) {
+            if (serviceId.equalsIgnoreCase(tuple.getServiceId())) {
+                return tuple;
+            }
+        }
+        return null;
     }
 
     @Test
@@ -239,6 +328,61 @@ public class PidfParserTest extends ImsTestBase {
                 .append("<timestamp>2001-01-01T01:00:00.00Z</timestamp>")
                 .append("</tuple></presence>");
         return pidfBuilder.toString();
+    }
+
+    private String getPidfDataWithNewlineCharacters(String contact) {
+        String pidf = "<presence xmlns=\"urn:ietf:params:xml:ns:pidf\" "
+                + "xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\" "
+                + "xmlns:b=\"urn:ietf:params:xml:ns:pidf:caps\" "
+                + "entity=\"" + contact + "\">\n"
+                // The first tuple
+                + "<tuple id=\"DiscoveryPres\">\n"
+                + "<status>\n"
+                + "<basic>open</basic>\n"
+                + "</status>\n"
+                + "<op:service-description>\n"
+                + "<op:service-id>"
+                        + "org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse.dp</op:service-id>\n"
+                + "<op:version>1.0</op:version>\n"
+                + "<op:description>DiscoveryPresence</op:description>\n"
+                + "</op:service-description>\n"
+                + "<contact>tel:+11234567890</contact>\n"
+                + "</tuple>\n"
+                // The second tuple
+                + "<tuple id=\"VoLTE\">\n"
+                + "<status>\n"
+                + "<basic>open</basic>\n"
+                + "</status>\n"
+                + "<b:servcaps>\n"
+                + "<b:audio>true</b:audio>\n"
+                + "<b:video>true</b:video>\n"
+                + "<b:duplex>\n"
+                + "<b:supported>\n"
+                + "<b:full/>\n"
+                + "</b:supported>\n"
+                + "</b:duplex>\n"
+                + "</b:servcaps>\n"
+                + "<op:service-description>\n"
+                + "<op:service-id>org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel</op:service-id>\n"
+                + "<op:version>1.0</op:version>\n"
+                + "<op:description>VoLTE service</op:description>\n"
+                + "</op:service-description>\n"
+                + "<contact>tel:+11234567890</contact>\n"
+                + "</tuple>\n"
+                // The third tuple
+                + "<tuple id=\"StandaloneMsg\">\n"
+                + "<status>\n"
+                + "<basic>open</basic>\n"
+                + "</status>\n"
+                + "<op:service-description>\n"
+                + "<op:service-id>org.openmobilealliance:StandaloneMsg</op:service-id>\n"
+                + "<op:version>2.0</op:version>\n"
+                + "<op:description>StandaloneMsg</op:description>\n"
+                + "</op:service-description>\n"
+                + "<contact>tel:+11234567890</contact>\n"
+                + "</tuple>\n"
+                + "</presence>";
+        return pidf;
     }
 
     private String getPidfDataWithMultiTuples(String contact, String serviceId1,
