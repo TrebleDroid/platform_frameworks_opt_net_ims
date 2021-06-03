@@ -469,7 +469,12 @@ public class PublishControllerImpl implements PublishController {
                 case MSG_RESET_DEVICE_STATE:
                     publishCtrl.handleResetDeviceStateMessage();
                     break;
+
+                default:
+                    publishCtrl.logd("invalid message: " + message.what);
+                    break;
             }
+            publishCtrl.logd("handleMessage done: " + EVENT_DESCRIPTION.get(message.what));
         }
 
         /**

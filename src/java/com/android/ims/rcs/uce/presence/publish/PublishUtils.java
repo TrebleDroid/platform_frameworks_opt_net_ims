@@ -25,6 +25,8 @@ import android.util.Log;
 
 import com.android.ims.rcs.uce.util.UceUtils;
 
+import java.util.Arrays;
+
 /**
  * The util class of publishing device's capabilities.
  */
@@ -35,7 +37,15 @@ public class PublishUtils {
     private static final String SCHEME_TEL = "tel";
     private static final String DOMAIN_SEPARATOR = "@";
 
-    public static Uri getDeviceContactUri(Context context, int subId) {
+    public static Uri getDeviceContactUri(Context context, int subId,
+            DeviceCapabilityInfo deviceCap) {
+        // Get the uri from the IMS associated URI which is provided by the IMS service.
+        Uri contactUri = deviceCap.getImsAssociatedUri();
+        if (contactUri != null) {
+            Log.d(LOG_TAG, "getDeviceContactUri: ims associated uri");
+            return contactUri;
+        }
+
         TelephonyManager telephonyManager = getTelephonyManager(context, subId);
         if (telephonyManager == null) {
             Log.w(LOG_TAG, "getDeviceContactUri: TelephonyManager is null");
@@ -43,7 +53,7 @@ public class PublishUtils {
         }
 
         // Get the contact uri from ISIM.
-        Uri contactUri = getContactUriFromIsim(telephonyManager);
+        contactUri = getContactUriFromIsim(telephonyManager);
         if (contactUri != null) {
             Log.d(LOG_TAG, "getDeviceContactUri: impu");
             return contactUri;
