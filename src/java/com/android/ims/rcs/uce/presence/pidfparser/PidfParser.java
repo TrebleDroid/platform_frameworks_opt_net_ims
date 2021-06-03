@@ -45,6 +45,8 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -57,6 +59,8 @@ import org.xmlpull.v1.XmlSerializer;
 public class PidfParser {
 
     private static final String LOG_TAG = UceUtils.getLogPrefix() + "PidfParser";
+
+    private static final Pattern PIDF_PATTERN = Pattern.compile("\t|\r|\n");
 
     /**
      * Convert the RcsContactUceCapability to the string of pidf.
@@ -98,6 +102,15 @@ public class PidfParser {
      */
     public static @Nullable RcsContactUceCapability getRcsContactUceCapability(String pidf) {
         if (TextUtils.isEmpty(pidf)) {
+            Log.w(LOG_TAG, "getRcsContactUceCapability: The given pidf is empty");
+            return null;
+        }
+
+        // Filter the newline characters
+        Matcher matcher = PIDF_PATTERN.matcher(pidf);
+        String formattedPidf = matcher.replaceAll("");
+        if (TextUtils.isEmpty(formattedPidf)) {
+            Log.w(LOG_TAG, "getRcsContactUceCapability: The formatted pidf is empty");
             return null;
         }
 
@@ -106,7 +119,7 @@ public class PidfParser {
             // Init the instance of the parser
             XmlPullParser parser = XmlPullParserFactory.newInstance().newPullParser();
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
-            reader = new StringReader(pidf);
+            reader = new StringReader(formattedPidf);
             parser.setInput(reader);
 
             // Start parsing
