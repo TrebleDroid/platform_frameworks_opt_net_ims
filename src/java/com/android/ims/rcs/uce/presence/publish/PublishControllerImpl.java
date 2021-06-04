@@ -89,6 +89,8 @@ public class PublishControllerImpl implements PublishController {
     private volatile RcsFeatureManager mRcsFeatureManager;
     private final UceControllerCallback mUceCtrlCallback;
 
+    // The capability type that the device is using.
+    private @RcsImsCapabilityFlag int mCapabilityType;
     // The device publish state
     private @PublishState int mPublishState;
     // The timestamp of updating the publish state
@@ -154,7 +156,8 @@ public class PublishControllerImpl implements PublishController {
     }
 
     private void initPublishController(Looper looper) {
-        mPublishState = RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED;
+        mCapabilityType = PublishUtils.getCapabilityType(mContext, mSubId);
+        mPublishState = getInitialPublishState(mCapabilityType);
         mPublishStateCallbacks = new RemoteCallbackList<>();
         mPublishHandler = new PublishHandler(this, looper);
 
@@ -166,6 +169,26 @@ public class PublishControllerImpl implements PublishController {
 
         // Turn on the listener to listen to the device changes.
         mDeviceCapListener.initialize();
+
+        logd("initPublishController completed: capabilityType=" + mCapabilityType +
+                ", publishState=" + mPublishState);
+    }
+
+    /**
+     * Get the initial publish state according to the given capability type.
+     * <p>
+     * The default publish state is NOT_PUBLISH when the capability type is PRESENCE.
+     * The default publish state is OK when the capability type is SIP OPTIONS.
+     * Otherwise, the default initial value is ERROR.
+     */
+    private int getInitialPublishState(@RcsImsCapabilityFlag int capabilityType) {
+        if (capabilityType == RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE) {
+            return RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED;
+        } else if (capabilityType == RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE) {
+            return RcsUceAdapter.PUBLISH_STATE_OK;
+        } else {
+            return RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR;
+        }
     }
 
     private void initPublishProcessor() {
@@ -573,20 +596,20 @@ public class PublishControllerImpl implements PublishController {
         }
 
         public void sendPublishMessage(@PublishTriggerType int type) {
-            PublishControllerImpl publishCtrl = mPublishControllerRef.get();
-            if (publishCtrl == null) return;
-            if (publishCtrl.mIsDestroyedFlag) return;
-
-            Message message = obtainMessage();
-            message.what = MSG_REQUEST_PUBLISH;
-            message.arg1 = type;
-            sendMessage(message);
+            sendPublishMessage(type, 0L);
         }
 
         public void sendPublishMessage(@PublishTriggerType int type, long delay) {
             PublishControllerImpl publishCtrl = mPublishControllerRef.get();
             if (publishCtrl == null) return;
             if (publishCtrl.mIsDestroyedFlag) return;
+
+            // Disallow publish if the PRESENCE PUBLISH is not enabled and this request is not
+            // triggered by the ImsService.
+            if (!publishCtrl.isPresencePublishEnabled() && type != PUBLISH_TRIGGER_SERVICE) {
+                publishCtrl.logd("sendPublishMessage: disallowed type=" + type);
+                return;
+            }
 
             Message message = obtainMessage();
             message.what = MSG_REQUEST_PUBLISH;
@@ -692,7 +715,8 @@ public class PublishControllerImpl implements PublishController {
 
         // The first PUBLISH request is required to be triggered from the service.
         if (!mReceivePublishFromService) {
-            logd("isPublishRequestAllowed: Have not received the first PUBLISH from the service.");
+            logd("isPublishRequestAllowed: "
+                    + "The first PUBLISH request from the server has not been received.");
             return false;
         }
 
@@ -713,6 +737,19 @@ public class PublishControllerImpl implements PublishController {
         return true;
     }
 
+    /**
+     * Check whether the PRESENCE PUBLISH should be enabled or not. It should be enabled only when
+     * the PRESENCE mechanism is supported.
+     */
+    private boolean isPresencePublishEnabled() {
+        synchronized (mPublishStateLock) {
+            return mCapabilityType == RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE;
+        }
+    }
+
+    /**
+     * Handle the RCS connected message. This method is called in the handler thread.
+     */
     private void handleRcsConnectedMessage(RcsFeatureManager manager) {
         if (mIsDestroyedFlag) return;
         mRcsFeatureManager = manager;
@@ -721,15 +758,27 @@ public class PublishControllerImpl implements PublishController {
         registerRcsAvailabilityChanged(manager);
     }
 
+    /**
+     * Handle the RCS disconnected message. This method is called in the handler thread.
+     */
     private void handleRcsDisconnectedMessage() {
         if (mIsDestroyedFlag) return;
         mRcsFeatureManager = null;
-        onUnpublish();
         mDeviceCapabilityInfo.updatePresenceCapable(false);
         mDeviceCapListener.onRcsDisconnected();
         mPublishProcessor.onRcsDisconnected();
+
+        // When the RCS is disconnected, update the publish state to NOT_PUBLISH if the PRESENCE
+        // PUBLISH is enabled.
+        if (isPresencePublishEnabled()) {
+            handlePublishStateChangedMessage(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED,
+                    Instant.now(), null /*pidfXml*/);
+        }
     }
 
+    /**
+     * Handle the Destroyed message. This method is called in the handler thread.
+     */
     private void handleDestroyedMessage() {
         mIsDestroyedFlag = true;
         mDeviceCapabilityInfo.updatePresenceCapable(false);
@@ -768,12 +817,49 @@ public class PublishControllerImpl implements PublishController {
         }
     }
 
+    /**
+     * Handle the carrier config changed message. This method is called in the handler thread.
+     */
     private void handleCarrierConfigChangedMessage() {
         if (mIsDestroyedFlag) return;
+
+        updateCapabilityTypeAndPublishStateIfNeeded();
+
         String[] newMap = getCarrierServiceDescriptionFeatureTagMap();
         if (mDeviceCapabilityInfo.updateCapabilityRegistrationTrackerMap(newMap)) {
             mPublishHandler.sendPublishMessage(
                     PublishController.PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED);
+        }
+    }
+
+    /**
+     * Check whether the capability type has changed or not because of the carrier config changed.
+     * If the capability type has changed, the publish state also needs to be reinitialized.
+     * <p>
+     * This method is called in the handler thread.
+     */
+    private void updateCapabilityTypeAndPublishStateIfNeeded() {
+        synchronized (mPublishStateLock) {
+            int originalMechanism = mCapabilityType;
+            mCapabilityType = PublishUtils.getCapabilityType(mContext, mSubId);
+
+            // Return when the capability type has not changed.
+            if (originalMechanism == mCapabilityType) {
+                logd("updateCapTypeAndPublishStateIfNeeded: " +
+                        "The capability type is not changed=" + mCapabilityType);
+                return;
+            }
+
+            // Reinitialize the publish state because the capability type has changed.
+            int updatedPublishState = getInitialPublishState(mCapabilityType);
+
+            logd("updateCapTypeAndPublishStateIfNeeded from " + originalMechanism +
+                    " to " + mCapabilityType + ", new publish state=" + updatedPublishState);
+
+            // Update the publish state directly. Because this method is called in the
+            // handler thread already, the process of updating publish state does not need to be
+            // sent to the looper again.
+            handlePublishStateChangedMessage(updatedPublishState, Instant.now(), null /*pidfxml*/);
         }
     }
 
@@ -896,6 +982,12 @@ public class PublishControllerImpl implements PublishController {
     private void handleResetDeviceStateMessage() {
         if(mIsDestroyedFlag) return;
         mUceCtrlCallback.resetDeviceState();
+    }
+
+    @VisibleForTesting
+    public void setCapabilityType(int type) {
+        mCapabilityType = type;
+        mPublishState = getInitialPublishState(mCapabilityType);
     }
 
     @VisibleForTesting
