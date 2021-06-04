@@ -35,6 +35,7 @@ import android.os.RemoteCallbackList;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
+import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -315,11 +316,42 @@ public class PublishControllerImplTest extends ImsTestBase {
         assertFalse("still contained 555-555-1212: " + testString, result.contains("555-555-1212"));
     }
 
+    @Test
+    @SmallTest
+    public void testNotPublishWhitSipOptions() throws Exception {
+        PublishControllerImpl publishController = createPublishController();
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE);
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
+
+        // Trigger a publish request (VT changes)
+        PublishControllerCallback callback = publishController.getPublishControllerCallback();
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
+
+        // Verify it cannot be processed because the capability type is SIP OPTIONS and the publish
+        // request is triggered from device changed
+        verify(mPublishProcessor, never()).doPublish(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
+
+        // Set the PRESENCE is capable
+        IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
+        RcsCapCallback.onCapabilitiesStatusChanged(RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE);
+
+        // Trigger the PUBLISH request from the service.
+        publishController.requestPublishCapabilitiesFromService(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_IWLAN);
+        waitForHandlerAction(handler, 1000);
+
+        // Verify the request which is from the service can be processed
+        verify(mPublishProcessor).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
+    }
+
     private PublishControllerImpl createPublishController() {
         PublishControllerImpl publishController = new PublishControllerImpl(mContext, mSubId,
                 mUceCtrlCallback, Looper.getMainLooper(), mDeviceCapListenerFactory,
                 mPublishProcessorFactory);
         publishController.setPublishStateCallback(mPublishStateCallbacks);
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE);
         return publishController;
     }
 }
