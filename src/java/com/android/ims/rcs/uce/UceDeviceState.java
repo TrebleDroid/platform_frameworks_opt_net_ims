@@ -21,6 +21,7 @@ import android.content.Context;
 import android.telephony.ims.RcsUceAdapter.ErrorCode;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.UceController.RequestType;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
 import com.android.ims.rcs.uce.util.UceUtils;
@@ -29,6 +30,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -50,18 +53,33 @@ public class UceDeviceState {
     private static final int DEVICE_STATE_FORBIDDEN = 1;
 
     /**
+     * The device will be in the PROVISION error state when the PUBLISH request fails and the
+     * SIP code is 404 NOT FOUND.
+     */
+    private static final int DEVICE_STATE_PROVISION_ERROR = 2;
+
+    /**
      * When the network response SIP code is 489 and the carrier config also indicates that needs
      * to handle the SIP code 489, the device will be in the BAD EVENT state.
      */
-    private static final int DEVICE_STATE_BAD_EVENT = 2;
+    private static final int DEVICE_STATE_BAD_EVENT = 3;
 
     @IntDef(value = {
             DEVICE_STATE_OK,
             DEVICE_STATE_FORBIDDEN,
+            DEVICE_STATE_PROVISION_ERROR,
             DEVICE_STATE_BAD_EVENT,
     }, prefix="DEVICE_STATE_")
     @Retention(RetentionPolicy.SOURCE)
     public @interface DeviceStateType {}
+
+    private static final Map<Integer, String> DEVICE_STATE_DESCRIPTION = new HashMap<>();
+    static {
+        DEVICE_STATE_DESCRIPTION.put(DEVICE_STATE_OK, "DEVICE_STATE_OK");
+        DEVICE_STATE_DESCRIPTION.put(DEVICE_STATE_FORBIDDEN, "DEVICE_STATE_FORBIDDEN");
+        DEVICE_STATE_DESCRIPTION.put(DEVICE_STATE_PROVISION_ERROR, "DEVICE_STATE_PROVISION_ERROR");
+        DEVICE_STATE_DESCRIPTION.put(DEVICE_STATE_BAD_EVENT, "DEVICE_STATE_BAD_EVENT");
+    }
 
     /**
      * The result of the current device state.
@@ -86,6 +104,7 @@ public class UceDeviceState {
         public boolean isRequestForbidden() {
             switch(mDeviceState) {
                 case DEVICE_STATE_FORBIDDEN:
+                case DEVICE_STATE_PROVISION_ERROR:
                 case DEVICE_STATE_BAD_EVENT:
                     return true;
                 default:
@@ -133,7 +152,7 @@ public class UceDeviceState {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("DeviceState=").append(getDeviceState())
+            builder.append("DeviceState=").append(DEVICE_STATE_DESCRIPTION.get(getDeviceState()))
                     .append(", ErrorCode=").append(getErrorCode())
                     .append(", RetryTime=").append(getRequestRetryTime())
                     .append(", retryAfterMillis=").append(getRequestRetryAfterMillis())
@@ -203,9 +222,12 @@ public class UceDeviceState {
      * Update the device state to determine whether the device is allowed to send requests or not.
      *  @param sipCode The SIP CODE of the request result.
      *  @param reason The reason from the network response.
+     *  @param requestType The type of the request.
      */
-    public synchronized void refreshDeviceState(int sipCode, String reason) {
-        logd("refreshDeviceState: sipCode=" + sipCode + ", reason=" + reason);
+    public synchronized void refreshDeviceState(int sipCode, String reason,
+            @RequestType int requestType) {
+        logd("refreshDeviceState: sipCode=" + sipCode + ", reason=" + reason +
+                ", requestResponseType=" + UceController.REQUEST_TYPE_DESCRIPTION.get(requestType));
 
         // Get the current device status before updating the state.
         DeviceStateResult previousState = getCurrentState();
@@ -213,18 +235,35 @@ public class UceDeviceState {
         // Update the device state based on the given sip code.
         switch (sipCode) {
             case NetworkSipCode.SIP_CODE_FORBIDDEN:   // sip 403
-                setDeviceState(DEVICE_STATE_FORBIDDEN);
-                updateErrorCode(sipCode, reason);
+                if (requestType == UceController.REQUEST_TYPE_PUBLISH) {
+                    // Provisioning error for publish request.
+                    setDeviceState(DEVICE_STATE_PROVISION_ERROR);
+                } else {
+                    setDeviceState(DEVICE_STATE_FORBIDDEN);
+                }
+                updateErrorCode(sipCode, reason, requestType);
                 // There is no request retry time for SIP code 403
                 removeRequestRetryTime();
                 // No timer to exit the forbidden state.
                 removeExitStateTimer();
                 break;
 
+            case NetworkSipCode.SIP_CODE_NOT_FOUND:  // sip 404
+                // DeviceState only handles 404 NOT FOUND error for PUBLISH request.
+                if (requestType == UceController.REQUEST_TYPE_PUBLISH) {
+                    setDeviceState(DEVICE_STATE_PROVISION_ERROR);
+                    updateErrorCode(sipCode, reason, requestType);
+                    // There is no request retry time for SIP code 404
+                    removeRequestRetryTime();
+                    // No timer to exit this state.
+                    removeExitStateTimer();
+                }
+                break;
+
             case NetworkSipCode.SIP_CODE_BAD_EVENT:   // sip 489
                 if (UceUtils.isRequestForbiddenBySip489(mContext, mSubId)) {
                     setDeviceState(DEVICE_STATE_BAD_EVENT);
-                    updateErrorCode(sipCode, reason);
+                    updateErrorCode(sipCode, reason, requestType);
                     // Setup the request retry time.
                     setupRequestRetryTime();
                     // Setup the timer to exit the BAD EVENT state.
@@ -251,7 +290,7 @@ public class UceDeviceState {
             saveDeviceStateToPreference(currentState);
         }
 
-        logd("refreshDeviceState: previous=" + previousState + ", current=" + currentState);
+        logd("refreshDeviceState: previous: " + previousState + ", current: " + currentState);
     }
 
     /**
@@ -285,9 +324,9 @@ public class UceDeviceState {
         }
     }
 
-    private void updateErrorCode(int sipCode, String reason) {
+    private void updateErrorCode(int sipCode, String reason, @RequestType int requestType) {
         Optional<Integer> newErrorCode = Optional.of(NetworkSipCode.getCapabilityErrorFromSipCode(
-                sipCode, reason));
+                    sipCode, reason, requestType));
         if (!mErrorCode.equals(newErrorCode)) {
             mErrorCode = newErrorCode;
         }
