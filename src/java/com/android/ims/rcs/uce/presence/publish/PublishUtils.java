@@ -20,6 +20,8 @@ import android.content.Context;
 import android.net.Uri;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
+import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -131,6 +133,19 @@ public class PublishUtils {
             return null;
         } else {
             return telephonyManager.createForSubscriptionId(subId);
+        }
+    }
+
+    static @RcsImsCapabilityFlag int getCapabilityType(Context context, int subId) {
+        boolean isPresenceSupported = UceUtils.isPresenceSupported(context, subId);
+        boolean isSipOptionsSupported = UceUtils.isSipOptionsSupported(context, subId);
+        if (isPresenceSupported) {
+            return RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE;
+        } else if (isSipOptionsSupported) {
+            return RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE;
+        } else {
+            // Return NONE when neither OPTIONS nor PRESENCE is supported.
+            return RcsImsCapabilities.CAPABILITY_TYPE_NONE;
         }
     }
 }
