@@ -40,7 +40,9 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
+import com.android.ims.rcs.uce.UceDeviceState;
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
@@ -387,7 +389,8 @@ public class PublishControllerImpl implements PublishController {
 
                 @Override
                 public void refreshDeviceState(int sipCode, String reason) {
-                    mUceCtrlCallback.refreshDeviceState(sipCode, reason);
+                    mUceCtrlCallback.refreshDeviceState(sipCode, reason,
+                            UceController.REQUEST_TYPE_PUBLISH);
                 }
             };
 
@@ -1049,7 +1052,8 @@ public class PublishControllerImpl implements PublishController {
         if (Build.IS_ENG) {
             pw.println(mPidfXml);
         } else if (Build.IS_DEBUGGABLE) {
-            pw.println(PublishUtils.removeNumbersFromUris(mPidfXml));
+            String pidfXml = (mPidfXml == null) ? "null" : mPidfXml;
+            pw.println(PublishUtils.removeNumbersFromUris(pidfXml));
         } else {
             pw.println(mPidfXml != null ? "***" : "null");
         }
