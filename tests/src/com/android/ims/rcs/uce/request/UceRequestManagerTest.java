@@ -47,6 +47,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.android.ims.ImsTestBase;
+import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.ims.rcs.uce.request.UceRequestManager.UceUtilsProxy;
@@ -164,7 +165,7 @@ public class UceRequestManagerTest extends ImsTestBase {
         verify(mCallback).getDeviceState();
 
         requestMgrCallback.refreshDeviceState(200, "OK");
-        verify(mCallback).refreshDeviceState(200, "OK");
+        verify(mCallback).refreshDeviceState(200, "OK", UceController.REQUEST_TYPE_CAPABILITY);
 
         requestMgrCallback.notifyRequestError(mCoordId, mTaskId);
         waitForHandlerAction(handler, 400L);

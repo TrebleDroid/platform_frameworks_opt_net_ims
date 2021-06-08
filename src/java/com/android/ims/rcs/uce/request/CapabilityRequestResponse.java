@@ -25,6 +25,7 @@ import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase.CommandCode;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.util.NetworkSipCode;
 import com.android.ims.rcs.uce.util.UceUtils;
@@ -423,7 +424,8 @@ public class CapabilityRequestResponse {
             sipError = response.getNetworkRespSipCode().orElse(-1);
             respReason = response.getReasonPhrase().orElse("");
         }
-        return NetworkSipCode.getCapabilityErrorFromSipCode(sipError, respReason);
+        return NetworkSipCode.getCapabilityErrorFromSipCode(sipError, respReason,
+                UceController.REQUEST_TYPE_CAPABILITY);
     }
 
     @Override
