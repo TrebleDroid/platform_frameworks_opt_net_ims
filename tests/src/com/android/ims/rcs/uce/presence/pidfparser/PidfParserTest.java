@@ -130,20 +130,36 @@ public class PidfParserTest extends ImsTestBase {
 
         final RcsContactPresenceTuple.Builder tuple3Builder = new RcsContactPresenceTuple.Builder(
                 "open",
-                "org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel",
-                "1.0");
-        tuple3Builder.setServiceDescription("VoLTE service");
-        ServiceCapabilities.Builder capBuilder = new ServiceCapabilities.Builder(true, true);
-        tuple3Builder.setServiceCapabilities(capBuilder.build())
+                "org.openmobilealliance:ChatSession",
+                "2.0");
+        tuple3Builder.setServiceDescription("Session Mode Messaging")
                 .setContactUri(Uri.parse(contact));
 
-        final List<RcsContactPresenceTuple> expectedTupleList = new ArrayList<>(3);
+        final RcsContactPresenceTuple.Builder tuple4Builder = new RcsContactPresenceTuple.Builder(
+                "open",
+                "org.openmobilealliance:File-Transfer",
+                "1.0");
+        tuple4Builder.setServiceDescription("File Transfer")
+                .setContactUri(Uri.parse(contact));
+
+        final RcsContactPresenceTuple.Builder tuple5Builder = new RcsContactPresenceTuple.Builder(
+                "open",
+                "org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel",
+                "1.0");
+        tuple5Builder.setServiceDescription("VoLTE service");
+        ServiceCapabilities.Builder capBuilder = new ServiceCapabilities.Builder(true, true);
+        tuple5Builder.setServiceCapabilities(capBuilder.build())
+                .setContactUri(Uri.parse(contact));
+
+        final List<RcsContactPresenceTuple> expectedTupleList = new ArrayList<>(5);
         expectedTupleList.add(tuple1Builder.build());
         expectedTupleList.add(tuple2Builder.build());
         expectedTupleList.add(tuple3Builder.build());
+        expectedTupleList.add(tuple4Builder.build());
+        expectedTupleList.add(tuple5Builder.build());
 
         // Create the newline included PIDF data
-        String pidfData = getPidfDataWithNewlineCharacters(contact);
+        String pidfData = getPidfDataWithNewlineAndWhitespaceCharacters();
 
         // Convert to the class RcsContactUceCapability
         RcsContactUceCapability capabilities = PidfParser.getRcsContactUceCapability(pidfData);
@@ -330,58 +346,84 @@ public class PidfParserTest extends ImsTestBase {
         return pidfBuilder.toString();
     }
 
-    private String getPidfDataWithNewlineCharacters(String contact) {
+    private String getPidfDataWithNewlineAndWhitespaceCharacters() {
         String pidf = "<presence xmlns=\"urn:ietf:params:xml:ns:pidf\" "
-                + "xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\" "
-                + "xmlns:b=\"urn:ietf:params:xml:ns:pidf:caps\" "
-                + "entity=\"" + contact + "\">\n"
-                // The first tuple
-                + "<tuple id=\"DiscoveryPres\">\n"
-                + "<status>\n"
-                + "<basic>open</basic>\n"
-                + "</status>\n"
-                + "<op:service-description>\n"
-                + "<op:service-id>"
-                        + "org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse.dp</op:service-id>\n"
-                + "<op:version>1.0</op:version>\n"
-                + "<op:description>DiscoveryPresence</op:description>\n"
-                + "</op:service-description>\n"
-                + "<contact>tel:+11234567890</contact>\n"
-                + "</tuple>\n"
-                // The second tuple
-                + "<tuple id=\"VoLTE\">\n"
-                + "<status>\n"
-                + "<basic>open</basic>\n"
-                + "</status>\n"
-                + "<b:servcaps>\n"
-                + "<b:audio>true</b:audio>\n"
-                + "<b:video>true</b:video>\n"
-                + "<b:duplex>\n"
-                + "<b:supported>\n"
-                + "<b:full/>\n"
-                + "</b:supported>\n"
-                + "</b:duplex>\n"
-                + "</b:servcaps>\n"
-                + "<op:service-description>\n"
-                + "<op:service-id>org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel</op:service-id>\n"
-                + "<op:version>1.0</op:version>\n"
-                + "<op:description>VoLTE service</op:description>\n"
-                + "</op:service-description>\n"
-                + "<contact>tel:+11234567890</contact>\n"
-                + "</tuple>\n"
-                // The third tuple
-                + "<tuple id=\"StandaloneMsg\">\n"
-                + "<status>\n"
-                + "<basic>open</basic>\n"
-                + "</status>\n"
-                + "<op:service-description>\n"
-                + "<op:service-id>org.openmobilealliance:StandaloneMsg</op:service-id>\n"
-                + "<op:version>2.0</op:version>\n"
-                + "<op:description>StandaloneMsg</op:description>\n"
-                + "</op:service-description>\n"
-                + "<contact>tel:+11234567890</contact>\n"
-                + "</tuple>\n"
-                + "</presence>";
+                        + "xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\" "
+                        + "xmlns:b=\"urn:ietf:params:xml:ns:pidf:caps\" "
+                        + "entity=\"tel:+11234567890\">\n"
+                // Tuple: Discovery
+                + "   <tuple id=\"DiscoveryPres\">\n\t"
+                + "     <status>\n\t"
+                + "       <basic>open</basic>\n\t"
+                + "     </status>\n\t"
+                + "     <op:service-description>\n\t"
+                + "       <op:service-id>org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse.dp"
+                                + "</op:service-id>\n\t"
+                + "       <op:version>1.0</op:version>\n\t"
+                + "       <op:description>DiscoveryPresence</op:description>\n\t"
+                + "     </op:service-description>\n\t"
+                + "     <contact>tel:+11234567890</contact>\n\t"
+                + "   </tuple>\n\t"
+                // Tuple: VoLTE
+                + "   <tuple id=\"VoLTE\">\n"
+                + "     <status>\n"
+                + "       <basic>open</basic>\n"
+                + "     </status>\n"
+                + "     <b:servcaps>\n"
+                + "       <b:audio>true</b:audio>\n"
+                + "       <b:video>true</b:video>\n"
+                + "       <b:duplex>\n"
+                + "         <b:supported>\n"
+                + "           <b:full/>\n"
+                + "         </b:supported>\n"
+                + "       </b:duplex>\n"
+                + "     </b:servcaps>\n"
+                + "     <op:service-description>\n"
+                + "       <op:service-id>org.3gpp.urn:urn-7:3gpp-service.ims.icsi.mmtel"
+                                + "</op:service-id>\n"
+                + "       <op:version>1.0</op:version>\n"
+                + "       <op:description>VoLTE service</op:description>\n"
+                + "     </op:service-description>\n"
+                + "     <contact>tel:+11234567890</contact>\n"
+                + "   </tuple>\n"
+                // Tuple: Standalone Message
+                + "   <tuple id=\"StandaloneMsg\">\n"
+                + "     <status>\n"
+                + "       <basic>open</basic>\n"
+                + "     </status>\n"
+                + "     <op:service-description>\n"
+                + "       <op:service-id>org.openmobilealliance:StandaloneMsg</op:service-id>\n"
+                + "       <op:version>2.0</op:version>\n"
+                + "       <op:description>StandaloneMsg</op:description>\n"
+                + "     </op:service-description>\n"
+                + "     <contact>tel:+11234567890</contact>\n"
+                + "   </tuple>\n"
+                // Tuple: Session Mode Message
+                + "   <tuple id=\"SessModeMessa\">\n"
+                + "     <status>\n"
+                + "       <basic>open</basic>\n"
+                + "     </status>\n"
+                + "     <op:service-description>\n"
+                + "       <op:service-id>org.openmobilealliance:ChatSession</op:service-id>\n"
+                + "       <op:version>2.0</op:version>\n"
+                + "       <op:description>Session Mode Messaging</op:description>\n"
+                + "     </op:service-description>\n"
+                + "     <contact>tel:+11234567890</contact>\n"
+                + "   </tuple>\n"
+                // Tuple: File Transfer
+                + "   <tuple id=\"FileTransfer\">\n"
+                + "     <status>\n"
+                + "       <basic>open</basic>\n"
+                + "     </status>\n"
+                + "     <op:service-description>\n"
+                + "       <op:service-id>org.openmobilealliance:File-Transfer</op:service-id>\n"
+                + "       <op:version>1.0</op:version>\n"
+                + "       <op:description>File Transfer</op:description>\n"
+                + "     </op:service-description>\n"
+                + "     <contact>tel:+11234567890</contact>\n"
+                + "   </tuple>\n"
+                + " </presence>";
+
         return pidf;
     }
 

@@ -17,8 +17,10 @@
 package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
 import android.annotation.StringDef;
+import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -32,6 +34,8 @@ import java.lang.annotation.RetentionPolicy;
  * The "basic" element of the pidf.
  */
 public class Basic extends ElementBase {
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "Basic";
+
     /** The name of this element */
     public static final String ELEMENT_NAME = "basic";
 
@@ -104,6 +108,8 @@ public class Basic extends ElementBase {
             } else {
                 mBasic = null;
             }
+        } else {
+            Log.d(LOG_TAG, "The eventType is not TEXT=" + eventType);
         }
 
         // Move to the end tag.
