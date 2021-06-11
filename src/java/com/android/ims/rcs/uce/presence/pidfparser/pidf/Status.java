@@ -16,7 +16,10 @@
 
 package com.android.ims.rcs.uce.presence.pidfparser.pidf;
 
+import android.util.Log;
+
 import com.android.ims.rcs.uce.presence.pidfparser.ElementBase;
+import com.android.ims.rcs.uce.util.UceUtils;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -28,6 +31,8 @@ import java.io.IOException;
  * The "status" element of the pidf.
  */
 public class Status extends ElementBase {
+    private static final String LOG_TAG = UceUtils.getLogPrefix() + "Status";
+
     /** The name of this element */
     public static final String ELEMENT_NAME = "status";
 
@@ -76,14 +81,16 @@ public class Status extends ElementBase {
             throw new XmlPullParserException("Incorrect element: " + namespace + ", " + name);
         }
 
-        // Move to the next event to get the Basic tag.
-        int eventType = parser.next();
+        // Move to the next tag to get the Basic element.
+        int eventType = parser.nextTag();
 
         // Get the value if the event type is text.
         if (eventType == XmlPullParser.START_TAG) {
             Basic basic = new Basic();
             basic.parse(parser);
             mBasic = basic;
+        } else {
+            Log.d(LOG_TAG, "The eventType is not START_TAG=" + eventType);
         }
 
         // Move to the end tag.
