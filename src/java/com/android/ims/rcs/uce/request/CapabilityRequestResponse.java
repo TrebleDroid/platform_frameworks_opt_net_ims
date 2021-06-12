@@ -82,7 +82,7 @@ public class CapabilityRequestResponse {
     private Set<String> mRemoteCaps;
 
     // The collection to record whether the request contacts have received the capabilities updated.
-    private Map<Uri, Boolean> mContactCapsReceived;
+    private Map<String, Boolean> mContactCapsReceived;
 
     public CapabilityRequestResponse() {
         mRequestInternalError = Optional.empty();
@@ -104,7 +104,15 @@ public class CapabilityRequestResponse {
      * Set the request contacts which is expected to receive the capabilities updated.
      */
     public synchronized void setRequestContacts(List<Uri> contactUris) {
-        contactUris.stream().forEach(contact -> mContactCapsReceived.put(contact, Boolean.FALSE));
+        // Convert the given contact uris to the contact numbers.
+        List<String> numbers = contactUris.stream()
+                .map(UceUtils::getContactNumber)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        // Initialize the default value to FALSE. All the numbers have not received the
+        // capabilities updated.
+        numbers.stream().forEach(contact -> mContactCapsReceived.put(contact, Boolean.FALSE));
         Log.d(LOG_TAG, "setRequestContacts: size=" + mContactCapsReceived.size());
     }
 
@@ -230,9 +238,26 @@ public class CapabilityRequestResponse {
     public synchronized void addCachedCapabilities(List<RcsContactUceCapability> capabilityList) {
         mCachedCapabilityList.addAll(capabilityList);
 
-        // Record which contact has received the capabilities updated.
-        capabilityList.stream().forEach(cap ->
-            mContactCapsReceived.computeIfPresent(cap.getContactUri(), (k, v) -> Boolean.TRUE));
+        // Update the flag to indicate that these contacts have received the capabilities updated.
+        updateCapsReceivedFlag(capabilityList);
+    }
+
+    /**
+     * Update the flag to indicate that the given contacts have received the capabilities updated.
+     */
+    private synchronized void updateCapsReceivedFlag(List<RcsContactUceCapability> updatedCapList) {
+        for (RcsContactUceCapability updatedCap : updatedCapList) {
+            Uri updatedUri = updatedCap.getContactUri();
+            if (updatedUri == null) continue;
+            String updatedUriStr = updatedUri.toString();
+
+            for (Map.Entry<String, Boolean> contactCapEntry : mContactCapsReceived.entrySet()) {
+                if (updatedUriStr.contains(contactCapEntry.getKey())) {
+                    // Set the flag that this contact has received the capability updated.
+                    contactCapEntry.setValue(true);
+                }
+            }
+        }
     }
 
     /**
@@ -255,9 +280,8 @@ public class CapabilityRequestResponse {
     public synchronized void addUpdatedCapabilities(List<RcsContactUceCapability> capabilityList) {
         mUpdatedCapabilityList.addAll(capabilityList);
 
-        // Record which contact has received the capabilities updated.
-        capabilityList.stream().forEach(cap ->
-                mContactCapsReceived.computeIfPresent(cap.getContactUri(), (k, v) -> Boolean.TRUE));
+        // Update the flag to indicate that these contacts have received the capabilities updated.
+        updateCapsReceivedFlag(capabilityList);
     }
 
     /**
@@ -288,9 +312,8 @@ public class CapabilityRequestResponse {
         // Save the terminated resource.
         mTerminatedResource.addAll(capabilityList);
 
-        // Record which contact has received the capabilities updated.
-        capabilityList.stream().forEach(cap ->
-                mContactCapsReceived.computeIfPresent(cap.getContactUri(), (k, v) -> Boolean.TRUE));
+        // Update the flag to indicate that these contacts have received the capabilities updated.
+        updateCapsReceivedFlag(capabilityList);
     }
 
     /*
