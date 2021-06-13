@@ -903,10 +903,11 @@ public class PublishControllerImpl implements PublishController {
             }
             logd("publish state changes from " + mPublishState + " to " + newPublishState +
                     ", time=" + updatedTimestamp);
-            if (mPublishState == newPublishState) return;
-            mPublishState = newPublishState;
             mPublishStateUpdatedTime = updatedTimestamp;
             mPidfXml = pidfXml;
+            // Bail early and do not update listeners if the publish state didn't change.
+            if (mPublishState == newPublishState) return;
+            mPublishState = newPublishState;
         }
 
         // Trigger the publish state changed in handler thread since it may take time.
