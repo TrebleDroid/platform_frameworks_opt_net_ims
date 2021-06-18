@@ -26,6 +26,7 @@ import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase.CommandCode;
 
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParser;
+import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.presence.subscribe.SubscribeController;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 import com.android.internal.annotations.VisibleForTesting;
@@ -193,6 +194,18 @@ public class SubscribeRequest extends CapabilityRequest {
                 .map(pidf -> PidfParser.getRcsContactUceCapability(pidf))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+
+        // When the given PIDF xml is empty, set the contacts who have not received the
+        // capabilities updated as non-RCS user.
+        if (capabilityList.isEmpty()) {
+            logd("onCapabilitiesUpdate: The capabilities list is empty, Set to non-RCS user.");
+            List<Uri> notReceiveCapUpdatedContactList =
+                    mRequestResponse.getNotReceiveCapabilityUpdatedContact();
+            capabilityList = notReceiveCapUpdatedContactList.stream()
+                    .map(PidfParserUtils::getNotFoundContactCapabilities)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
 
         logd("onCapabilitiesUpdate: PIDF size=" + pidfXml.size()
                 + ", contact capability size=" + capabilityList.size());

@@ -23,6 +23,7 @@ import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.RcsUceAdapter.ErrorCode;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase.CommandCode;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.UceController;
@@ -82,7 +83,7 @@ public class CapabilityRequestResponse {
     private Set<String> mRemoteCaps;
 
     // The collection to record whether the request contacts have received the capabilities updated.
-    private Map<String, Boolean> mContactCapsReceived;
+    private Map<Uri, Boolean> mContactCapsReceived;
 
     public CapabilityRequestResponse() {
         mRequestInternalError = Optional.empty();
@@ -104,16 +105,21 @@ public class CapabilityRequestResponse {
      * Set the request contacts which is expected to receive the capabilities updated.
      */
     public synchronized void setRequestContacts(List<Uri> contactUris) {
-        // Convert the given contact uris to the contact numbers.
-        List<String> numbers = contactUris.stream()
-                .map(UceUtils::getContactNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
         // Initialize the default value to FALSE. All the numbers have not received the
         // capabilities updated.
-        numbers.stream().forEach(contact -> mContactCapsReceived.put(contact, Boolean.FALSE));
+        contactUris.forEach(contact -> mContactCapsReceived.put(contact, Boolean.FALSE));
         Log.d(LOG_TAG, "setRequestContacts: size=" + mContactCapsReceived.size());
+    }
+
+    /**
+     * Get the contacts that have not received the capabilities updated yet.
+     */
+    public synchronized List<Uri> getNotReceiveCapabilityUpdatedContact() {
+        return mContactCapsReceived.entrySet()
+                .stream()
+                .filter(entry -> Objects.equals(entry.getValue(), Boolean.FALSE))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -251,8 +257,9 @@ public class CapabilityRequestResponse {
             if (updatedUri == null) continue;
             String updatedUriStr = updatedUri.toString();
 
-            for (Map.Entry<String, Boolean> contactCapEntry : mContactCapsReceived.entrySet()) {
-                if (updatedUriStr.contains(contactCapEntry.getKey())) {
+            for (Map.Entry<Uri, Boolean> contactCapEntry : mContactCapsReceived.entrySet()) {
+                String number = UceUtils.getContactNumber(contactCapEntry.getKey());
+                if (!TextUtils.isEmpty(number) && updatedUriStr.contains(number)) {
                     // Set the flag that this contact has received the capability updated.
                     contactCapEntry.setValue(true);
                 }
@@ -380,17 +387,24 @@ public class CapabilityRequestResponse {
 
     /**
      * Check the contacts of the request is not found.
-     * @return true if the sip code of the network response is NOT_FOUND(404) or
-     * DOES_NOT_EXIST_ANYWHERE(604)
+     * @return true if the sip code of the network response is one of NOT_FOUND(404),
+     * SIP_CODE_METHOD_NOT_ALLOWED(405) or DOES_NOT_EXIST_ANYWHERE(604)
      */
     public synchronized boolean isNotFound() {
-        final int notFound = NetworkSipCode.SIP_CODE_NOT_FOUND;
-        final int notExistAnywhere = NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE;
-        Optional<Integer> reasonHeaderCause = getReasonHeaderCause();
-        Optional<Integer> respSipCode = getNetworkRespSipCode();
-        if (reasonHeaderCause.filter(c -> c == notFound || c == notExistAnywhere).isPresent() ||
-                respSipCode.filter(c -> c == notFound || c == notExistAnywhere).isPresent()) {
-            return true;
+        Optional<Integer> respSipCode = Optional.empty();
+        if (getReasonHeaderCause().isPresent()) {
+            respSipCode = getReasonHeaderCause();
+        } else if (getNetworkRespSipCode().isPresent()) {
+            respSipCode = getNetworkRespSipCode();
+        }
+
+        if (respSipCode.isPresent()) {
+            int sipCode = respSipCode.get();
+            if (sipCode == NetworkSipCode.SIP_CODE_NOT_FOUND ||
+            sipCode == NetworkSipCode.SIP_CODE_METHOD_NOT_ALLOWED ||
+            sipCode == NetworkSipCode.SIP_CODE_DOES_NOT_EXIST_ANYWHERE) {
+                return true;
+            }
         }
         return false;
     }
