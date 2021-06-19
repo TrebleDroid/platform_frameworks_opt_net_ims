@@ -113,6 +113,11 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         }
     };
 
+    // The RequestResult creator of the network response is not 200 OK, however, we can to treat
+    // it as a successful result and finish the request
+    private static final RequestResultCreator sNetworkRespSuccessfulCreator = (taskId, response,
+            requestMgrCallback) -> RequestResult.createSuccessResult(taskId);
+
     // The RequestResult creator of the request terminated.
     private static final RequestResultCreator sTerminatedCreator = (taskId, response,
             requestMgrCallback) -> {
@@ -266,12 +271,9 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         // request. Check the forbidden state and finish this request. Otherwise, keep waiting for
         // the subsequent callback of this request.
         if (!response.isNetworkResponseOK()) {
-            Long taskId = request.getTaskId();
-            RequestResult requestResult = sNetworkRespErrorCreator.createRequestResult(taskId,
-                    response, mRequestManagerCallback);
-
-            // handle forbidden and not found case.
-            handleNetworkResponseFailed(request, requestResult);
+            // Handle the network response not OK cases and get the request result to finish this
+            // request.
+            RequestResult requestResult = handleNetworkResponseFailed(request);
 
             // Trigger capabilities updated callback if there is any.
             List<RcsContactUceCapability> updatedCapList = response.getUpdatedContactCapability();
@@ -285,20 +287,36 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             request.onFinish();
 
             // Remove this request from the activated collection and notify RequestManager.
-            moveRequestToFinishedCollection(taskId, requestResult);
+            moveRequestToFinishedCollection(request.getTaskId(), requestResult);
         }
     }
 
-    private void handleNetworkResponseFailed(SubscribeRequest request, RequestResult result) {
-        CapabilityRequestResponse response = request.getRequestResponse();
+    private RequestResult handleNetworkResponseFailed(SubscribeRequest request) {
+        final long taskId = request.getTaskId();
+        final CapabilityRequestResponse response = request.getRequestResponse();
+        RequestResult requestResult = null;
 
         if (response.isNotFound()) {
+            // In the network response with the not found case, we won't receive the capabilities
+            // updated callback from the ImsService afterward. Therefore, we create the capabilities
+            // with the result REQUEST_RESULT_NOT_FOUND by ourself and will trigger the
+            // capabilities received callback to the clients later.
             List<Uri> uriList = request.getContactUri();
             List<RcsContactUceCapability> capabilityList = uriList.stream().map(uri ->
                     PidfParserUtils.getNotFoundContactCapabilities(uri))
                     .collect(Collectors.toList());
             response.addUpdatedCapabilities(capabilityList);
+
+            // We treat the NOT FOUND is a successful result.
+            requestResult = sNetworkRespSuccessfulCreator.createRequestResult(taskId, response,
+                    mRequestManagerCallback);
         }
+
+        if (requestResult == null) {
+            requestResult = sNetworkRespErrorCreator.createRequestResult(taskId, response,
+                    mRequestManagerCallback);
+        }
+        return requestResult;
     }
 
     /**
