@@ -134,14 +134,14 @@ public class ServiceDescription {
 
     public static final ServiceDescription SERVICE_DESCRIPTION_CHATBOT_SA_SESSION =
             new ServiceDescription(
-                    RcsContactPresenceTuple.SERVICE_ID_CHATBOT_STANDALONE,
+                    RcsContactPresenceTuple.SERVICE_ID_CHATBOT_STANDALONE.trim(),
                     "1.0" /*version*/,
                     null /*description*/
             );
 
     public static final ServiceDescription SERVICE_DESCRIPTION_CHATBOT_SA_SESSION_V2 =
             new ServiceDescription(
-                    RcsContactPresenceTuple.SERVICE_ID_CHATBOT_STANDALONE,
+                    RcsContactPresenceTuple.SERVICE_ID_CHATBOT_STANDALONE.trim(),
                     "2.0" /*version*/,
                     null /*description*/
             );
