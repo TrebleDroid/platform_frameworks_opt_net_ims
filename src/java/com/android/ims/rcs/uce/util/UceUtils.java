@@ -49,7 +49,8 @@ public class UceUtils {
     private static final long DEFAULT_REQUEST_RETRY_INTERVAL_MS = TimeUnit.MINUTES.toMillis(20);
     private static final long DEFAULT_MINIMUM_REQUEST_RETRY_AFTER_MS = TimeUnit.SECONDS.toMillis(3);
 
-    private static final long DEFAULT_CAP_REQUEST_TIMEOUT_AFTER_MS = TimeUnit.MINUTES.toMillis(1);
+    // The default of the capabilities request timeout.
+    private static final long DEFAULT_CAP_REQUEST_TIMEOUT_AFTER_MS = TimeUnit.MINUTES.toMillis(3);
     private static Optional<Long> OVERRIDE_CAP_REQUEST_TIMEOUT_AFTER_MS = Optional.empty();
 
     // The task ID of the UCE request
