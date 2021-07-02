@@ -41,9 +41,7 @@ import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
 import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.text.TextUtils;
-import android.text.format.Time;
 import android.util.Log;
-import android.util.TimeFormatException;
 
 import com.android.i18n.phonenumbers.NumberParseException;
 import com.android.i18n.phonenumbers.PhoneNumberUtil;
@@ -56,10 +54,8 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Predicate;
 
 /**
@@ -84,11 +80,18 @@ public class EabControllerImpl implements EabController {
     private UceControllerCallback mUceControllerCallback;
     private volatile boolean mIsSetDestroyedFlag = false;
 
+    private ExpirationTimeFactory mExpirationTimeFactory = () -> Instant.now().getEpochSecond();
+
     @VisibleForTesting
     public final Runnable mCapabilityCleanupRunnable = () -> {
         Log.d(TAG, "Cleanup Capabilities");
         cleanupExpiredCapabilities();
     };
+
+    @VisibleForTesting
+    public interface ExpirationTimeFactory {
+        long getExpirationTime();
+    }
 
     public EabControllerImpl(Context context, int subId, UceControllerCallback c, Looper looper) {
         mContext = context;
@@ -481,7 +484,7 @@ public class EabControllerImpl implements EabController {
         return value;
     }
 
-    protected static int getCapabilityCacheExpiration(int subId) {
+    protected int getCapabilityCacheExpiration(int subId) {
         int value = -1;
         try {
             ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
@@ -498,7 +501,7 @@ public class EabControllerImpl implements EabController {
         return value;
     }
 
-    protected static long getAvailabilityCacheExpiration(int subId) {
+    protected long getAvailabilityCacheExpiration(int subId) {
         long value = -1;
         try {
             ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
@@ -577,14 +580,6 @@ public class EabControllerImpl implements EabController {
                 }
             }
 
-            // Using the current timestamp if the timestamp doesn't populate
-            Long timestamp;
-            if (tuple.getTime() != null) {
-                timestamp = tuple.getTime().getEpochSecond();
-            } else {
-                timestamp = Instant.now().getEpochSecond();
-            }
-
             contentValues = new ContentValues();
             contentValues.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonId);
             contentValues.put(EabProvider.PresenceTupleColumns.BASIC_STATUS, tuple.getStatus());
@@ -593,7 +588,11 @@ public class EabControllerImpl implements EabController {
                     tuple.getServiceVersion());
             contentValues.put(EabProvider.PresenceTupleColumns.DESCRIPTION,
                     tuple.getServiceDescription());
-            contentValues.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP, timestamp);
+
+            // Using current timestamp instead of network timestamp since there is not use cases for
+            // network timestamp and the network timestamp may cause capability expire immediately.
+            contentValues.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP,
+                    mExpirationTimeFactory.getExpirationTime());
             contentValues.put(EabProvider.PresenceTupleColumns.CONTACT_URI,
                     tuple.getContactUri().toString());
             if (serviceCapabilities != null) {
@@ -789,5 +788,10 @@ public class EabControllerImpl implements EabController {
             }
         }
         return number;
+    }
+
+    @VisibleForTesting
+    public void setExpirationTimeFactory(ExpirationTimeFactory factory) {
+        mExpirationTimeFactory = factory;
     }
 }
