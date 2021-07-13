@@ -47,14 +47,19 @@ import org.mockito.Mock;
 @RunWith(AndroidJUnit4.class)
 public class PidfParserTest extends ImsTestBase {
 
+    // The timestamp of the PIDF
+    private final Instant mPidfTimestamp = Instant.now().plusMillis(1);
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        PidfParser.setTimestampProxy(() -> mPidfTimestamp);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        PidfParser.setTimestampProxy(null);
     }
 
     @Test
@@ -104,7 +109,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("1.0", presenceTuple1.getServiceVersion());
         assertEquals(serviceDescription, presenceTuple1.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
-        assertEquals("2001-01-01T01:00:00Z", presenceTuple1.getTime().toString());
+        assertEquals(mPidfTimestamp.toString(), presenceTuple1.getTime().toString());
         assertTrue(presenceTuple1.getServiceCapabilities().isAudioCapable());
         assertFalse(presenceTuple1.getServiceCapabilities().isVideoCapable());
     }
@@ -184,7 +189,7 @@ public class PidfParserTest extends ImsTestBase {
             assertEquals(expectedTuple.getStatus(), tuple.getStatus());
             assertEquals(expectedTuple.getServiceVersion(), tuple.getServiceVersion());
             assertEquals(expectedTuple.getServiceDescription(), tuple.getServiceDescription());
-            assertEquals(expectedTuple.getTime(), tuple.getTime());
+            assertEquals(mPidfTimestamp, tuple.getTime());
             assertEquals(expectedTuple.getContactUri(), tuple.getContactUri());
 
             ServiceCapabilities expectedCap = expectedTuple.getServiceCapabilities();
@@ -243,7 +248,7 @@ public class PidfParserTest extends ImsTestBase {
         assertEquals("1.0", presenceTuple1.getServiceVersion());
         assertEquals(serviceDescription1, presenceTuple1.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple1.getContactUri());
-        assertEquals("2001-01-01T01:00:00Z", presenceTuple1.getTime().toString());
+        assertEquals(mPidfTimestamp.toString(), presenceTuple1.getTime().toString());
         assertNull(presenceTuple1.getServiceCapabilities());
 
         // Verify the second tuple information
@@ -254,7 +259,7 @@ public class PidfParserTest extends ImsTestBase {
         assertFalse(presenceTuple2.getServiceCapabilities().isVideoCapable());
         assertEquals(serviceDescription2, presenceTuple2.getServiceDescription());
         assertEquals(Uri.parse(contact), presenceTuple2.getContactUri());
-        assertEquals("2001-02-02T01:00:00Z", presenceTuple2.getTime().toString());
+        assertEquals(mPidfTimestamp.toString(), presenceTuple2.getTime().toString());
         assertNotNull(presenceTuple2.getServiceCapabilities());
         assertEquals(isAudioSupported, presenceTuple2.getServiceCapabilities().isAudioCapable());
         assertEquals(isVideoSupported, presenceTuple2.getServiceCapabilities().isVideoCapable());
@@ -341,7 +346,7 @@ public class PidfParserTest extends ImsTestBase {
                 .append("<caps:video>").append(isVideoSupported).append("</caps:video>")
                 .append("</caps:servcaps>")
                 .append("<contact>").append(contact).append("</contact>")
-                .append("<timestamp>2001-01-01T01:00:00.00Z</timestamp>")
+                .append("<timestamp>").append(mPidfTimestamp.toString()).append("</timestamp>")
                 .append("</tuple></presence>");
         return pidfBuilder.toString();
     }
@@ -444,7 +449,7 @@ public class PidfParserTest extends ImsTestBase {
                 + "<op:description>" + serviceDescription1 + "</op:description>"
                 + "</op:service-description>"
                 + "<contact>" + contact + "</contact>"
-                + "<timestamp>2001-01-01T01:00:00.00Z</timestamp>"
+                + "<timestamp>" + mPidfTimestamp.toString() + "</timestamp>"
                 + "</tuple>"
                 // tuple 2
                 + "<tuple id=\"a1\">"
@@ -462,7 +467,7 @@ public class PidfParserTest extends ImsTestBase {
                 + "<caps:video>" + videoSupported + "</caps:video>"
                 + "</caps:servcaps>"
                 + "<contact>" + contact + "</contact>"
-                + "<timestamp>2001-02-02T01:00:00.00Z</timestamp>"
+                + "<timestamp>" + mPidfTimestamp.toString() + "</timestamp>"
                 + "</tuple>"
                 + "</presence>";
     }
@@ -475,7 +480,6 @@ public class PidfParserTest extends ImsTestBase {
         final String basicStatus = RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN;
         final String version = "1.0";
         final String description = "description test";
-        final Instant nowTime = Instant.now();
 
         // init the capabilities
         ServiceCapabilities.Builder servCapsBuilder =
@@ -487,7 +491,7 @@ public class PidfParserTest extends ImsTestBase {
                 basicStatus, RcsContactPresenceTuple.SERVICE_ID_MMTEL, version);
         tupleBuilder.setContactUri(contact)
                 .setServiceDescription(description)
-                .setTime(nowTime)
+                .setTime(mPidfTimestamp)
                 .setServiceCapabilities(servCapsBuilder.build());
 
         PresenceBuilder presenceBuilder = new PresenceBuilder(contact,
