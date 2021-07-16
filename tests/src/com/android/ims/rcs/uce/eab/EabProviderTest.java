@@ -117,17 +117,19 @@ public class EabProviderTest extends ImsTestBase {
 
     @Test
     @SmallTest
-    public void testCommonIsUnique() {
+    public void testCommonIsNotUnique() {
         ContentValues data = new ContentValues();
         data.put(EabProvider.EabCommonColumns.EAB_CONTACT_ID, 1);
         data.put(EabProvider.EabCommonColumns.MECHANISM, CAPABILITY_MECHANISM_PRESENCE);
         data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_FOUND);
+        data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, 1);
         mContext.getContentResolver().insert(COMMON_URI, data);
 
         data = new ContentValues();
         data.put(EabProvider.EabCommonColumns.EAB_CONTACT_ID, 1);
         data.put(EabProvider.EabCommonColumns.MECHANISM, CAPABILITY_MECHANISM_PRESENCE);
         data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_FOUND);
+        data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, 2);
         mContext.getContentResolver().insert(COMMON_URI, data);
 
         Cursor cursor = mContext.getContentResolver().query(COMMON_URI,
@@ -136,7 +138,7 @@ public class EabProviderTest extends ImsTestBase {
                 null,
                 null);
 
-        assertEquals(1, cursor.getCount());
+        assertEquals(2, cursor.getCount());
     }
 
     @Test
