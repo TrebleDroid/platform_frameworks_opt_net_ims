@@ -66,7 +66,8 @@ import java.util.concurrent.TimeUnit;
 @RunWith(AndroidJUnit4.class)
 public class EabControllerTest extends ImsTestBase {
     EabProviderTestable mEabProviderTestable = new EabProviderTestable();
-    EabControllerImpl mEabController;
+    EabControllerImpl mEabControllerSub1;
+    EabControllerImpl mEabControllerSub2;
     PersistableBundle mBundle;
     ExecutorService mExecutor = Executors.newSingleThreadExecutor();
 
@@ -74,6 +75,7 @@ public class EabControllerTest extends ImsTestBase {
     EabControllerImpl.ExpirationTimeFactory mExpirationTimeFactory;
 
     private static final int TEST_SUB_ID = 1;
+    private static final int TEST_SECOND_SUB_ID = 2;
     private static final String TEST_PHONE_NUMBER = "16661234567";
     private static final String TEST_SERVICE_STATUS = "status";
     private static final String TEST_SERVICE_SERVICE_ID = "serviceId";
@@ -94,9 +96,14 @@ public class EabControllerTest extends ImsTestBase {
         mockContentResolver.addProvider(EabProvider.AUTHORITY, mEabProviderTestable);
 
         insertContactInfoToDB();
-        mEabController = new EabControllerImpl(
+        mEabControllerSub1 = new EabControllerImpl(
                 mContext, TEST_SUB_ID, null, Looper.getMainLooper());
-        mEabController.setExpirationTimeFactory(mExpirationTimeFactory);
+        mEabControllerSub1.setExpirationTimeFactory(mExpirationTimeFactory);
+
+        mEabControllerSub2 = new EabControllerImpl(
+                mContext, TEST_SECOND_SUB_ID, null, Looper.getMainLooper());
+        mEabControllerSub2.setExpirationTimeFactory(mExpirationTimeFactory);
+
         doReturn(Instant.now().getEpochSecond()).when(mExpirationTimeFactory).getExpirationTime();
 
         mBundle = mContextFixture.getTestCarrierConfigBundle();
@@ -113,9 +120,9 @@ public class EabControllerTest extends ImsTestBase {
         List<RcsContactUceCapability> contactList = new ArrayList<>();
         contactList.add(createPresenceCapability());
 
-        mEabController.saveCapabilities(contactList);
+        mEabControllerSub1.saveCapabilities(contactList);
 
-        EabCapabilityResult result = mEabController.getAvailability(TEST_CONTACT_URI);
+        EabCapabilityResult result = mEabControllerSub1.getAvailability(TEST_CONTACT_URI);
         Assert.assertEquals(EabCapabilityResult.EAB_QUERY_SUCCESSFUL, result.getStatus());
         Assert.assertEquals(TEST_CONTACT_URI,
                 result.getContactCapabilities().getContactUri());
@@ -127,14 +134,14 @@ public class EabControllerTest extends ImsTestBase {
         List<RcsContactUceCapability> contactList = new ArrayList<>();
         contactList.add(createPresenceCapability());
 
-        mEabController.saveCapabilities(contactList);
+        mEabControllerSub1.saveCapabilities(contactList);
 
         List<Uri> contactUriList = new ArrayList<>();
         contactUriList.add(TEST_CONTACT_URI);
         Assert.assertEquals(1,
-                mEabController.getCapabilities(contactUriList).size());
+                mEabControllerSub1.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_QUERY_SUCCESSFUL,
-                mEabController.getCapabilities(contactUriList).get(0).getStatus());
+                mEabControllerSub1.getCapabilities(contactUriList).get(0).getStatus());
     }
 
     @Test
@@ -145,14 +152,14 @@ public class EabControllerTest extends ImsTestBase {
 
         contactList.add(createPresenceCapability());
 
-        mEabController.saveCapabilities(contactList);
+        mEabControllerSub1.saveCapabilities(contactList);
 
         List<Uri> contactUriList = new ArrayList<>();
         contactUriList.add(TEST_CONTACT_URI);
         Assert.assertEquals(1,
-                mEabController.getCapabilities(contactUriList).size());
+                mEabControllerSub1.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_CONTACT_EXPIRED_FAILURE,
-                mEabController.getCapabilities(contactUriList).get(0).getStatus());
+                mEabControllerSub1.getCapabilities(contactUriList).get(0).getStatus());
     }
 
     @Test
@@ -164,16 +171,16 @@ public class EabControllerTest extends ImsTestBase {
         List<RcsContactUceCapability> contactList = new ArrayList<>();
         contactList.add(createPresenceNonRcsCapability());
 
-        mEabController.saveCapabilities(contactList);
+        mEabControllerSub1.saveCapabilities(contactList);
 
         List<Uri> contactUriList = new ArrayList<>();
         contactUriList.add(TEST_CONTACT_URI);
 
         // Verify result is not expired
         Assert.assertEquals(1,
-                mEabController.getCapabilities(contactUriList).size());
+                mEabControllerSub1.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_QUERY_SUCCESSFUL,
-                mEabController.getCapabilities(contactUriList).get(0).getStatus());
+                mEabControllerSub1.getCapabilities(contactUriList).get(0).getStatus());
     }
 
     @Test
@@ -187,15 +194,15 @@ public class EabControllerTest extends ImsTestBase {
 
         List<RcsContactUceCapability> contactList = new ArrayList<>();
         contactList.add(createPresenceNonRcsCapability());
-        mEabController.saveCapabilities(contactList);
+        mEabControllerSub1.saveCapabilities(contactList);
 
         // Verify result is expired
         List<Uri> contactUriList = new ArrayList<>();
         contactUriList.add(TEST_CONTACT_URI);
         Assert.assertEquals(1,
-                mEabController.getCapabilities(contactUriList).size());
+                mEabControllerSub1.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_CONTACT_EXPIRED_FAILURE,
-                mEabController.getCapabilities(contactUriList).get(0).getStatus());
+                mEabControllerSub1.getCapabilities(contactUriList).get(0).getStatus());
     }
 
     @Test
@@ -209,7 +216,7 @@ public class EabControllerTest extends ImsTestBase {
         data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, -1);
         mContext.getContentResolver().insert(COMMON_URI, data);
 
-        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
         // Verify the entry that cannot map to presence/option table has been removed
@@ -242,7 +249,7 @@ public class EabControllerTest extends ImsTestBase {
                 expiredDate.getTime().getTime() / 1000);
         mContext.getContentResolver().insert(PRESENCE_URI, data);
 
-        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
         // Verify the invalid data has been removed after save capabilities
@@ -275,7 +282,7 @@ public class EabControllerTest extends ImsTestBase {
                 expiredDate.getTime().getTime() / 1000);
         mContext.getContentResolver().insert(OPTIONS_URI, data);
 
-        mExecutor.execute(mEabController.mCapabilityCleanupRunnable);
+        mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
         // Verify the invalid data has been removed after save capabilities
@@ -287,6 +294,23 @@ public class EabControllerTest extends ImsTestBase {
                 fail("Invalid data didn't been cleared");
             }
         }
+    }
+
+    @Test
+    @SmallTest
+    public void testSaveCapabilityForDifferentSubId() {
+        List<RcsContactUceCapability> contactList = new ArrayList<>();
+        contactList.add(createPresenceCapability());
+
+        mEabControllerSub1.saveCapabilities(contactList);
+        mEabControllerSub2.saveCapabilities(contactList);
+
+        List<Uri> contactUriList = new ArrayList<>();
+        contactUriList.add(TEST_CONTACT_URI);
+        Assert.assertEquals(1,
+                mEabControllerSub1.getCapabilities(contactUriList).size());
+        Assert.assertEquals(1,
+                mEabControllerSub2.getCapabilities(contactUriList).size());
     }
 
     private RcsContactUceCapability createPresenceCapability() {

@@ -81,7 +81,7 @@ public class EabProvider extends ContentProvider {
     public static final String AUTHORITY = "eab";
 
     private static final String TAG = "EabProvider";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
 
     public static final String EAB_CONTACT_TABLE_NAME = "eab_contact";
     public static final String EAB_COMMON_TABLE_NAME = "eab_common";
@@ -332,8 +332,6 @@ public class EabProvider extends ContentProvider {
 
         static {
             CONTACT_UNIQUE_FIELDS.add(ContactColumns.PHONE_NUMBER);
-
-            COMMON_UNIQUE_FIELDS.add(EabCommonColumns.EAB_CONTACT_ID);
         }
 
         @VisibleForTesting
@@ -356,8 +354,7 @@ public class EabProvider extends ContentProvider {
                 + EabCommonColumns.EAB_CONTACT_ID + " INTEGER DEFAULT -1, "
                 + EabCommonColumns.MECHANISM + " INTEGER DEFAULT NULL, "
                 + EabCommonColumns.REQUEST_RESULT + " INTEGER DEFAULT -1, "
-                + EabCommonColumns.SUBSCRIPTION_ID + " INTEGER DEFAULT -1, "
-                + "UNIQUE (" + TextUtils.join(", ", COMMON_UNIQUE_FIELDS) + ")"
+                + EabCommonColumns.SUBSCRIPTION_ID + " INTEGER DEFAULT -1 "
                 + ");";
 
         @VisibleForTesting
@@ -409,6 +406,46 @@ public class EabProvider extends ContentProvider {
                 sqLiteDatabase.execSQL("ALTER TABLE " + EAB_CONTACT_TABLE_NAME + " ADD COLUMN "
                         + ContactColumns.CONTACT_ID + " INTEGER DEFAULT -1;");
                 oldVersion = 2;
+            }
+
+            if (oldVersion < 3) {
+                // Drop UNIQUE constraint in EAB_COMMON_TABLE, SQLite didn't support DROP
+                // constraint, so drop the old one and migrate data to new one
+
+                // Create temp table
+                final String createTempTableCommand = "CREATE TABLE temp"
+                        + " ("
+                        + EabCommonColumns._ID + " INTEGER PRIMARY KEY, "
+                        + EabCommonColumns.EAB_CONTACT_ID + " INTEGER DEFAULT -1, "
+                        + EabCommonColumns.MECHANISM + " INTEGER DEFAULT NULL, "
+                        + EabCommonColumns.REQUEST_RESULT + " INTEGER DEFAULT -1, "
+                        + EabCommonColumns.SUBSCRIPTION_ID + " INTEGER DEFAULT -1 "
+                        + ");";
+                sqLiteDatabase.execSQL(createTempTableCommand);
+
+                // Migrate data to temp table
+                sqLiteDatabase.execSQL("INSERT INTO temp ("
+                        + EabCommonColumns._ID + ", "
+                        + EabCommonColumns.EAB_CONTACT_ID + ", "
+                        + EabCommonColumns.MECHANISM + ", "
+                        + EabCommonColumns.REQUEST_RESULT + ", "
+                        + EabCommonColumns.SUBSCRIPTION_ID + ") "
+                        + " SELECT "
+                        + EabCommonColumns._ID + ", "
+                        + EabCommonColumns.EAB_CONTACT_ID + ", "
+                        + EabCommonColumns.MECHANISM + ", "
+                        + EabCommonColumns.REQUEST_RESULT + ", "
+                        + EabCommonColumns.SUBSCRIPTION_ID + " "
+                        + " FROM "
+                        + EAB_COMMON_TABLE_NAME
+                        +";");
+
+                // Drop old one
+                sqLiteDatabase.execSQL("DROP TABLE " + EAB_COMMON_TABLE_NAME + ";");
+
+                // Rename temp to eab_common
+                sqLiteDatabase.execSQL("ALTER TABLE temp RENAME TO " + EAB_COMMON_TABLE_NAME + ";");
+                oldVersion = 3;
             }
         }
     }
