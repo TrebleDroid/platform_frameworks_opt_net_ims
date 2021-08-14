@@ -18,6 +18,9 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_RETRY;
 import static com.android.ims.rcs.uce.presence.publish.PublishController.PUBLISH_TRIGGER_VT_SETTING_CHANGE;
+
+import static junit.framework.Assert.assertFalse;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -32,6 +35,7 @@ import android.os.RemoteCallbackList;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
+import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -272,11 +276,82 @@ public class PublishControllerImplTest extends ImsTestBase {
         verify(mPublishProcessor).doPublish(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
     }
 
+    @Test
+    @SmallTest
+    public void testRemoveNumber() {
+        // Contrived example, usually formatting of URIs will be consistent in doc.
+        final String testString = "<?xml version='1.0' encoding='utf-8' standalone='yes' "
+                + "?><presence entity=\"sip:15555551212@example.com\" "
+                + "xmlns=\"urn:ietf:params:xml:ns:pidf\" "
+                + "xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\" "
+                + "xmlns:caps=\"urn:ietf:params:xml:ns:pidf:caps\"><tuple "
+                + "id=\"tid0\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcse"
+                + ".dp</op:service-id><op:version>1.0</op:version><op:description>Capabilities "
+                + "Discovery Service</op:description></op:service-description><contact>sips"
+                + ":15555551212@example.com</contact></tuple><tuple "
+                + "id=\"tid1\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-service.ims.icsi"
+                + ".mmtel</op:service-id><op:version>1.0</op:version><op:description>Voice and "
+                + "Video Service</op:description></op:service-description><caps:servcaps><caps"
+                + ":audio>true</caps:audio><caps:video>true</caps:video><caps:duplex><caps"
+                + ":supported><caps:full /></caps:supported></caps:duplex></caps:servcaps"
+                + "><contact>tel:15555551212@example.com</contact></tuple><tuple "
+                + "id=\"tid2\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.3gpp.urn:urn-7:3gpp-application.ims.iari.rcs"
+                + ".geopush</op:service-id><op:version>1"
+                + ".0</op:version></op:service-description><contact>sip:1-555-555-1212@example.com"
+                + "</contact></tuple><tuple "
+                + "id=\"tid3\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.openmobilealliance:File-Transfer-HTTP</op:service-id><op"
+                + ":version>1.0</op:version></op:service-description><contact>tel:1-555-555-1212@"
+                + "example.com</contact></tuple><tuple "
+                + "id=\"tid4\"><status><basic>open</basic></status><op:service-description><op"
+                + ":service-id>org.openmobilealliance:ChatSession</op:service-id><op:version>2"
+                + ".0</op:version></op:service-description><contact>sip:+15555551212@example.com"
+                + "</contact></tuple></presence>";
+        String result = PublishUtils.removeNumbersFromUris(testString);
+        // only check for substrings of the full number and variations.
+        assertFalse("still contained 5555551212: " + testString, result.contains("5555551212"));
+        assertFalse("still contained 555-555-1212: " + testString, result.contains("555-555-1212"));
+    }
+
+    @Test
+    @SmallTest
+    public void testNotPublishWhitSipOptions() throws Exception {
+        PublishControllerImpl publishController = createPublishController();
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE);
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
+
+        // Trigger a publish request (VT changes)
+        PublishControllerCallback callback = publishController.getPublishControllerCallback();
+        callback.requestPublishFromInternal(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
+
+        // Verify it cannot be processed because the capability type is SIP OPTIONS and the publish
+        // request is triggered from device changed
+        verify(mPublishProcessor, never()).doPublish(PUBLISH_TRIGGER_VT_SETTING_CHANGE);
+
+        // Set the PRESENCE is capable
+        IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
+        RcsCapCallback.onCapabilitiesStatusChanged(RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE);
+
+        // Trigger the PUBLISH request from the service.
+        publishController.requestPublishCapabilitiesFromService(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_IWLAN);
+        waitForHandlerAction(handler, 1000);
+
+        // Verify the request which is from the service can be processed
+        verify(mPublishProcessor).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
+    }
+
     private PublishControllerImpl createPublishController() {
         PublishControllerImpl publishController = new PublishControllerImpl(mContext, mSubId,
                 mUceCtrlCallback, Looper.getMainLooper(), mDeviceCapListenerFactory,
                 mPublishProcessorFactory);
         publishController.setPublishStateCallback(mPublishStateCallbacks);
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE);
         return publishController;
     }
 }

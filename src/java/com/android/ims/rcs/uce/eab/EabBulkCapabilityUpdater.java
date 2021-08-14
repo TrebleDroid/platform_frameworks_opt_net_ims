@@ -19,8 +19,6 @@ package com.android.ims.rcs.uce.eab;
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS;
 import static android.telephony.ims.RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE;
 
-import static com.android.ims.rcs.uce.eab.EabControllerImpl.getCapabilityCacheExpiration;
-
 import android.app.AlarmManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -31,7 +29,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.provider.ContactsContract;
@@ -291,7 +288,7 @@ public final class EabBulkCapabilityUpdater {
                 Log.d(TAG, "Can't find min timestamp in eab provider");
                 return;
             }
-            expiredTimestamp += getCapabilityCacheExpiration(mSubId);
+            expiredTimestamp += mEabControllerImpl.getCapabilityCacheExpiration(mSubId);
             Log.d(TAG, "set time alert at " + expiredTimestamp);
             cancelTimeAlert(mContext);
             setTimeAlert(mContext, expiredTimestamp);
@@ -398,7 +395,7 @@ public final class EabBulkCapabilityUpdater {
     private List<Uri> getExpiredContactList() {
         List<Uri> refreshList = new ArrayList<>();
         long expiredTime = (System.currentTimeMillis() / 1000)
-                + getCapabilityCacheExpiration(mSubId);
+                + mEabControllerImpl.getCapabilityCacheExpiration(mSubId);
         String selection = "("
                 + EabProvider.EabCommonColumns.MECHANISM + "=" + CAPABILITY_MECHANISM_PRESENCE
                 + " AND " + EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP + "<"

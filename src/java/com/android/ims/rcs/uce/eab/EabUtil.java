@@ -75,6 +75,46 @@ public class EabUtil {
     }
 
     /**
+     * Get the given EAB capability from the EAB database.
+     *
+     * Output format:
+     * [PHONE_NUMBER], [RAW_PRESENCE_ID], [PRESENCE_TIMESTAMP], [RAW_OPTION_ID], [OPTION_TIMESTAMP]
+     */
+    public static String getCapabilityFromEab(Context context, String contact) {
+        StringBuilder result = new StringBuilder();
+        try (Cursor cursor = context.getContentResolver().query(
+                EabProvider.ALL_DATA_URI,
+                new String[]{ContactColumns.PHONE_NUMBER,
+                        PresenceTupleColumns._ID,
+                        PresenceTupleColumns.REQUEST_TIMESTAMP,
+                        OptionsColumns._ID,
+                        OptionsColumns.REQUEST_TIMESTAMP},
+                ContactColumns.PHONE_NUMBER + "=?",
+                new String[]{contact}, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                result.append(cursor.getString(cursor.getColumnIndex(
+                        ContactColumns.PHONE_NUMBER)));
+                result.append(",");
+                result.append(cursor.getString(cursor.getColumnIndex(
+                        PresenceTupleColumns._ID)));
+                result.append(",");
+                result.append(cursor.getString(cursor.getColumnIndex(
+                        PresenceTupleColumns.REQUEST_TIMESTAMP)));
+                result.append(",");
+                result.append(cursor.getString(cursor.getColumnIndex(
+                        OptionsColumns._ID)));
+                result.append(",");
+                result.append(cursor.getString(cursor.getColumnIndex(
+                        OptionsColumns.REQUEST_TIMESTAMP)));
+            }
+        } catch (Exception e) {
+            Log.w(LOG_TAG, "getCapability exception " + e);
+        }
+        Log.d(LOG_TAG, "getCapabilityFromEab() result: " + result);
+        return result.toString();
+    }
+
+    /**
      * Remove the given EAB contacts from the EAB database.
      */
     public static int removeContactFromEab(int subId, String contacts, Context context) {
@@ -100,12 +140,13 @@ public class EabUtil {
     private static int getEabContactId(String contactNumber, Context context) {
         int contactId = -1;
         Cursor cursor = null;
+        String formattedNumber = EabControllerImpl.formatNumber(context, contactNumber);
         try {
             cursor = context.getContentResolver().query(
                     EabProvider.CONTACT_URI,
                     new String[] { EabProvider.EabCommonColumns._ID },
                     EabProvider.ContactColumns.PHONE_NUMBER + "=?",
-                    new String[] { contactNumber }, null);
+                    new String[] { formattedNumber }, null);
             if (cursor != null && cursor.moveToFirst()) {
                 contactId = cursor.getInt(cursor.getColumnIndex(EabProvider.ContactColumns._ID));
             }

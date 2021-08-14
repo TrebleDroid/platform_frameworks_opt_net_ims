@@ -20,12 +20,15 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
-import android.database.DatabaseUtils;
 import android.net.Uri;
 import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -81,6 +84,10 @@ public class EabContactSyncController {
 
         if (updatedContact != null) {
             Log.d(TAG, "Contact changed count: " + updatedContact.getCount());
+
+            if (updatedContact.getCount() == 0) {
+                return new ArrayList<>();
+            }
 
             // Delete the EAB phone number that not in contact provider (case 2). Updated phone
             // number(case 3) also delete in here and re-insert in next step.
@@ -162,10 +169,16 @@ public class EabContactSyncController {
         Map<String, List<String>> phoneNumberMap = new HashMap<>();
         cursor.moveToPosition(-1);
         while (cursor.moveToNext()) {
+            String mimeType = cursor.getString(
+                    cursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
+            if (!mimeType.equals(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)) {
+                continue;
+            }
+
             String rawContactId = cursor.getString(
                     cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID));
-            String number = cursor.getString(
-                    cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
+            String number = formatNumber(context, cursor.getString(
+                    cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
 
             if (phoneNumberMap.containsKey(rawContactId)) {
                 phoneNumberMap.get(rawContactId).add(number);
@@ -205,15 +218,11 @@ public class EabContactSyncController {
             }
         }
 
-        if (deleteClause.length() > 1) {
-            int number = context.getContentResolver().delete(
-                    EabProvider.CONTACT_URI,
-                    deleteClause.toString(),
-                    deleteClauseArgs.toArray(new String[0]));
-            Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count= " + number);
-        } else {
-            Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count is empty.");
-        }
+        int number = context.getContentResolver().delete(
+                EabProvider.CONTACT_URI,
+                deleteClause.toString(),
+                deleteClauseArgs.toArray(new String[0]));
+        Log.d(TAG, "(Case 2, 3) handlePhoneNumberDeletedCase number count= " + number);
     }
 
     /**
@@ -243,15 +252,15 @@ public class EabContactSyncController {
                     ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID));
             String dataId = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data._ID));
-            String number = contactCursor.getString(
-                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
             String mimeType = contactCursor.getString(
                     contactCursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
-
 
             if (!mimeType.equals(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)) {
                 continue;
             }
+
+            String number = formatNumber(context, contactCursor.getString(
+                    contactCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
 
             int index = searchDataIdIndex(eabContact, Integer.parseInt(dataId));
             if (index == -1) {
@@ -328,5 +337,21 @@ public class EabContactSyncController {
         SharedPreferences sharedPreferences =
                 PreferenceManager.getDefaultSharedPreferences(context);
         return sharedPreferences.getLong(LAST_UPDATED_TIME_KEY, NOT_INIT_LAST_UPDATED_TIME);
+    }
+
+    private String formatNumber(Context context, String number) {
+        TelephonyManager manager = context.getSystemService(TelephonyManager.class);
+        String simCountryIso = manager.getSimCountryIso();
+        if (simCountryIso != null) {
+            simCountryIso = simCountryIso.toUpperCase();
+            PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+            try {
+                Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+                return util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+            } catch (NumberParseException e) {
+                Log.w(TAG, "formatNumber: could not format " + number + ", error: " + e);
+            }
+        }
+        return number;
     }
 }

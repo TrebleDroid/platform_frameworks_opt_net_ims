@@ -30,7 +30,9 @@ import android.telephony.ims.aidl.IRcsUceControllerCallback;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
+import com.android.ims.rcs.uce.UceDeviceState;
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.options.OptionsController;
@@ -274,7 +276,8 @@ public class UceRequestManager {
 
         @Override
         public void refreshDeviceState(int sipCode, String reason) {
-            mControllerCallback.refreshDeviceState(sipCode, reason);
+            mControllerCallback.refreshDeviceState(sipCode, reason,
+                    UceController.REQUEST_TYPE_CAPABILITY);
         }
 
         @Override

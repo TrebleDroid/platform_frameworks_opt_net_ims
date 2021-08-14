@@ -23,6 +23,7 @@ import android.content.Context;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
 import android.text.TextUtils;
+import android.util.IndentingPrintWriter;
 import android.util.LocalLog;
 import android.util.Log;
 
@@ -32,7 +33,6 @@ import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControl
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishTriggerType;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.util.IndentingPrintWriter;
 
 import java.io.PrintWriter;
 import java.time.Instant;
