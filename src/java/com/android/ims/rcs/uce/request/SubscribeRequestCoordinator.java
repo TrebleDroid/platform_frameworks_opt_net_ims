@@ -28,6 +28,7 @@ import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParserUtils;
 import com.android.ims.rcs.uce.request.SubscriptionTerminatedHelper.TerminatedResult;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
+import com.android.ims.rcs.uce.UceStatsWriter;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Collection;
@@ -51,7 +52,13 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
          * The builder of the SubscribeRequestCoordinator class.
          */
         public Builder(int subId, Collection<UceRequest> requests, RequestManagerCallback c) {
-            mRequestCoordinator = new SubscribeRequestCoordinator(subId, requests, c);
+            mRequestCoordinator = new SubscribeRequestCoordinator(subId, requests, c,
+                    UceStatsWriter.getInstance());
+        }
+        @VisibleForTesting
+        public Builder(int subId, Collection<UceRequest> requests, RequestManagerCallback c,
+                UceStatsWriter instance) {
+            mRequestCoordinator = new SubscribeRequestCoordinator(subId, requests, c, instance);
         }
 
         /**
@@ -152,9 +159,12 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
     // The callback to notify the result of the capabilities request.
     private volatile IRcsUceControllerCallback mCapabilitiesCallback;
 
+    private final UceStatsWriter mUceStatsWriter;
+
     private SubscribeRequestCoordinator(int subId, Collection<UceRequest> requests,
-            RequestManagerCallback requestMgrCallback) {
+            RequestManagerCallback requestMgrCallback, UceStatsWriter instance) {
         super(subId, requests, requestMgrCallback);
+        mUceStatsWriter = instance;
         logd("SubscribeRequestCoordinator: created");
     }
 
@@ -246,6 +256,10 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         // Finish this request.
         request.onFinish();
 
+        int commandErrorCode = response.getCommandError().orElse(0);
+        mUceStatsWriter.setUceEvent(mSubId, UceStatsWriter.SUBSCRIBE_EVENT,
+            false, commandErrorCode, 0);
+
         // Remove this request from the activated collection and notify RequestManager.
         Long taskId = request.getTaskId();
         RequestResult requestResult = sCommandErrorCreator.createRequestResult(taskId, response,
@@ -260,6 +274,9 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
     private void handleNetworkResponse(SubscribeRequest request) {
         CapabilityRequestResponse response = request.getRequestResponse();
         logd("handleNetworkResponse: " + response.toString());
+
+        int respCode = response.getNetworkRespSipCode().orElse(0);
+        mUceStatsWriter.setSubscribeResponse(mSubId, request.getTaskId(), respCode);
 
         // Refresh the device state with the request result.
         response.getResponseSipCode().ifPresent(sipCode -> {
@@ -333,6 +350,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             return;
         }
 
+        mUceStatsWriter.setPresenceNotifyEvent(mSubId, taskId, updatedCapList);
         // Save the updated capabilities to the cache.
         mRequestManagerCallback.saveCapabilities(updatedCapList);
 
@@ -355,6 +373,8 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
         if (terminatedResources.isEmpty()) {
             return;
         }
+
+        mUceStatsWriter.setPresenceNotifyEvent(mSubId, taskId, terminatedResources);
 
         // Save the terminated capabilities to the cache.
         mRequestManagerCallback.saveCapabilities(terminatedResources);
@@ -396,6 +416,7 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
 
         // Remove this request from the activated collection and notify RequestManager.
         Long taskId = request.getTaskId();
+        mUceStatsWriter.setSubscribeTerminated(mSubId, taskId, response.getTerminatedReason());
         RequestResult requestResult = sTerminatedCreator.createRequestResult(taskId, response,
                 mRequestManagerCallback);
         moveRequestToFinishedCollection(taskId, requestResult);
