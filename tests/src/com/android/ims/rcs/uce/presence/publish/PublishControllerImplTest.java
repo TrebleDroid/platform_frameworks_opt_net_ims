@@ -43,6 +43,7 @@ import androidx.test.filters.SmallTest;
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
+import com.android.ims.rcs.uce.UceStatsWriter;
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.DeviceCapListenerFactory;
 import com.android.ims.rcs.uce.presence.publish.PublishControllerImpl.PublishProcessorFactory;
@@ -68,6 +69,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @Mock UceController.UceControllerCallback mUceCtrlCallback;
     @Mock RemoteCallbackList<IRcsUcePublishStateCallback> mPublishStateCallbacks;
     @Mock DeviceStateResult mDeviceStateResult;
+    @Mock UceStatsWriter mUceStatsWriter;
 
     private int mSubId = 1;
 
@@ -77,7 +79,7 @@ public class PublishControllerImplTest extends ImsTestBase {
         doReturn(mPublishProcessor).when(mPublishProcessorFactory).createPublishProcessor(any(),
                 eq(mSubId), any(), any());
         doReturn(mDeviceCapListener).when(mDeviceCapListenerFactory).createDeviceCapListener(any(),
-                eq(mSubId), any(), any());
+                eq(mSubId), any(), any(), any());
         doReturn(mDeviceStateResult).when(mUceCtrlCallback).getDeviceState();
         doReturn(false).when(mDeviceStateResult).isRequestForbidden();
     }
@@ -172,6 +174,7 @@ public class PublishControllerImplTest extends ImsTestBase {
         int publishState = publishController.getUcePublishState();
         assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED, publishState);
         verify(mPublishProcessor).resetState();
+        verify(mUceStatsWriter).setUnPublish(eq(mSubId));
     }
 
     @Test
@@ -352,7 +355,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     private PublishControllerImpl createPublishController() {
         PublishControllerImpl publishController = new PublishControllerImpl(mContext, mSubId,
                 mUceCtrlCallback, Looper.getMainLooper(), mDeviceCapListenerFactory,
-                mPublishProcessorFactory);
+                mPublishProcessorFactory, mUceStatsWriter);
         publishController.setPublishStateCallback(mPublishStateCallbacks);
         publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE);
         return publishController;
