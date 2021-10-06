@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
+import android.telephony.TelephonyManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactPresenceTuple.ServiceCapabilities;
@@ -40,10 +41,11 @@ import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.OptionsBuilder;
 import android.telephony.ims.RcsContactUceCapability.PresenceBuilder;
 import android.text.TextUtils;
-import android.text.format.Time;
 import android.util.Log;
-import android.util.TimeFormatException;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.ims.RcsFeatureManager;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.internal.annotations.VisibleForTesting;
@@ -52,10 +54,8 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Predicate;
 
 /**
@@ -80,11 +80,18 @@ public class EabControllerImpl implements EabController {
     private UceControllerCallback mUceControllerCallback;
     private volatile boolean mIsSetDestroyedFlag = false;
 
+    private ExpirationTimeFactory mExpirationTimeFactory = () -> Instant.now().getEpochSecond();
+
     @VisibleForTesting
     public final Runnable mCapabilityCleanupRunnable = () -> {
         Log.d(TAG, "Cleanup Capabilities");
         cleanupExpiredCapabilities();
     };
+
+    @VisibleForTesting
+    public interface ExpirationTimeFactory {
+        long getExpirationTime();
+    }
 
     public EabControllerImpl(Context context, int subId, UceControllerCallback c, Looper looper) {
         mContext = context;
@@ -186,7 +193,7 @@ public class EabControllerImpl implements EabController {
 
         // Update the capabilities
         for (RcsContactUceCapability capability : contactCapabilities) {
-            String phoneNumber = getNumberFromUri(capability.getContactUri());
+            String phoneNumber = getNumberFromUri(mContext, capability.getContactUri());
             Cursor c = mContext.getContentResolver().query(
                     EabProvider.CONTACT_URI, null,
                     EabProvider.ContactColumns.PHONE_NUMBER + "=?",
@@ -246,7 +253,7 @@ public class EabControllerImpl implements EabController {
         // query EAB provider
         Uri queryUri = Uri.withAppendedPath(
                 Uri.withAppendedPath(EabProvider.ALL_DATA_URI, String.valueOf(mSubId)),
-                getNumberFromUri(contactUri));
+                getNumberFromUri(mContext, contactUri));
         Cursor cursor = mContext.getContentResolver().query(
                 queryUri, null, null, null, null);
 
@@ -477,7 +484,7 @@ public class EabControllerImpl implements EabController {
         return value;
     }
 
-    protected static int getCapabilityCacheExpiration(int subId) {
+    protected int getCapabilityCacheExpiration(int subId) {
         int value = -1;
         try {
             ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
@@ -494,7 +501,7 @@ public class EabControllerImpl implements EabController {
         return value;
     }
 
-    protected static long getAvailabilityCacheExpiration(int subId) {
+    protected long getAvailabilityCacheExpiration(int subId) {
         long value = -1;
         try {
             ProvisioningManager pm = ProvisioningManager.createForSubscriptionId(subId);
@@ -573,14 +580,6 @@ public class EabControllerImpl implements EabController {
                 }
             }
 
-            // Using the current timestamp if the timestamp doesn't populate
-            Long timestamp;
-            if (tuple.getTime() != null) {
-                timestamp = tuple.getTime().getEpochSecond();
-            } else {
-                timestamp = Instant.now().getEpochSecond();
-            }
-
             contentValues = new ContentValues();
             contentValues.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonId);
             contentValues.put(EabProvider.PresenceTupleColumns.BASIC_STATUS, tuple.getStatus());
@@ -589,7 +588,11 @@ public class EabControllerImpl implements EabController {
                     tuple.getServiceVersion());
             contentValues.put(EabProvider.PresenceTupleColumns.DESCRIPTION,
                     tuple.getServiceDescription());
-            contentValues.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP, timestamp);
+
+            // Using current timestamp instead of network timestamp since there is not use cases for
+            // network timestamp and the network timestamp may cause capability expire immediately.
+            contentValues.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP,
+                    mExpirationTimeFactory.getExpirationTime());
             contentValues.put(EabProvider.PresenceTupleColumns.CONTACT_URI,
                     tuple.getContactUri().toString());
             if (serviceCapabilities != null) {
@@ -762,12 +765,33 @@ public class EabControllerImpl implements EabController {
         return cursor.getInt(cursor.getColumnIndex(column));
     }
 
-    private static String getNumberFromUri(Uri uri) {
+    private static String getNumberFromUri(Context context, Uri uri) {
         String number = uri.getSchemeSpecificPart();
         String[] numberParts = number.split("[@;:]");
         if (numberParts.length == 0) {
             return null;
         }
-        return numberParts[0];
+        return formatNumber(context, numberParts[0]);
+    }
+
+    static String formatNumber(Context context, String number) {
+        TelephonyManager manager = context.getSystemService(TelephonyManager.class);
+        String simCountryIso = manager.getSimCountryIso();
+        if (simCountryIso != null) {
+            simCountryIso = simCountryIso.toUpperCase();
+            PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+            try {
+                Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+                return util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+            } catch (NumberParseException e) {
+                Log.w(TAG, "formatNumber: could not format " + number + ", error: " + e);
+            }
+        }
+        return number;
+    }
+
+    @VisibleForTesting
+    public void setExpirationTimeFactory(ExpirationTimeFactory factory) {
+        mExpirationTimeFactory = factory;
     }
 }

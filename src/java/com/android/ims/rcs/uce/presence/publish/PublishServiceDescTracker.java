@@ -19,10 +19,10 @@ package com.android.ims.rcs.uce.presence.publish;
 import android.telephony.CarrierConfigManager;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.util.FeatureTags;
-import com.android.internal.util.IndentingPrintWriter;
 
 import java.io.PrintWriter;
 import java.util.Arrays;

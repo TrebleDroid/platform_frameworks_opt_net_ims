@@ -36,14 +36,13 @@ import com.android.ims.rcs.uce.presence.pidfparser.pidf.PidfConstant;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Presence;
 import com.android.ims.rcs.uce.presence.pidfparser.pidf.Tuple;
 import com.android.ims.rcs.uce.util.UceUtils;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,6 +60,29 @@ public class PidfParser {
     private static final String LOG_TAG = UceUtils.getLogPrefix() + "PidfParser";
 
     private static final Pattern PIDF_PATTERN = Pattern.compile("\t|\r|\n");
+
+    /**
+     * Testing interface used to get the timestamp.
+     */
+    @VisibleForTesting
+    public interface TimestampProxy {
+        Instant getTimestamp();
+    }
+
+    // The timestamp proxy to create the local timestamp.
+    private static final TimestampProxy sLocalTimestampProxy = () -> Instant.now();
+
+    // Override timestamp proxy for testing only.
+    private static TimestampProxy sOverrideTimestampProxy;
+
+    @VisibleForTesting
+    public static void setTimestampProxy(TimestampProxy proxy) {
+        sOverrideTimestampProxy = proxy;
+    }
+
+    private static TimestampProxy getTimestampProxy() {
+        return (sOverrideTimestampProxy != null) ? sOverrideTimestampProxy : sLocalTimestampProxy;
+    }
 
     /**
      * Convert the RcsContactUceCapability to the string of pidf.
@@ -214,17 +236,8 @@ public class PidfParser {
             builder.setContactUri(Uri.parse(contact));
         }
 
-        // Timestamp
-        String timestamp = PidfParserUtils.getTupleTimestamp(tuple);
-        if (!TextUtils.isEmpty(timestamp)) {
-            try {
-                Instant instant = DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(
-                        timestamp, Instant::from);
-                builder.setTime(instant);
-            } catch (DateTimeParseException e) {
-                Log.w(LOG_TAG, "getRcsContactPresenceTuple: Parse timestamp failed " + e);
-            }
-        }
+        // Use local time instead to prevent we receive the incorrect timestamp from the network.
+        builder.setTime(getTimestampProxy().getTimestamp());
 
         // Set service description
         if (!TextUtils.isEmpty(serviceDescription)) {

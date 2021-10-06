@@ -1138,6 +1138,70 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * @return true if the user's setting for Voice over Cross SIM is enabled and
+     * false if it is not
+     */
+    public boolean isCrossSimCallingEnabledByUser() {
+        int setting = mSubscriptionManagerProxy.getIntegerSubscriptionProperty(
+                getSubId(), SubscriptionManager.CROSS_SIM_CALLING_ENABLED,
+                SUB_PROPERTY_NOT_INITIALIZED);
+
+        // SUB_PROPERTY_NOT_INITIALIZED indicates it's never set in sub db.
+        if (setting == SUB_PROPERTY_NOT_INITIALIZED) {
+            return false;
+        } else {
+            return setting == ProvisioningManager.PROVISIONING_VALUE_ENABLED;
+        }
+    }
+
+    /**
+     * @return true if Voice over Cross SIM is provisioned and enabled by user and platform.
+     * false if any of them is not true
+     */
+    public boolean isCrossSimCallingEnabled() {
+        boolean userEnabled = isCrossSimCallingEnabledByUser();
+        boolean platformEnabled = isCrossSimEnabledByPlatform();
+        boolean isProvisioned = isWfcProvisionedOnDevice();
+
+        log("isCrossSimCallingEnabled: platformEnabled = " + platformEnabled
+                + ", provisioned = " + isProvisioned
+                + ", userEnabled = " + userEnabled);
+        return userEnabled && platformEnabled && isProvisioned;
+    }
+
+    /**
+     * Sets the user's setting for whether or not Voice over Cross SIM is enabled.
+     */
+    public void setCrossSimCallingEnabled(boolean enabled) {
+        if (enabled && !isWfcProvisionedOnDevice()) {
+            log("setCrossSimCallingEnabled: Not possible to enable WFC due to provisioning.");
+            return;
+        }
+        int subId = getSubId();
+        if (!isSubIdValid(subId)) {
+            loge("setCrossSimCallingEnabled: "
+                    + "invalid sub id, can not set Cross SIM setting in siminfo db; subId="
+                    + subId);
+            return;
+        }
+        mSubscriptionManagerProxy.setSubscriptionProperty(subId,
+                SubscriptionManager.CROSS_SIM_CALLING_ENABLED, booleanToPropertyString(enabled));
+        try {
+            if (enabled) {
+                CapabilityChangeRequest request = new CapabilityChangeRequest();
+                updateCrossSimFeatureAndProvisionedValues(request);
+                changeMmTelCapability(request);
+                turnOnIms();
+            } else {
+                // Recalculate all caps to determine if IMS needs to be disabled.
+                reevaluateCapabilities();
+            }
+        } catch (ImsException e) {
+            loge("setCrossSimCallingEnabled(): ", e);
+        }
+    }
+
+    /**
      * Non-persistently change WFC enabled setting and WFC mode for slot
      *
      * @param enabled If true, WFC and WFC while roaming will be enabled for the associated
@@ -1469,6 +1533,19 @@ public class ImsManager implements FeatureUpdates {
                 isGbaValid();
     }
 
+    /**
+     * Returns a platform configuration for Cross SIM which may override the user
+     * setting per slot. Note: Cross SIM presumes that VoLTE is enabled (these are
+     * configuration settings which must be done correctly).
+     */
+    public boolean isCrossSimEnabledByPlatform() {
+        if (isWfcEnabledByPlatform()) {
+            return getBooleanCarrierConfig(
+                    CarrierConfigManager.KEY_CARRIER_CROSS_SIM_IMS_AVAILABLE_BOOL);
+        }
+        return false;
+    }
+
     public boolean isSuppServicesOverUtEnabledByPlatform() {
         TelephonyManager manager = (TelephonyManager) mContext.getSystemService(
                 Context.TELEPHONY_SERVICE);
@@ -1596,6 +1673,7 @@ public class ImsManager implements FeatureUpdates {
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
         updateVoiceCellFeatureValue(request, isNonTty);
         updateVoiceWifiFeatureAndProvisionedValues(request);
+        updateCrossSimFeatureAndProvisionedValues(request);
         updateVideoCallFeatureValue(request, isNonTty);
         updateCallComposerFeatureValue(request);
         // Only turn on IMS for RTT if there's an active subscription present. If not, the
@@ -1773,6 +1851,21 @@ public class ImsManager implements FeatureUpdates {
         }
         setWfcModeInternal(mode);
         setWfcRoamingSettingInternal(roaming);
+    }
+
+    /**
+     * Update Cross SIM config
+     */
+    private void updateCrossSimFeatureAndProvisionedValues(CapabilityChangeRequest request) {
+        if (isCrossSimCallingEnabled()) {
+            request.addCapabilitiesToEnableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM);
+        } else {
+            request.addCapabilitiesToDisableForTech(
+                    MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM);
+        }
     }
 
 
@@ -2525,8 +2618,10 @@ public class ImsManager implements FeatureUpdates {
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         updateVoiceCellFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
         updateVideoCallFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
+        // update MMTEL caps for the new configuration.
+        changeMmTelCapability(request);
         if (isImsNeeded(request)) {
-            changeMmTelCapability(request);
+            // Only turn on IMS if voice/video is enabled now in the new configuration.
             turnOnIms();
         }
     }
@@ -3219,6 +3314,9 @@ public class ImsManager implements FeatureUpdates {
 
         pw.println("  isVtProvisionedOnDevice = " + isVtProvisionedOnDevice());
         pw.println("  isWfcProvisionedOnDevice = " + isWfcProvisionedOnDevice());
+
+        pw.println("  isCrossSimEnabledByPlatform = " + isCrossSimEnabledByPlatform());
+        pw.println("  isCrossSimCallingEnabledByUser = " + isCrossSimCallingEnabledByUser());
         pw.println("  isImsOverNrEnabledByPlatform = " + isImsOverNrEnabledByPlatform());
         pw.flush();
     }

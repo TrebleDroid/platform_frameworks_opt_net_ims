@@ -3860,6 +3860,24 @@ public class ImsCall implements ICall {
     }
 
     /**
+     * Determines if the current call is a cross sim call
+     * Note: This depends on the RIL exposing the
+     * {@link ImsCallProfile#EXTRA_IS_CROSS_SIM_CALL} extra.
+     *
+     * @return {@code true} if the call is Cross SIM, {@code false} otherwise.
+     */
+    public boolean isCrossSimCall() {
+        synchronized(mLockObj) {
+            if (mCallProfile == null) {
+                return false;
+            }
+            return mCallProfile.getCallExtraBoolean(
+                    ImsCallProfile.EXTRA_IS_CROSS_SIM_CALL,
+                    false);
+        }
+    }
+
+    /**
      * Log a string to the radio buffer at the info level.
      * @param s The message to log
      */
