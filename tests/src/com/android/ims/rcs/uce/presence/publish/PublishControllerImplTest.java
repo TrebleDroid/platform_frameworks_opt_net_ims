@@ -162,6 +162,8 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testUnpublish() throws Exception {
         PublishControllerImpl publishController = createPublishController();
+        //To initialize the public state to publish_ok.
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE);
 
         publishController.onUnpublish();
 
@@ -169,6 +171,7 @@ public class PublishControllerImplTest extends ImsTestBase {
         waitForHandlerAction(handler, 1000);
         int publishState = publishController.getUcePublishState();
         assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED, publishState);
+        verify(mPublishProcessor).resetState();
     }
 
     @Test
