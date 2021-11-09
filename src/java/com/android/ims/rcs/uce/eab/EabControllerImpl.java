@@ -320,7 +320,10 @@ public class EabControllerImpl implements EabController {
         if (mechanism == CAPABILITY_MECHANISM_PRESENCE) {
             PresenceBuilder builder = new PresenceBuilder(
                     contactUri, SOURCE_TYPE_CACHED, result);
-            builder.addCapabilityTuple(createPresenceTuple(contactUri, cursor));
+            RcsContactPresenceTuple tuple = createPresenceTuple(contactUri, cursor);
+            if (tuple != null) {
+                builder.addCapabilityTuple(tuple);
+            }
             builderWrapper.setPresenceBuilder(builder);
         } else {
             OptionsBuilder builder = new OptionsBuilder(contactUri, SOURCE_TYPE_CACHED);
@@ -382,29 +385,34 @@ public class EabControllerImpl implements EabController {
         serviceCapabilities = serviceCapabilitiesBuilder.build();
 
         // Create RcsContactPresenceTuple
-        RcsContactPresenceTuple.Builder rcsContactPresenceTupleBuilder =
-                new RcsContactPresenceTuple.Builder(status, serviceId, version);
-        if (description != null) {
-            rcsContactPresenceTupleBuilder.setServiceDescription(description);
-        }
-        if (contactUri != null) {
-            rcsContactPresenceTupleBuilder.setContactUri(contactUri);
-        }
-        if (serviceCapabilities != null) {
-            rcsContactPresenceTupleBuilder.setServiceCapabilities(serviceCapabilities);
-        }
-        if (timeStamp != null) {
-            try {
-                Instant instant = Instant.ofEpochSecond(Long.parseLong(timeStamp));
-                rcsContactPresenceTupleBuilder.setTime(instant);
-            } catch (NumberFormatException ex) {
-                Log.w(TAG, "Create presence tuple: NumberFormatException");
-            } catch (DateTimeParseException e) {
-                Log.w(TAG, "Create presence tuple: parse timestamp failed");
+        boolean isTupleEmpty = TextUtils.isEmpty(status) && TextUtils.isEmpty(serviceId)
+                && TextUtils.isEmpty(version);
+        if (!isTupleEmpty) {
+            RcsContactPresenceTuple.Builder rcsContactPresenceTupleBuilder =
+                    new RcsContactPresenceTuple.Builder(status, serviceId, version);
+            if (description != null) {
+                rcsContactPresenceTupleBuilder.setServiceDescription(description);
             }
+            if (contactUri != null) {
+                rcsContactPresenceTupleBuilder.setContactUri(contactUri);
+            }
+            if (serviceCapabilities != null) {
+                rcsContactPresenceTupleBuilder.setServiceCapabilities(serviceCapabilities);
+            }
+            if (timeStamp != null) {
+                try {
+                    Instant instant = Instant.ofEpochSecond(Long.parseLong(timeStamp));
+                    rcsContactPresenceTupleBuilder.setTime(instant);
+                } catch (NumberFormatException ex) {
+                    Log.w(TAG, "Create presence tuple: NumberFormatException");
+                } catch (DateTimeParseException e) {
+                    Log.w(TAG, "Create presence tuple: parse timestamp failed");
+                }
+            }
+            return rcsContactPresenceTupleBuilder.build();
+        } else {
+            return null;
         }
-
-        return rcsContactPresenceTupleBuilder.build();
     }
 
     private boolean isCapabilityExpired(Cursor cursor) {
@@ -558,8 +566,28 @@ public class EabControllerImpl implements EabController {
         int commonId = Integer.parseInt(result.getLastPathSegment());
         Log.d(TAG, "Insert into common table. Id: " + commonId);
 
+        if (capability.getCapabilityTuples().size() == 0) {
+            insertEmptyTuple(commonId);
+        } else {
+            insertAllTuples(commonId, capability);
+        }
+    }
+
+    private void insertEmptyTuple(int commonId) {
+        Log.d(TAG, "Insert empty tuple into presence table.");
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonId);
+        // Using current timestamp instead of network timestamp since there is not use cases for
+        // network timestamp and the network timestamp may cause capability expire immediately.
+        contentValues.put(EabProvider.PresenceTupleColumns.REQUEST_TIMESTAMP,
+                mExpirationTimeFactory.getExpirationTime());
+        mContext.getContentResolver().insert(EabProvider.PRESENCE_URI, contentValues);
+    }
+
+    private void insertAllTuples(int commonId, RcsContactUceCapability capability) {
         ContentValues[] presenceContent =
                 new ContentValues[capability.getCapabilityTuples().size()];
+
         for (int i = 0; i < presenceContent.length; i++) {
             RcsContactPresenceTuple tuple = capability.getCapabilityTuples().get(i);
 
@@ -580,7 +608,7 @@ public class EabControllerImpl implements EabController {
                 }
             }
 
-            contentValues = new ContentValues();
+            ContentValues contentValues = new ContentValues();
             contentValues.put(EabProvider.PresenceTupleColumns.EAB_COMMON_ID, commonId);
             contentValues.put(EabProvider.PresenceTupleColumns.BASIC_STATUS, tuple.getStatus());
             contentValues.put(EabProvider.PresenceTupleColumns.SERVICE_ID, tuple.getServiceId());
