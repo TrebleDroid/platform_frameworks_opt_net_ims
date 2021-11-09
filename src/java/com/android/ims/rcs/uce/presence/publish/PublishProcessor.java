@@ -445,6 +445,12 @@ public class PublishProcessor {
         return mProcessorState.isPublishingNow();
     }
 
+    /**
+     * Reset the retry count and time related publish.
+     */
+    public void resetState() {
+        mProcessorState.resetState();
+    }
     @VisibleForTesting
     public void setProcessorState(PublishProcessorState processorState) {
         mProcessorState = processorState;
