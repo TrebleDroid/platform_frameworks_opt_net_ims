@@ -44,6 +44,7 @@ import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.UceDeviceState;
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
+import com.android.ims.rcs.uce.UceStatsWriter;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
@@ -79,7 +80,8 @@ public class PublishControllerImpl implements PublishController {
     @VisibleForTesting
     public interface DeviceCapListenerFactory {
         DeviceCapabilityListener createDeviceCapListener(Context context, int subId,
-                DeviceCapabilityInfo capInfo, PublishControllerCallback callback);
+                DeviceCapabilityInfo capInfo, PublishControllerCallback callback,
+                UceStatsWriter uceStatsWriter);
     }
 
     private final int mSubId;
@@ -90,6 +92,7 @@ public class PublishControllerImpl implements PublishController {
     private volatile boolean mReceivePublishFromService;
     private volatile RcsFeatureManager mRcsFeatureManager;
     private final UceControllerCallback mUceCtrlCallback;
+    private final UceStatsWriter mUceStatsWriter;
 
     // The capability type that the device is using.
     private @RcsImsCapabilityFlag int mCapabilityType;
@@ -115,8 +118,9 @@ public class PublishControllerImpl implements PublishController {
 
     // The listener to listen to the device's capabilities changed.
     private DeviceCapabilityListener mDeviceCapListener;
-    private DeviceCapListenerFactory mDeviceCapListenerFactory = (context, subId, capInfo, callback)
-            -> new DeviceCapabilityListener(context, subId, capInfo, callback);
+    private DeviceCapListenerFactory mDeviceCapListenerFactory = (context, subId, capInfo, callback,
+            uceStatsWriter)
+            -> new DeviceCapabilityListener(context, subId, capInfo, callback, uceStatsWriter);
 
     // Listen to the RCS availability status changed.
     private final IImsCapabilityCallback mRcsCapabilitiesCallback =
@@ -141,6 +145,7 @@ public class PublishControllerImpl implements PublishController {
         mSubId = subId;
         mContext = context;
         mUceCtrlCallback = callback;
+        mUceStatsWriter = UceStatsWriter.getInstance();
         logi("create");
         initPublishController(looper);
     }
@@ -148,12 +153,13 @@ public class PublishControllerImpl implements PublishController {
     @VisibleForTesting
     public PublishControllerImpl(Context context, int subId, UceControllerCallback c,
             Looper looper, DeviceCapListenerFactory deviceCapFactory,
-            PublishProcessorFactory processorFactory) {
+            PublishProcessorFactory processorFactory, UceStatsWriter instance) {
         mSubId = subId;
         mContext = context;
         mUceCtrlCallback = c;
         mDeviceCapListenerFactory = deviceCapFactory;
         mPublishProcessorFactory = processorFactory;
+        mUceStatsWriter = instance;
         initPublishController(looper);
     }
 
@@ -200,7 +206,7 @@ public class PublishControllerImpl implements PublishController {
 
     private void initDeviceCapabilitiesListener() {
         mDeviceCapListener = mDeviceCapListenerFactory.createDeviceCapListener(mContext, mSubId,
-                mDeviceCapabilityInfo, mPublishControllerCallback);
+                mDeviceCapabilityInfo, mPublishControllerCallback, mUceStatsWriter);
     }
 
     @Override
@@ -933,6 +939,9 @@ public class PublishControllerImpl implements PublishController {
             // Bail early and do not update listeners if the publish state didn't change.
             if (mPublishState == newPublishState) return;
             mPublishState = newPublishState;
+        }
+        if (newPublishState == RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED) {
+            mUceStatsWriter.setUnPublish(mSubId);
         }
 
         // Trigger the publish state changed in handler thread since it may take time.
