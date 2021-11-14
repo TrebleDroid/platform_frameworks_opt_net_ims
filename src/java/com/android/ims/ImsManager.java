@@ -1667,6 +1667,14 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
+    public static void updateImsServiceConfig(Context context, int phoneId, boolean force) {
+        ImsManager mgr = ImsManager.getInstance(context, phoneId);
+        if (mgr != null) {
+            mgr.updateImsServiceConfig();
+        }
+        Rlog.e(TAG, "updateImsServiceConfig: ImsManager null, returning without update.");
+    }
+
     /**
      * Push configuration updates to the ImsService implementation.
      */
