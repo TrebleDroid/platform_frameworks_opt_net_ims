@@ -149,6 +149,11 @@ public interface PublishController extends ControllerBase {
          * Update the device state with the publish request result.
          */
         void refreshDeviceState(int SipCode, String reason);
+
+        /**
+         * Sent the publish request to ImsService.
+         */
+        void notifyPendingPublishRequest();
     }
 
     /**
@@ -183,7 +188,7 @@ public interface PublishController extends ControllerBase {
     /**
      * Retrieve the RCS UCE Publish state.
      */
-    @PublishState int getUcePublishState();
+    @PublishState int getUcePublishState(boolean isSupportPublishingState);
 
     /**
      * @return the last PIDF XML used for publish or {@code null} if the device is not published.
@@ -194,6 +199,12 @@ public interface PublishController extends ControllerBase {
      * Notify that the device's capabilities have been unpublished from the network.
      */
     void onUnpublish();
+
+    /**
+     * Notify that the device's publish status have been changed.
+     */
+    void onPublishUpdated(int reasonCode, String reasonPhrase,
+            int reasonHeaderCause, String reasonHeaderText);
 
     /**
      * Retrieve the device's capabilities.
@@ -208,7 +219,8 @@ public interface PublishController extends ControllerBase {
     /**
      * Register a {@link PublishStateCallback} to listen to the published state changed.
      */
-    void registerPublishStateCallback(@NonNull IRcsUcePublishStateCallback c);
+    void registerPublishStateCallback(@NonNull IRcsUcePublishStateCallback c,
+            boolean supportPublishingState);
 
     /**
      * Removes an existing {@link PublishStateCallback}.
