@@ -43,6 +43,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
+import java.time.Instant;
 import java.util.Optional;
 @RunWith(AndroidJUnit4.class)
 public class PublishProcessorTest extends ImsTestBase {
@@ -86,6 +87,7 @@ public class PublishProcessorTest extends ImsTestBase {
         verify(mProcessorState).setPublishingFlag(true);
         verify(mRcsFeatureManager).requestPublication(any(), any());
         verify(mPublishCtrlCallback).setupRequestCanceledTimer(anyLong(), anyLong());
+        verify(mPublishCtrlCallback).notifyPendingPublishRequest();
     }
 
     @Test
@@ -230,6 +232,25 @@ public class PublishProcessorTest extends ImsTestBase {
 
         verify(mProcessorState).setPublishingFlag(false);
         verify(mPublishCtrlCallback).clearRequestCanceledTimer();
+    }
+
+    @Test
+    @SmallTest
+    public void testPublishUpdated() throws Exception {
+        Instant responseTime = Instant.now();
+        doReturn(responseTime).when(mResponseCallback).getResponseTimestamp();
+        doReturn(true).when(mResponseCallback).isRequestSuccess();
+
+        doReturn(0).when(mResponseCallback).getPublishState();
+        doReturn("").when(mResponseCallback).getPidfXml();
+
+        PublishProcessor publishProcessor = getPublishProcessor();
+
+        publishProcessor.publishUpdated(mResponseCallback);
+
+        verify(mProcessorState).setLastPublishedTime(any());
+        verify(mProcessorState).resetRetryCount();
+        verify(mPublishCtrlCallback).updatePublishRequestResult(anyInt(), any(), any());
     }
 
     private PublishProcessor getPublishProcessor() {
