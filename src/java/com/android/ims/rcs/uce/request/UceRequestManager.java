@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -58,6 +59,14 @@ import java.util.stream.Collectors;
 public class UceRequestManager {
 
     private static final String LOG_TAG = UceUtils.getLogPrefix() + "UceRequestManager";
+
+    /**
+     * When enabled, skip the request queue for requests that have numbers with valid cached
+     * capabilities and return that cached info directly.
+     * Note: This also has a CTS test associated with it, so this can not be disabled without
+     * disabling the corresponding RcsUceAdapterTest#testCacheQuerySuccessWhenNetworkBlocked test.
+     */
+    private static final boolean FEATURE_SHORTCUT_QUEUE_FOR_CACHED_CAPS = true;
 
     /**
      * Testing interface used to mock UceUtils in testing.
@@ -487,12 +496,27 @@ public class UceRequestManager {
     private void sendRequestInternal(@UceRequestType int type, List<Uri> uriList,
             boolean skipFromCache, IRcsUceControllerCallback callback) throws RemoteException {
         UceRequestCoordinator requestCoordinator = null;
+        List<Uri> nonCachedUris = uriList;
+        if (FEATURE_SHORTCUT_QUEUE_FOR_CACHED_CAPS && !skipFromCache) {
+            nonCachedUris = sendCachedCapInfoToRequester(type, uriList, callback);
+            if (uriList.size() != nonCachedUris.size()) {
+                logd("sendRequestInternal: shortcut queue for caps - request reduced from "
+                        + uriList.size() + " entries to " + nonCachedUris.size() + " entries");
+            } else {
+                logd("sendRequestInternal: shortcut queue for caps - no cached caps.");
+            }
+            if (nonCachedUris.isEmpty()) {
+                logd("sendRequestInternal: shortcut complete, sending success result");
+                callback.onComplete();
+                return;
+            }
+        }
         if (sUceUtilsProxy.isPresenceCapExchangeEnabled(mContext, mSubId) &&
                 sUceUtilsProxy.isPresenceSupported(mContext, mSubId)) {
-            requestCoordinator = createSubscribeRequestCoordinator(type, uriList, skipFromCache,
-                    callback);
+            requestCoordinator = createSubscribeRequestCoordinator(type, nonCachedUris,
+                    skipFromCache, callback);
         } else if (sUceUtilsProxy.isSipOptionsSupported(mContext, mSubId)) {
-            requestCoordinator = createOptionsRequestCoordinator(type, uriList, callback);
+            requestCoordinator = createOptionsRequestCoordinator(type, nonCachedUris, callback);
         }
 
         if (requestCoordinator == null) {
@@ -511,6 +535,64 @@ public class UceRequestManager {
 
         // Add this RequestCoordinator to the UceRequestRepository.
         addRequestCoordinator(requestCoordinator);
+    }
+
+    /**
+     * Try to get the valid capabilities associated with the URI List specified from the EAB cache.
+     * If one or more of the numbers from the URI List have valid cached capabilities, return them
+     * to the requester now and remove them from the returned List of URIs that will require a
+     * network query.
+     * @param type The type of query
+     * @param uriList The List of URIs that we want to send cached capabilities for
+     * @param callback The callback used to communicate with the remote requester
+     * @return The List of URIs that were not found in the capability cache and will require a
+     * network query.
+     */
+    private List<Uri> sendCachedCapInfoToRequester(int type, List<Uri> uriList,
+            IRcsUceControllerCallback callback) {
+        List<Uri> nonCachedUris = new ArrayList<>(uriList);
+        List<RcsContactUceCapability> numbersWithCachedCaps =
+                getCapabilitiesFromCache(type, nonCachedUris);
+        try {
+            if (!numbersWithCachedCaps.isEmpty()) {
+                logd("sendCachedCapInfoToRequester: cached caps found for "
+                        + numbersWithCachedCaps.size() + " entries. Notifying requester.");
+                // Notify caller of the numbers that have cached caps
+                callback.onCapabilitiesReceived(numbersWithCachedCaps);
+            }
+        } catch (RemoteException e) {
+            logw("sendCachedCapInfoToRequester, error sending cap info back to requester: " + e);
+        }
+        // remove these numbers from the numbers pending a cap query from the network.
+        for (RcsContactUceCapability c : numbersWithCachedCaps) {
+            nonCachedUris.removeIf(uri -> c.getContactUri().equals(uri));
+        }
+        return nonCachedUris;
+    }
+
+    /**
+     * Get the capabilities for the List of given URIs
+     * @param requestType The request type, used to determine if the cached info is "fresh" enough.
+     * @param uriList The List of URIs that we will be requesting cached capabilities for.
+     * @return A list of capabilities corresponding to the subset of numbers that still have
+     * valid cache data associated with them.
+     */
+    private List<RcsContactUceCapability> getCapabilitiesFromCache(int requestType,
+            List<Uri> uriList) {
+        List<EabCapabilityResult> resultList = Collections.emptyList();
+        if (requestType == UceRequest.REQUEST_TYPE_CAPABILITY) {
+            resultList = mRequestMgrCallback.getCapabilitiesFromCache(uriList);
+        } else if (requestType == UceRequest.REQUEST_TYPE_AVAILABILITY) {
+            // Always get the first element if the request type is availability.
+            resultList = Collections.singletonList(
+                    mRequestMgrCallback.getAvailabilityFromCache(uriList.get(0)));
+        }
+        // Map from EabCapabilityResult -> RcsContactUceCapability.
+        // Pull out only items that have valid cache data.
+        return resultList.stream().filter(Objects::nonNull)
+                .filter(result -> result.getStatus() == EabCapabilityResult.EAB_QUERY_SUCCESSFUL)
+                .map(EabCapabilityResult::getContactCapabilities)
+                .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private UceRequestCoordinator createSubscribeRequestCoordinator(final @UceRequestType int type,
