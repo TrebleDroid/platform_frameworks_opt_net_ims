@@ -2689,6 +2689,44 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
+    /**
+     * Notifies the change of user setting.
+     *
+     * @param enabled indicates whether the user setting for call waiting is enabled or not.
+     */
+    public void setTerminalBasedCallWaitingStatus(boolean enabled) throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.setTerminalBasedCallWaitingStatus(enabled);
+        } catch (ServiceSpecificException se) {
+            if (se.errorCode
+                    == android.telephony.ims.ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
+                throw new ImsException("setTerminalBasedCallWaitingStatus()", se,
+                        ImsReasonInfo.CODE_LOCAL_IMS_NOT_SUPPORTED_ON_DEVICE);
+            } else {
+                throw new ImsException("setTerminalBasedCallWaitingStatus()", se,
+                        ImsReasonInfo.CODE_LOCAL_INTERNAL_ERROR);
+            }
+        } catch (RemoteException e) {
+            throw new ImsException("setTerminalBasedCallWaitingStatus()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Returns whether all of the capabilities specified are capable or not.
+     */
+    public boolean isCapable(@ImsService.ImsServiceCapability long capabilities)
+            throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            return c.isCapable(capabilities);
+        } catch (RemoteException e) {
+            throw new ImsException("isCapable()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
     public int getImsServiceState() throws ImsException {
         MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         return c.getFeatureState();

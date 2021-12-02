@@ -576,6 +576,19 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
+    /**
+     * Notifies the MmTelFeature of the enablement status of terminal based call waiting
+     *
+     * @param enabled indicates whether the user setting for call waiting is enabled or not.
+     */
+    public void setTerminalBasedCallWaitingStatus(boolean enabled)
+            throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).setTerminalBasedCallWaitingStatus(enabled);
+        }
+    }
+
     private IImsMmTelFeature getServiceInterface(IBinder b) {
         return IImsMmTelFeature.Stub.asInterface(b);
     }
