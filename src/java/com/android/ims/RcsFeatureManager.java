@@ -90,6 +90,16 @@ public class RcsFeatureManager implements FeatureUpdates {
         void onUnpublish();
 
         /**
+         * Notify the framework that the ImsService has refreshed the PUBLISH
+         * internally, which has resulted in a new PUBLISH result.
+         * <p>
+         * This method must return both SUCCESS (200 OK) and FAILURE (300+) codes in order to
+         * keep the AOSP stack up to date.
+         */
+        void onPublishUpdated(int reasonCode, String reasonPhrase,
+                int reasonHeaderCause, String reasonHeaderText);
+
+        /**
          * Receive a capabilities request from the remote client.
          */
         void onRemoteCapabilityRequest(Uri contactUri,
@@ -110,6 +120,13 @@ public class RcsFeatureManager implements FeatureUpdates {
                 @Override
                 public void onUnpublish() {
                     mCapabilityEventCallback.forEach(callback -> callback.onUnpublish());
+                }
+
+                @Override
+                public void onPublishUpdated(int reasonCode, String reasonPhrase,
+                        int reasonHeaderCause, String reasonHeaderText) {
+                    mCapabilityEventCallback.forEach(callback -> callback.onPublishUpdated(
+                            reasonCode, reasonPhrase, reasonHeaderCause, reasonHeaderText));
                 }
 
                 @Override

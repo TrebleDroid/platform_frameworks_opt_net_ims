@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.telephony.ims.RcsUceAdapter;
 import android.telephony.ims.aidl.IPublishResponseCallback;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
@@ -60,6 +61,29 @@ public class PublishRequestResponse {
         mReasonPhrase = Optional.empty();
         mReasonHeaderCause = Optional.empty();
         mReasonHeaderText = Optional.empty();
+    }
+
+    public PublishRequestResponse(String pidfXml, int sipCode, String reasonPhrase,
+            int reasonHeaderCause, String reasonHeaderText) {
+        mTaskId = 0L;
+        mPublishCtrlCallback = null;
+        mCmdErrorCode = Optional.empty();
+
+        mPidfXml = pidfXml;
+        mResponseTimestamp = Instant.now();
+        mNetworkRespSipCode = Optional.of(sipCode);
+        mReasonPhrase = Optional.ofNullable(reasonPhrase);
+        if (reasonHeaderCause != 0) {
+            mReasonHeaderCause = Optional.of(reasonHeaderCause);
+        } else {
+            mReasonHeaderCause = Optional.empty();
+        }
+        if (TextUtils.isEmpty(reasonHeaderText)) {
+            mReasonHeaderText = Optional.empty();
+        } else {
+            mReasonHeaderText = Optional.ofNullable(reasonHeaderText);
+        }
+
     }
 
     // The result callback of the publish capability request.
