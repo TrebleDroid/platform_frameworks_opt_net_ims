@@ -19,6 +19,7 @@ package com.android.ims.rcs.uce;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -249,9 +250,9 @@ public class UceControllerTest extends ImsTestBase {
     public void testRegisterPublishStateCallback() {
         UceController uceController = createUceController();
 
-        uceController.registerPublishStateCallback(any());
+        uceController.registerPublishStateCallback(any(), anyBoolean());
 
-        verify(mPublishController).registerPublishStateCallback(any());
+        verify(mPublishController).registerPublishStateCallback(any(), anyBoolean());
     }
 
     @Test
@@ -269,9 +270,9 @@ public class UceControllerTest extends ImsTestBase {
     public void testGetUcePublishState() {
         UceController uceController = createUceController();
 
-        uceController.getUcePublishState();
+        uceController.getUcePublishState(anyBoolean());
 
-        verify(mPublishController).getUcePublishState();
+        verify(mPublishController).getUcePublishState(anyBoolean());
     }
 
     private UceController createUceController() {
