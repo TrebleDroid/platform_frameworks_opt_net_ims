@@ -84,6 +84,9 @@ public interface PublishController extends ControllerBase {
     /** The Carrier Config for the subscription has Changed **/
     int PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED = 16;
 
+    /** MMTEL and RCS are unregistered. **/
+    int PUBLISH_TRIGGER_MMTEL_RCS_UNREGISTERED = 17;
+
     @IntDef(value = {
             PUBLISH_TRIGGER_SERVICE,
             PUBLISH_TRIGGER_RETRY,
@@ -100,7 +103,8 @@ public interface PublishController extends ControllerBase {
             PUBLISH_TRIGGER_RCS_URI_CHANGE,
             PUBLISH_TRIGGER_PROVISIONING_CHANGE,
             PUBLISH_TRIGGER_OVERRIDE_CAPS,
-            PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED
+            PUBLISH_TRIGGER_CARRIER_CONFIG_CHANGED,
+            PUBLISH_TRIGGER_MMTEL_RCS_UNREGISTERED
     }, prefix="PUBLISH_TRIGGER_")
     @Retention(RetentionPolicy.SOURCE)
     @interface PublishTriggerType {}
@@ -154,6 +158,11 @@ public interface PublishController extends ControllerBase {
          * Sent the publish request to ImsService.
          */
         void notifyPendingPublishRequest();
+
+        /**
+         * Update the Ims unregistered. This api will be called if the IMS unregistered.
+         */
+        void updateImsUnregistered();
     }
 
     /**
