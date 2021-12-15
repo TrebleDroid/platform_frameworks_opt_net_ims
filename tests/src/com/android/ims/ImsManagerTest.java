@@ -54,6 +54,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import java.util.Hashtable;
+import java.util.concurrent.Executor;
 
 @RunWith(AndroidJUnit4.class)
 public class ImsManagerTest extends ImsTestBase {
@@ -869,7 +870,7 @@ public class ImsManagerTest extends ImsTestBase {
 
 
         // Configure ImsConfigStub
-        mImsConfigStub = new ImsConfigImplBase.ImsConfigStub(mImsConfigImplBaseMock);
+        mImsConfigStub = new ImsConfigImplBase.ImsConfigStub(mImsConfigImplBaseMock, Runnable::run);
         doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfig();
 
         ImsManager mgr = new ImsManager(mContext, mPhoneId,
