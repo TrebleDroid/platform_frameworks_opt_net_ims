@@ -37,6 +37,7 @@ import android.telephony.ims.aidl.ISrvccStartedCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsEcbmImplBase;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.stub.ImsSmsImplBase;
 import android.util.Log;
 
@@ -568,6 +569,16 @@ public class MmTelFeatureConnection extends FeatureConnection {
         synchronized (mLock) {
             checkServiceIsReady();
             getServiceInterface(mBinder).notifySrvccCanceled();
+        }
+    }
+
+    public void triggerDeregistration(@ImsRegistrationImplBase.ImsDeregistrationReason int reason)
+            throws RemoteException {
+        IImsRegistration registration = getRegistration();
+        if (registration != null) {
+            registration.triggerDeregistration(reason);
+        } else {
+            Log.e(TAG + " [" + mSlotId + "]", "triggerDeregistration IImsRegistration is null");
         }
     }
 

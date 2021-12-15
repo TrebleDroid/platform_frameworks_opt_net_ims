@@ -2783,6 +2783,21 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
+    /**
+     * Notifies that radio triggered IMS deregistration.
+     * @param reason the reason why the deregistration is triggered.
+     */
+    public void triggerDeregistration(@ImsRegistrationImplBase.ImsDeregistrationReason int reason)
+            throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.triggerDeregistration(reason);
+        } catch (RemoteException e) {
+            throw new ImsException("triggerDeregistration", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
     public int getImsServiceState() throws ImsException {
         MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         return c.getFeatureState();
