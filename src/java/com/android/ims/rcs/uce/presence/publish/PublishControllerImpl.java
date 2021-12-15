@@ -434,6 +434,12 @@ public class PublishControllerImpl implements PublishController {
                     logd("notifyPendingPublishRequest");
                     mPublishHandler.sendPublishSentMessage();
                 }
+
+                @Override
+                public void updateImsUnregistered() {
+                    logd("updateImsUnregistered");
+                    mPublishHandler.sendImsUnregisteredMessage();
+                }
             };
 
     /**
@@ -461,6 +467,7 @@ public class PublishControllerImpl implements PublishController {
         private static final int MSG_UNPUBLISHED = 13;
         private static final int MSG_PUBLISH_SENT = 14;
         private static final int MSG_PUBLISH_UPDATED = 15;
+        private static final int MSG_IMS_UNREGISTERED = 16;
 
         private final WeakReference<PublishControllerImpl> mPublishControllerRef;
 
@@ -569,6 +576,12 @@ public class PublishControllerImpl implements PublishController {
                             reasonHeaderCause, reasonHeaderText);
                     break;
                 }
+
+                case MSG_IMS_UNREGISTERED:
+                    publishCtrl.handleUnpublishedMessage(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED,
+                            Instant.now());
+                    break;
+
                 default:
                     publishCtrl.logd("invalid message: " + message.what);
                     break;
@@ -812,6 +825,15 @@ public class PublishControllerImpl implements PublishController {
             removeMessages(MSG_RESET_DEVICE_STATE);
         }
 
+        public void sendImsUnregisteredMessage() {
+            PublishControllerImpl publishCtrl = mPublishControllerRef.get();
+            if (publishCtrl == null) return;
+            if (publishCtrl.mIsDestroyedFlag) return;
+            Message message = obtainMessage();
+            message.what = MSG_IMS_UNREGISTERED;
+            sendMessage(message);
+        }
+
         private static Map<Integer, String> EVENT_DESCRIPTION = new HashMap<>();
         static {
             EVENT_DESCRIPTION.put(MSG_RCS_CONNECTED, "RCS_CONNECTED");
@@ -829,6 +851,7 @@ public class PublishControllerImpl implements PublishController {
             EVENT_DESCRIPTION.put(MSG_UNPUBLISHED, "MSG_UNPUBLISHED");
             EVENT_DESCRIPTION.put(MSG_PUBLISH_SENT, "MSG_PUBLISH_SENT");
             EVENT_DESCRIPTION.put(MSG_PUBLISH_UPDATED, "MSG_PUBLISH_UPDATED");
+            EVENT_DESCRIPTION.put(MSG_IMS_UNREGISTERED, "MSG_IMS_UNREGISTERED");
         }
     }
 
