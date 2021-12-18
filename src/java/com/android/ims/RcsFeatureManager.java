@@ -93,8 +93,8 @@ public class RcsFeatureManager implements FeatureUpdates {
          * Notify the framework that the ImsService has refreshed the PUBLISH
          * internally, which has resulted in a new PUBLISH result.
          * <p>
-         * This method must return both SUCCESS (200 OK) and FAILURE (300+) codes in order to
-         * keep the AOSP stack up to date.
+         * This method must be called to notify the framework of SUCCESS (200 OK) and FAILURE (300+)
+         * codes in order to keep the AOSP stack up to date.
          */
         void onPublishUpdated(int reasonCode, String reasonPhrase,
                 int reasonHeaderCause, String reasonHeaderText);
