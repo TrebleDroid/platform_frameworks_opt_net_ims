@@ -126,6 +126,9 @@ public class EabControllerImpl implements EabController {
         // Pick up changes to CarrierConfig and run any applicable cleanup tasks associated with
         // that configuration.
         mCapabilityCleanupRunnable.run();
+        if (!mIsSetDestroyedFlag) {
+            mEabBulkCapabilityUpdater.onCarrierConfigChanged();
+        }
     }
 
     /**
