@@ -851,7 +851,7 @@ public class PublishControllerImpl implements PublishController {
 
         // Check whether the device state is not allowed to execute the PUBLISH request.
         DeviceStateResult deviceState = mUceCtrlCallback.getDeviceState();
-        if (deviceState.isRequestForbidden()) {
+        if (deviceState.isRequestForbidden() || deviceState.isPublishRequestBlocked()) {
             logd("isPublishRequestAllowed: The device state is disallowed. "
                     + deviceState.getDeviceState());
             return false;
@@ -1076,7 +1076,7 @@ public class PublishControllerImpl implements PublishController {
             }
             // Reset device state
             DeviceStateResult deviceState = mUceCtrlCallback.getDeviceState();
-            if (deviceState.isRequestForbidden()) {
+            if (deviceState.isRequestForbidden() || deviceState.isPublishRequestBlocked()) {
                 mUceCtrlCallback.resetDeviceState();
             }
         }
