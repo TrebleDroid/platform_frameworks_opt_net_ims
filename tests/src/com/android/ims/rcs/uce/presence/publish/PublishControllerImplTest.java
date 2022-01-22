@@ -86,6 +86,7 @@ public class PublishControllerImplTest extends ImsTestBase {
                 eq(mSubId), any(), any(), any());
         doReturn(mDeviceStateResult).when(mUceCtrlCallback).getDeviceState();
         doReturn(false).when(mDeviceStateResult).isRequestForbidden();
+        doReturn(false).when(mDeviceStateResult).isPublishRequestBlocked();
     }
 
     @After
@@ -351,6 +352,32 @@ public class PublishControllerImplTest extends ImsTestBase {
         Handler handler = publishController.getPublishHandler();
         waitForHandlerAction(handler, 1000);
         verify(mPublishProcessor).doPublish(PublishController.PUBLISH_TRIGGER_SERVICE);
+    }
+
+    @Test
+    @SmallTest
+    public void testRequestPublishFromServiceWhenDeviceNoRetry() throws Exception {
+        doReturn(true).when(mDeviceStateResult).isPublishRequestBlocked();
+
+        PublishControllerImpl publishController = createPublishController();
+        doReturn(Optional.of(0L)).when(mPublishProcessor).getPublishingDelayTime();
+
+        // Set the PRESENCE is capable
+        IImsCapabilityCallback RcsCapCallback = publishController.getRcsCapabilitiesCallback();
+        RcsCapCallback.onCapabilitiesStatusChanged(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+
+        // Trigger the PUBLISH request from the service.
+        publishController.requestPublishCapabilitiesFromService(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_IWLAN);
+
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
+
+        // Reset device state because isPublishRequestBlocked() is true when Ims Service
+        // requests PUBLISH.
+        verify(mUceCtrlCallback).resetDeviceState();
+        // The PUBLISH request must be pending because the current device state is no_retry.
+        verify(mPublishProcessor).setPendingRequest(anyInt());
     }
 
     @Test
