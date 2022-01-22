@@ -174,6 +174,9 @@ public class UceControllerTest extends ImsTestBase {
         UceController uceController = createUceController();
         uceController.onRcsConnected(mFeatureManager);
         doReturn(false).when(mDeviceStateResult).isRequestForbidden();
+        // This API should only be applied to PUBLISH.
+        // Even if the return value is true, the capabilities request must be processed.
+        doReturn(true).when(mDeviceStateResult).isPublishRequestBlocked();
 
         List<Uri> uriList = new ArrayList<>();
         uriList.add(Uri.fromParts("sip", "test", null));
