@@ -65,8 +65,10 @@ import java.util.function.Predicate;
 public class EabControllerImpl implements EabController {
     private static final String TAG = "EabControllerImpl";
 
-    // 90 days
-    private static final int DEFAULT_CAPABILITY_CACHE_EXPIRATION_SEC = 90 * 24 * 60 * 60;
+    // 7 days
+    private static final int DEFAULT_NON_RCS_CAPABILITY_CACHE_EXPIRATION_SEC = 7 * 24 * 60 * 60;
+    // 1 day
+    private static final int DEFAULT_CAPABILITY_CACHE_EXPIRATION_SEC = 24 * 60 * 60;
     private static final int DEFAULT_AVAILABILITY_CACHE_EXPIRATION_SEC = 60;
 
     // 1 week
@@ -575,7 +577,7 @@ public class EabControllerImpl implements EabController {
             value = carrierConfig.getInt(
                     CarrierConfigManager.Ims.KEY_NON_RCS_CAPABILITIES_CACHE_EXPIRATION_SEC_INT);
         } else {
-            value = DEFAULT_CAPABILITY_CACHE_EXPIRATION_SEC;
+            value = DEFAULT_NON_RCS_CAPABILITY_CACHE_EXPIRATION_SEC;
             Log.e(TAG, "getNonRcsCapabilityCacheExpiration: " +
                     "CarrierConfig is null, returning default");
         }
