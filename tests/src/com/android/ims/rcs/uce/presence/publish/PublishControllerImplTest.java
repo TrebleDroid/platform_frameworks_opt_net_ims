@@ -201,6 +201,25 @@ public class PublishControllerImplTest extends ImsTestBase {
 
     @Test
     @SmallTest
+    public void testImsUnregistered() throws Exception {
+        PublishControllerImpl publishController = createPublishController();
+        //To initialize the public state to publish_ok.
+        publishController.setCapabilityType(RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE);
+
+        // Trigger a ims unregistered
+        PublishControllerCallback callback = publishController.getPublishControllerCallback();
+        callback.updateImsUnregistered();
+
+        Handler handler = publishController.getPublishHandler();
+        waitForHandlerAction(handler, 1000);
+        int publishState = publishController.getUcePublishState(false);
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED, publishState);
+        verify(mPublishProcessor).resetState();
+        verify(mUceStatsWriter).setUnPublish(eq(mSubId));
+    }
+
+    @Test
+    @SmallTest
     public void testPublishUpdated() throws Exception {
         PublishControllerImpl publishController = createPublishController();
         int responseCode = 200;
