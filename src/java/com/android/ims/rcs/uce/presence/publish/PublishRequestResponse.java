@@ -199,6 +199,15 @@ public class PublishRequestResponse {
     }
 
     private void onNetworkResponse(int sipCode, String reason) {
+        // When we send a request to PUBLISH and there is no change to the UCE capabilities, we
+        // expected onCommandError() with COMMAND_CODE_NO_CHANGE.
+        // But some of the vendor will instead send SIP code 999.
+        // We need a patch to give to OEMs reporting this issue to consider SIP code 999 response
+        // to PUBLISH in the same way that we handle COMMAND_CODE_NO_CHANGE.
+        if (sipCode == 999) {
+            onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NO_CHANGE);
+            return;
+        }
         mResponseTimestamp = Instant.now();
         mNetworkRespSipCode = Optional.of(sipCode);
         mReasonPhrase = Optional.ofNullable(reason);
@@ -214,6 +223,15 @@ public class PublishRequestResponse {
 
     private void onNetworkResponse(int sipCode, String reasonPhrase, int reasonHeaderCause,
             String reasonHeaderText) {
+        // When we send a request to PUBLISH and there is no change to the UCE capabilities, we
+        // expected onCommandError() with COMMAND_CODE_NO_CHANGE.
+        // But some of the vendor will instead send SIP code 999.
+        // We need a patch to give to OEMs reporting this issue to consider SIP code 999 response
+        // to PUBLISH in the same way that we handle COMMAND_CODE_NO_CHANGE.
+        if (sipCode == 999) {
+            onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NO_CHANGE);
+            return;
+        }
         mResponseTimestamp = Instant.now();
         mNetworkRespSipCode = Optional.of(sipCode);
         mReasonPhrase = Optional.ofNullable(reasonPhrase);
