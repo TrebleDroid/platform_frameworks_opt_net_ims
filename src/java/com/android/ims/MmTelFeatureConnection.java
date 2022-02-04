@@ -436,7 +436,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
             // This will internally set up a listener on the ImsUtImplBase interface, and there is
             // a limitation that there can only be one. If multiple connections try to create this
             // UT interface, it will throw an IllegalStateException.
-            mUt = (imsUt != null) ? new ImsUt(imsUt) : null;
+            mUt = (imsUt != null) ? new ImsUt(imsUt, mContext.getMainExecutor()) : null;
             return mUt;
         }
     }
