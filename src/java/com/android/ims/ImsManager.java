@@ -52,6 +52,7 @@ import android.telephony.ims.ImsService;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.RtpHeaderExtensionType;
+import android.telephony.ims.SrvccCall;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsConfigCallback;
@@ -60,6 +61,7 @@ import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.IImsRegistrationCallback;
 import android.telephony.ims.aidl.IImsSmsListener;
 import android.telephony.ims.aidl.ISipTransport;
+import android.telephony.ims.aidl.ISrvccStartedCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
@@ -2723,6 +2725,60 @@ public class ImsManager implements FeatureUpdates {
             return c.isCapable(capabilities);
         } catch (RemoteException e) {
             throw new ImsException("isCapable()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Notifies SRVCC started.
+     * @param cb The callback to receive the list of {@link SrvccCall}.
+     */
+    public void notifySrvccStarted(ISrvccStartedCallback cb)
+            throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.notifySrvccStarted(cb);
+        } catch (RemoteException e) {
+            throw new ImsException("notifySrvccStarted", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Notifies SRVCC is completed, IMS service will hang up all calls.
+     */
+    public void notifySrvccCompleted() throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.notifySrvccCompleted();
+        } catch (RemoteException e) {
+            throw new ImsException("notifySrvccCompleted", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Notifies SRVCC failed. IMS service will recover and continue calls over IMS.
+     */
+    public void notifySrvccFailed() throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.notifySrvccFailed();
+        } catch (RemoteException e) {
+            throw new ImsException("notifySrvccFailed", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
+    /**
+     * Notifies SRVCC is canceled. IMS service will recover and continue calls over IMS.
+     */
+    public void notifySrvccCanceled() throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.notifySrvccCanceled();
+        } catch (RemoteException e) {
+            throw new ImsException("notifySrvccCanceled", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
     }
