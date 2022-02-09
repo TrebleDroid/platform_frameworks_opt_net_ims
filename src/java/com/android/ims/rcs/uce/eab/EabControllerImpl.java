@@ -416,6 +416,10 @@ public class EabControllerImpl implements EabController {
             if (tuple != null) {
                 builder.addCapabilityTuple(tuple);
             }
+            String entityUri = getStringValue(cursor, EabProvider.EabCommonColumns.ENTITY_URI);
+            if (!TextUtils.isEmpty(entityUri)) {
+                builder.setEntityUri(Uri.parse(entityUri));
+            }
             builderWrapper.setPresenceBuilder(builder);
         } else {
             OptionsBuilder builder = new OptionsBuilder(contactUri, SOURCE_TYPE_CACHED);
@@ -654,6 +658,10 @@ public class EabControllerImpl implements EabController {
         contentValues.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, mSubId);
         contentValues.put(EabProvider.EabCommonColumns.REQUEST_RESULT,
                 capability.getRequestResult());
+        if (capability.getEntityUri() != null) {
+            contentValues.put(EabProvider.EabCommonColumns.ENTITY_URI,
+                    capability.getEntityUri().toString());
+        }
         Uri result = mContext.getContentResolver().insert(EabProvider.COMMON_URI, contentValues);
         int commonId = Integer.parseInt(result.getLastPathSegment());
         Log.d(TAG, "Insert into common table. Id: " + commonId);

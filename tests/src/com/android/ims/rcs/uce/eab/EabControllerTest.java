@@ -125,6 +125,8 @@ public class EabControllerTest extends ImsTestBase {
         Assert.assertEquals(EabCapabilityResult.EAB_QUERY_SUCCESSFUL, result.getStatus());
         Assert.assertEquals(TEST_CONTACT_URI,
                 result.getContactCapabilities().getContactUri());
+        Assert.assertEquals(TEST_CONTACT_URI,
+                result.getContactCapabilities().getEntityUri());
     }
 
     @Test
@@ -141,6 +143,8 @@ public class EabControllerTest extends ImsTestBase {
                 mEabControllerSub1.getCapabilities(contactUriList).size());
         Assert.assertEquals(EabCapabilityResult.EAB_QUERY_SUCCESSFUL,
                 mEabControllerSub1.getCapabilities(contactUriList).get(0).getStatus());
+        Assert.assertEquals(TEST_CONTACT_URI, mEabControllerSub1.getCapabilities(contactUriList).
+                get(0).getContactCapabilities().getEntityUri());
     }
 
     @Test
@@ -389,6 +393,7 @@ public class EabControllerTest extends ImsTestBase {
                         TEST_CONTACT_URI, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND);
         builder.addCapabilityTuple(tupleWithServiceCapabilities);
         builder.addCapabilityTuple(tupleWithEmptyServiceCapabilities);
+        builder.setEntityUri(TEST_CONTACT_URI);
         return builder.build();
     }
 
