@@ -20,10 +20,14 @@ import static android.telephony.ims.ProvisioningManager.KEY_VOIMS_OPT_IN_STATUS;
 
 import android.annotation.NonNull;
 import android.app.PendingIntent;
+import android.app.compat.CompatChanges;
+import android.compat.annotation.ChangeId;
+import android.compat.annotation.EnabledSince;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Message;
 import android.os.PersistableBundle;
@@ -1580,10 +1584,16 @@ public class ImsManager implements FeatureUpdates {
      * ImsConfig for that value.
      */
     private boolean getProvisionedBool(ImsConfig config, int item) throws ImsException {
-        int value = config.getProvisionedValue(item);
-        if (value == ImsConfigImplBase.CONFIG_RESULT_UNKNOWN) {
-            throw new ImsException("getProvisionedBool failed with error for item: " + item,
-                    ImsReasonInfo.CODE_LOCAL_INTERNAL_ERROR);
+        int value = 0;
+        ITelephony telephony = getITelephony();
+        try {
+            if (telephony != null) {
+                value = telephony.getImsProvisioningInt(getSubId(), item);
+            }
+        } catch (RemoteException e) {
+            throw new ImsException(
+                    "getProvisionedBool : couldn't reach telephony! item: " + item,
+                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
         }
         return value == ProvisioningManager.PROVISIONING_VALUE_ENABLED;
     }
@@ -1593,11 +1603,22 @@ public class ImsManager implements FeatureUpdates {
      * value.
      */
     private void setProvisionedBool(ImsConfig config, int item, int value) throws ImsException {
-        int result = config.setConfig(item, value);
+        int result = ImsConfigImplBase.CONFIG_RESULT_UNKNOWN;
+        ITelephony telephony = getITelephony();
+        try {
+            if (telephony != null) {
+                result = telephony.setImsProvisioningInt(getSubId(), item, value);
+            }
+        } catch (RemoteException e) {
+            throw new ImsException(
+                    "setProvisionedBool : couldn't reach telephony! item: " + item,
+                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
+        }
         if (result != ImsConfigImplBase.CONFIG_RESULT_SUCCESS) {
             throw new ImsException("setProvisionedBool failed with error for item: " + item,
                     ImsReasonInfo.CODE_LOCAL_INTERNAL_ERROR);
         }
+        return;
     }
 
     /**
@@ -1870,7 +1891,7 @@ public class ImsManager implements FeatureUpdates {
             // currently.
             try {
                 if (telephony != null) {
-                    isProvisioned = telephony.isMmTelCapabilityProvisionedInCache(getSubId(),
+                    isProvisioned = telephony.getImsProvisioningStatusForCapability(getSubId(),
                             MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
                             ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
                 }
@@ -1953,7 +1974,8 @@ public class ImsManager implements FeatureUpdates {
      */
     @VisibleForTesting
     public ImsManager(Context context, int phoneId, MmTelFeatureConnectionFactory factory,
-            SubscriptionManagerProxy subManagerProxy, SettingsProxy settingsProxy) {
+            SubscriptionManagerProxy subManagerProxy, SettingsProxy settingsProxy,
+            BinderCacheManager binderCacheManager) {
         mContext = context;
         mPhoneId = phoneId;
         mMmTelFeatureConnectionFactory = factory;
@@ -1963,7 +1985,7 @@ public class ImsManager implements FeatureUpdates {
                 Context.CARRIER_CONFIG_SERVICE);
         // Do not multithread tests
         mExecutor = Runnable::run;
-        mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
+        mBinderCache = binderCacheManager;
         // MmTelFeatureConnection should be replaced for tests with mMmTelFeatureConnectionFactory.
         associate(null /*container*/, SubscriptionManager.INVALID_SUBSCRIPTION_ID);
     }
