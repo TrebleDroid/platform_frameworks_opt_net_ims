@@ -583,9 +583,9 @@ public class RcsFeatureManager implements FeatureUpdates {
     }
 
     @Override
-    public void associate(ImsFeatureContainer c) {
+    public void associate(ImsFeatureContainer c, int subId) {
         IImsRcsFeature f = IImsRcsFeature.Stub.asInterface(c.imsFeature);
-        mRcsFeatureConnection = new RcsFeatureConnection(mContext, mSlotId, f, c.imsConfig,
+        mRcsFeatureConnection = new RcsFeatureConnection(mContext, mSlotId, subId, f, c.imsConfig,
                 c.imsRegistration, c.sipTransport);
     }
 

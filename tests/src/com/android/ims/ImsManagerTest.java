@@ -97,10 +97,10 @@ public class ImsManagerTest extends ImsTestBase {
         doReturn(null).when(mContext).getMainLooper();
 
         doReturn(true).when(mMmTelFeatureConnection).isBinderAlive();
+        doReturn(mSubId[0]).when(mMmTelFeatureConnection).getSubId();
         mContextFixture.addSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
 
         doReturn(true).when(mSubscriptionManagerProxy).isValidSubscriptionId(anyInt());
-        doReturn(mSubId).when(mSubscriptionManagerProxy).getSubscriptionIds(eq(mPhoneId));
         doReturn(mSubId).when(mSubscriptionManagerProxy).getActiveSubscriptionIdList();
         doReturn(mPhoneId).when(mSubscriptionManagerProxy).getDefaultVoicePhoneId();
         doReturn(-1).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(anyInt(),
@@ -874,11 +874,11 @@ public class ImsManagerTest extends ImsTestBase {
         doReturn(mImsConfigStub).when(mMmTelFeatureConnection).getConfig();
 
         ImsManager mgr = new ImsManager(mContext, mPhoneId,
-                (context, phoneId, feature, c, r, s) -> mMmTelFeatureConnection,
+                (context, phoneId, subId, feature, c, r, s) -> mMmTelFeatureConnection,
                 mSubscriptionManagerProxy, mSettingsProxy);
         ImsFeatureContainer c = new ImsFeatureContainer(mMmTelFeature, mImsConfig, mImsReg,
                 mSipTransport, 0 /*caps*/);
-        mgr.associate(c);
+        mgr.associate(c, mSubId[0]);
         // Enabled WFC by default
         setWfcEnabledByPlatform(true);
         return mgr;

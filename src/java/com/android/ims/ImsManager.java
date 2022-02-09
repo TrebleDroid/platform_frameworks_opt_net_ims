@@ -236,8 +236,8 @@ public class ImsManager implements FeatureUpdates {
 
     @VisibleForTesting
     public interface MmTelFeatureConnectionFactory {
-        MmTelFeatureConnection create(Context context, int phoneId, IImsMmTelFeature feature,
-                IImsConfig c, IImsRegistration r, ISipTransport s);
+        MmTelFeatureConnection create(Context context, int phoneId, int subId,
+                IImsMmTelFeature feature, IImsConfig c, IImsRegistration r, ISipTransport s);
     }
 
     @VisibleForTesting
@@ -251,7 +251,6 @@ public class ImsManager implements FeatureUpdates {
     @VisibleForTesting
     public interface SubscriptionManagerProxy {
         boolean isValidSubscriptionId(int subId);
-        int[] getSubscriptionIds(int slotIndex);
         int getDefaultVoicePhoneId();
         int getIntegerSubscriptionProperty(int subId, String propKey, int defValue);
         void setSubscriptionProperty(int subId, String propKey, String propValue);
@@ -283,11 +282,6 @@ public class ImsManager implements FeatureUpdates {
         @Override
         public boolean isValidSubscriptionId(int subId) {
             return SubscriptionManager.isValidSubscriptionId(subId);
-        }
-
-        @Override
-        public int[] getSubscriptionIds(int slotIndex) {
-            return getSubscriptionManager().getSubscriptionIds(slotIndex);
         }
 
         @Override
@@ -397,7 +391,7 @@ public class ImsManager implements FeatureUpdates {
         }
 
         @Override
-        public void connectionReady(ImsManager manager) {
+        public void connectionReady(ImsManager manager, int subId) {
             synchronized (mLock) {
                 mConnectedLatch.countDown();
             }
@@ -1404,12 +1398,7 @@ public class ImsManager implements FeatureUpdates {
     }
 
     private int getSubId() {
-        int[] subIds = mSubscriptionManagerProxy.getSubscriptionIds(mPhoneId);
-        int subId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
-        if (subIds != null && subIds.length >= 1) {
-            subId = subIds[0];
-        }
-        return subId;
+        return mMmTelConnectionRef.get().getSubId();
     }
 
     private void setWfcModeInternal(int wfcMode) {
@@ -1956,7 +1945,7 @@ public class ImsManager implements FeatureUpdates {
         mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // Start off with an empty MmTelFeatureConnection, which will be replaced one an
         // ImsService is available (ImsManager expects a non-null FeatureConnection)
-        associate(null /*container*/);
+        associate(null /*container*/, SubscriptionManager.INVALID_SUBSCRIPTION_ID);
     }
 
     /**
@@ -1976,7 +1965,7 @@ public class ImsManager implements FeatureUpdates {
         mExecutor = Runnable::run;
         mBinderCache = new BinderCacheManager<>(ImsManager::getITelephonyInterface);
         // MmTelFeatureConnection should be replaced for tests with mMmTelFeatureConnectionFactory.
-        associate(null /*container*/);
+        associate(null /*container*/, SubscriptionManager.INVALID_SUBSCRIPTION_ID);
     }
 
     /*
@@ -2810,13 +2799,13 @@ public class ImsManager implements FeatureUpdates {
     }
 
     @Override
-    public void associate(ImsFeatureContainer c) {
+    public void associate(ImsFeatureContainer c, int subId) {
         if (c == null) {
             mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
-                    mContext, mPhoneId, null, null, null, null));
+                    mContext, mPhoneId, subId, null, null, null, null));
         } else {
             mMmTelConnectionRef.set(mMmTelFeatureConnectionFactory.create(
-                    mContext, mPhoneId, IImsMmTelFeature.Stub.asInterface(c.imsFeature),
+                    mContext, mPhoneId, subId, IImsMmTelFeature.Stub.asInterface(c.imsFeature),
                     c.imsConfig, c.imsRegistration, c.sipTransport));
         }
     }
@@ -2865,7 +2854,7 @@ public class ImsManager implements FeatureUpdates {
     private void logi(String s) {
         Rlog.i(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
-    
+
     private void logw(String s) {
         Rlog.w(TAG + mLogTagPostfix + " [" + mPhoneId + "]", s);
     }
