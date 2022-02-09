@@ -60,7 +60,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
             ImsCallbackAdapterManager<IImsRegistrationCallback> {
 
         public ImsRegistrationCallbackAdapter(Context context, Object lock) {
-            super(context, lock, mSlotId);
+            super(context, lock, mSlotId, mSubId);
         }
 
         @Override
@@ -101,7 +101,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private class CapabilityCallbackManager extends ImsCallbackAdapterManager<IImsCapabilityCallback> {
 
         public CapabilityCallbackManager(Context context, Object lock) {
-            super(context, lock, mSlotId);
+            super(context, lock, mSlotId, mSubId);
         }
 
         @Override
@@ -161,7 +161,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     private class ProvisioningCallbackManager extends ImsCallbackAdapterManager<IImsConfigCallback> {
         public ProvisioningCallbackManager (Context context, Object lock) {
-            super(context, lock, mSlotId);
+            super(context, lock, mSlotId, mSubId);
         }
 
         @Override
@@ -250,9 +250,9 @@ public class MmTelFeatureConnection extends FeatureConnection {
     private final CapabilityCallbackManager mCapabilityCallbackManager;
     private final ProvisioningCallbackManager mProvisioningCallbackManager;
 
-    public MmTelFeatureConnection(Context context, int slotId, IImsMmTelFeature f,
+    public MmTelFeatureConnection(Context context, int slotId, int subId, IImsMmTelFeature f,
             IImsConfig c, IImsRegistration r, ISipTransport s) {
-        super(context, slotId, c, r, s);
+        super(context, slotId, subId, c, r, s);
 
         setBinder((f != null) ? f.asBinder() : null);
         mRegistrationCallbackManager = new ImsRegistrationCallbackAdapter(context, mLock);
@@ -346,7 +346,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     public void removeRegistrationCallbackForSubscription(IImsRegistrationCallback callback,
             int subId) {
-        mRegistrationCallbackManager.removeCallbackForSubscription(callback, subId);
+        mRegistrationCallbackManager.removeCallback(callback);
     }
 
     public void addCapabilityCallback(IImsCapabilityCallback callback) {
@@ -364,7 +364,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     public void removeCapabilityCallbackForSubscription(IImsCapabilityCallback callback,
             int subId) {
-        mCapabilityCallbackManager.removeCallbackForSubscription(callback , subId);
+        mCapabilityCallbackManager.removeCallback(callback);
     }
 
     public void addProvisioningCallbackForSubscription(IImsConfigCallback callback,
@@ -374,7 +374,7 @@ public class MmTelFeatureConnection extends FeatureConnection {
 
     public void removeProvisioningCallbackForSubscription(IImsConfigCallback callback,
             int subId) {
-        mProvisioningCallbackManager.removeCallbackForSubscription(callback , subId);
+        mProvisioningCallbackManager.removeCallback(callback);
     }
 
     public void changeEnabledCapabilities(CapabilityChangeRequest request,
