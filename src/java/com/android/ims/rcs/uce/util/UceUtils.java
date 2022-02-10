@@ -192,6 +192,22 @@ public class UceUtils {
     }
 
     /**
+     * Check whether sip uri should be used for presence subscribe
+     */
+    public static boolean isSipUriForPresenceSubscribeEnabled(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return false;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return false;
+        }
+        return config.getBoolean(
+                CarrierConfigManager.Ims.KEY_USE_SIP_URI_FOR_PRESENCE_SUBSCRIBE_BOOL);
+    }
+
+    /**
      * Get the minimum time that allow two PUBLISH requests can be executed continuously.
      *
      * @param subId The subscribe ID

@@ -202,8 +202,6 @@ public class PublishRequestResponse {
         // When we send a request to PUBLISH and there is no change to the UCE capabilities, we
         // expected onCommandError() with COMMAND_CODE_NO_CHANGE.
         // But some of the vendor will instead send SIP code 999.
-        // We need a patch to give to OEMs reporting this issue to consider SIP code 999 response
-        // to PUBLISH in the same way that we handle COMMAND_CODE_NO_CHANGE.
         if (sipCode == 999) {
             onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NO_CHANGE);
             return;
@@ -226,8 +224,6 @@ public class PublishRequestResponse {
         // When we send a request to PUBLISH and there is no change to the UCE capabilities, we
         // expected onCommandError() with COMMAND_CODE_NO_CHANGE.
         // But some of the vendor will instead send SIP code 999.
-        // We need a patch to give to OEMs reporting this issue to consider SIP code 999 response
-        // to PUBLISH in the same way that we handle COMMAND_CODE_NO_CHANGE.
         if (sipCode == 999) {
             onCommandError(RcsCapabilityExchangeImplBase.COMMAND_CODE_NO_CHANGE);
             return;
