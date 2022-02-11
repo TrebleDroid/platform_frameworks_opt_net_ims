@@ -80,9 +80,21 @@ public class UceController {
         List<EabCapabilityResult> getCapabilitiesFromCache(@NonNull List<Uri> uris);
 
         /**
+         * Retrieve the capabilities associated with the given uris from the cache including
+         * expired capabilities.
+         */
+        List<EabCapabilityResult> getCapabilitiesFromCacheIncludingExpired(@NonNull List<Uri> uris);
+
+        /**
          * Retrieve the contact's capabilities from the availability cache.
          */
         EabCapabilityResult getAvailabilityFromCache(@NonNull Uri uri);
+
+        /**
+         * Retrieve the contact's capabilities from the availability cache including expired
+         * capabilities
+         */
+        EabCapabilityResult getAvailabilityFromCacheIncludingExpired(@NonNull Uri uri);
 
         /**
          * Store the given capabilities to the cache.
@@ -507,8 +519,18 @@ public class UceController {
         }
 
         @Override
+        public List<EabCapabilityResult> getCapabilitiesFromCacheIncludingExpired(List<Uri> uris) {
+            return mEabController.getCapabilitiesIncludingExpired(uris);
+        }
+
+        @Override
         public EabCapabilityResult getAvailabilityFromCache(Uri contactUri) {
             return mEabController.getAvailability(contactUri);
+        }
+
+        @Override
+        public EabCapabilityResult getAvailabilityFromCacheIncludingExpired(Uri contactUri) {
+            return mEabController.getAvailabilityIncludingExpired(contactUri);
         }
 
         @Override
@@ -810,6 +832,7 @@ public class UceController {
     public void removeRequestDisallowedStatus() {
         logd("removeRequestDisallowedStatus");
         mDeviceState.resetDeviceState();
+        mRequestManager.resetThrottlingList();
     }
 
     /**
