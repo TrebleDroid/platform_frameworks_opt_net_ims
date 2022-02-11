@@ -61,10 +61,16 @@ public abstract class ImsCallbackAdapterManager<T extends IInterface> {
 
     // Add a callback to be associated with a subscription.
     public void addCallbackForSubscription(T localCallback, int subId) {
-        if (!SubscriptionManager.isValidSubscriptionId(subId) || mSubId != subId) {
-            Log.w(TAG + " [" + mSlotId + ", " + mSubId + "]", "add callback: invalid subId or"
-                    + " inactive subID " + subId);
+        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+            Log.w(TAG + " [" + mSlotId + ", " + mSubId + "]", "add callback: invalid subId.");
             return;
+        }
+        if (mSubId != subId) {
+            // In some cases, telephony has changed sub id and IMS is still catching up to the
+            // state change. Since some devices do not check for IMS READY state before adding
+            // callbacks, still allow this condition.
+            Log.w(TAG + " [" + mSlotId + ", " + mSubId + "]", "add callback: inactive"
+                    + " subID detected: " + subId);
         }
         synchronized (mLock) {
             addCallback(localCallback);
