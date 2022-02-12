@@ -388,7 +388,9 @@ public class ImsManager implements FeatureUpdates {
             try {
                 // If this is during initial reconnect, let all threads wait for connect
                 // (or timeout)
-                mConnectedLatch.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                if(!mConnectedLatch.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                    mImsManager.log("ImsService not up yet - timeout waiting for connection.");
+                }
             } catch (InterruptedException e) {
                 // Do nothing and allow ImsService to attach behind the scenes
             }
@@ -397,6 +399,7 @@ public class ImsManager implements FeatureUpdates {
         @Override
         public void connectionReady(ImsManager manager, int subId) {
             synchronized (mLock) {
+                mImsManager.logi("connectionReady, subId: " + subId);
                 mConnectedLatch.countDown();
             }
         }
@@ -404,6 +407,7 @@ public class ImsManager implements FeatureUpdates {
         @Override
         public void connectionUnavailable(int reason) {
             synchronized (mLock) {
+                mImsManager.logi("connectionUnavailable, reason: " + reason);
                 // only need to track the connection becoming unavailable due to telephony going
                 // down.
                 if (reason == FeatureConnector.UNAVAILABLE_REASON_SERVER_UNAVAILABLE) {
