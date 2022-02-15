@@ -22,6 +22,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
+import android.telephony.TelephonyManager;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter;
@@ -30,6 +31,9 @@ import android.telephony.ims.aidl.IRcsUceControllerCallback;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.ims.rcs.uce.UceController;
 import com.android.ims.rcs.uce.UceController.UceControllerCallback;
 import com.android.ims.rcs.uce.UceDeviceState;
@@ -605,6 +609,25 @@ public class UceRequestManager {
             List<UceRequest> requestList = new ArrayList<>();
             uriList.forEach(uri -> {
                 List<Uri> individualUri = Collections.singletonList(uri);
+                // Entity-uri, which is used as a request-uri, uses only a single subscription case
+                List<RcsContactUceCapability> capabilities =
+                        getCapabilitiesFromCache(type, individualUri);
+                if (!capabilities.isEmpty()) {
+                    RcsContactUceCapability capability = capabilities.get(0);
+                    Uri entityUri = capability.getEntityUri();
+                    if (entityUri != null) {
+                        // The query uri has been replaced by the stored entity uri.
+                        individualUri = Collections.singletonList(entityUri);
+                    } else {
+                        if (UceUtils.isSipUriForPresenceSubscribeEnabled(mContext, mSubId)) {
+                            individualUri = Collections.singletonList(getSipUriFromUri(uri));
+                        }
+                    }
+                } else {
+                    if (UceUtils.isSipUriForPresenceSubscribeEnabled(mContext, mSubId)) {
+                        individualUri = Collections.singletonList(getSipUriFromUri(uri));
+                    }
+                }
                 UceRequest request = createSubscribeRequest(type, individualUri, skipFromCache);
                 requestList.add(request);
             });
@@ -921,6 +944,33 @@ public class UceRequestManager {
 
     private void notifyRepositoryRequestFinished(Long taskId) {
         mRequestRepository.notifyRequestFinished(taskId);
+    }
+
+    private Uri getSipUriFromUri(Uri uri) {
+        Uri convertedUri = uri;
+        String number = convertedUri.getSchemeSpecificPart();
+        String[] numberParts = number.split("[@;:]");
+        number = numberParts[0];
+
+        TelephonyManager manager = mContext.getSystemService(TelephonyManager.class);
+        if (manager.getIsimDomain() == null) {
+            return convertedUri;
+        }
+        String simCountryIso = manager.getSimCountryIso();
+        if (TextUtils.isEmpty(simCountryIso)) {
+            return convertedUri;
+        }
+        simCountryIso = simCountryIso.toUpperCase();
+        PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+        try {
+            Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+            number = util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+            String sipUri = "sip:" + number + "@" + manager.getIsimDomain();
+            convertedUri = Uri.parse(sipUri);
+        } catch (NumberParseException e) {
+            Log.w(LOG_TAG, "formatNumber: could not format " + number + ", error: " + e);
+        }
+        return convertedUri;
     }
 
     @VisibleForTesting
