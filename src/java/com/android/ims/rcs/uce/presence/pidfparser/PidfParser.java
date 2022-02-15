@@ -206,7 +206,7 @@ public class PidfParser {
                 presenceBuilder.addCapabilityTuple(capabilityTuple);
             }
         });
-
+        presenceBuilder.setEntityUri(Uri.parse(presence.getEntity()));
         return presenceBuilder.build();
     }
 
