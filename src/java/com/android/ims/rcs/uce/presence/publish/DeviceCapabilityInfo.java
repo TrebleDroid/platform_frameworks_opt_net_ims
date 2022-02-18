@@ -520,7 +520,12 @@ public class DeviceCapabilityInfo {
             @CapabilityMechanism int mechanism, Context context) {
         switch (mechanism) {
             case RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE:
-                return getPresenceCapabilities(context);
+                RcsContactUceCapability rcsContactUceCapability = getPresenceCapabilities(context);
+                if (rcsContactUceCapability != null) {
+                    mPendingPublishCapabilities =
+                            mServiceCapRegTracker.copyRegistrationCapabilities();
+                }
+                return rcsContactUceCapability;
             case RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS:
                 return getOptionsCapabilities(context);
             default:
