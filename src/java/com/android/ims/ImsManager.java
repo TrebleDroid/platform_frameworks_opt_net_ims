@@ -255,6 +255,7 @@ public class ImsManager implements FeatureUpdates {
     @VisibleForTesting
     public interface SubscriptionManagerProxy {
         boolean isValidSubscriptionId(int subId);
+        int[] getSubscriptionIds(int slotIndex);
         int getDefaultVoicePhoneId();
         int getIntegerSubscriptionProperty(int subId, String propKey, int defValue);
         void setSubscriptionProperty(int subId, String propKey, String propValue);
@@ -286,6 +287,11 @@ public class ImsManager implements FeatureUpdates {
         @Override
         public boolean isValidSubscriptionId(int subId) {
             return SubscriptionManager.isValidSubscriptionId(subId);
+        }
+
+        @Override
+        public int[] getSubscriptionIds(int slotIndex) {
+            return getSubscriptionManager().getSubscriptionIds(slotIndex);
         }
 
         @Override
@@ -1406,7 +1412,12 @@ public class ImsManager implements FeatureUpdates {
     }
 
     private int getSubId() {
-        return mMmTelConnectionRef.get().getSubId();
+        int[] subIds = mSubscriptionManagerProxy.getSubscriptionIds(mPhoneId);
+        int subId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+        if (subIds != null && subIds.length >= 1) {
+            subId = subIds[0];
+        }
+        return subId;
     }
 
     private void setWfcModeInternal(int wfcMode) {
@@ -2772,6 +2783,12 @@ public class ImsManager implements FeatureUpdates {
         MmTelFeatureConnection c = mMmTelConnectionRef.get();
         if (c == null || !c.isBinderAlive()) {
             throw new ImsException("Service is unavailable",
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+        if (getSubId() != c.getSubId()) {
+            logi("Trying to get MmTelFeature when it is still setting up, curr subId=" + getSubId()
+                    + ", target subId=" + c.getSubId());
+            throw new ImsException("Service is still initializing",
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
         }
         return c;
