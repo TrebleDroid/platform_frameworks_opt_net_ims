@@ -1405,7 +1405,10 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
-    private int getSubId() {
+    /**
+     * @return the subscription ID currently associated with this ImsManager instance.
+     */
+    public int getSubId() {
         return mMmTelConnectionRef.get().getSubId();
     }
 
