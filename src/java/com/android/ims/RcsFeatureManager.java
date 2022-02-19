@@ -44,7 +44,6 @@ import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.aidl.ISubscribeResponseCallback;
 import android.telephony.ims.feature.CapabilityChangeRequest;
 import android.telephony.ims.feature.ImsFeature;
-import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.util.Log;
@@ -604,38 +603,15 @@ public class RcsFeatureManager implements FeatureUpdates {
         mRcsFeatureConnection.updateFeatureCapabilities(capabilities);
     }
 
-    /**
-     * Testing interface used to mock SubscriptionManager in testing
-     * @hide
-     */
-    @VisibleForTesting
-    public interface SubscriptionManagerProxy {
-        /**
-         * Mock-able interface for {@link SubscriptionManager#getSubId(int)} used for testing.
-         */
-        int getSubId(int slotId);
-    }
-
     public IImsConfig getConfig() {
         return mRcsFeatureConnection.getConfig();
     }
 
-    private static SubscriptionManagerProxy sSubscriptionManagerProxy
-            = slotId -> {
-                int[] subIds = SubscriptionManager.getSubId(slotId);
-                if (subIds != null) {
-                    return subIds[0];
-                }
-                return SubscriptionManager.INVALID_SUBSCRIPTION_ID;
-            };
-
     /**
-     * Testing function used to mock SubscriptionManager in testing
-     * @hide
+     * @return the subscription ID associated with this ImsService connection.
      */
-    @VisibleForTesting
-    public static void setSubscriptionManager(SubscriptionManagerProxy proxy) {
-        sSubscriptionManagerProxy = proxy;
+    public int getSubId() {
+        return mRcsFeatureConnection.getSubId();
     }
 
     private void log(String s) {
