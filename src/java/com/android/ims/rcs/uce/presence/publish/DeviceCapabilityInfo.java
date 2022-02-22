@@ -38,7 +38,6 @@ import android.util.Log;
 
 import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.UceUtils;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -105,11 +104,6 @@ public class DeviceCapabilityInfo {
     private boolean mMobileData;
     private boolean mVtSetting;
 
-    // The service description associated with the last publication update.
-    private Set<ServiceDescription> mLastSuccessfulCapabilities = new ArraySet<>();
-    // The service description to temporarily store the presence capability being sent.
-    private Set<ServiceDescription> mPendingPublishCapabilities;
-
     public DeviceCapabilityInfo(int subId, String[] capToRegistrationMap) {
         mSubId = subId;
         mServiceCapRegTracker = PublishServiceDescTracker.fromCarrierConfig(capToRegistrationMap);
@@ -132,8 +126,6 @@ public class DeviceCapabilityInfo {
         mMmTelCapabilities = new MmTelCapabilities();
         mMmtelAssociatedUris = Collections.EMPTY_LIST;
         mRcsAssociatedUris = Collections.EMPTY_LIST;
-        mLastSuccessfulCapabilities.clear();
-        mPendingPublishCapabilities = null;
     }
 
     /**
@@ -181,8 +173,6 @@ public class DeviceCapabilityInfo {
         if (mMmtelRegistered) {
             mMmtelRegistered = false;
         }
-        mLastSuccessfulCapabilities.clear();
-        mPendingPublishCapabilities = null;
         mMmtelNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
     }
 
@@ -252,8 +242,6 @@ public class DeviceCapabilityInfo {
             changed = true;
         }
         mRcsNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
-        mLastSuccessfulCapabilities.clear();
-        mPendingPublishCapabilities = null;
         return changed;
     }
 
@@ -440,52 +428,6 @@ public class DeviceCapabilityInfo {
 
     public synchronized boolean isPresenceCapable() {
         return mPresenceCapable;
-    }
-
-    // Get the device's capabilities with the PRESENCE mechanism.
-    public RcsContactUceCapability getChangedPresenceCapability(Context context) {
-        if (context == null) {
-            return null;
-        }
-        Set<ServiceDescription> capableFromReg =
-                mServiceCapRegTracker.copyRegistrationCapabilities();
-        if (isPresenceCapabilityChanged(capableFromReg)) {
-            RcsContactUceCapability rcsContactUceCapability = getPresenceCapabilities(context);
-            if (rcsContactUceCapability != null) {
-                mPendingPublishCapabilities = mServiceCapRegTracker.copyRegistrationCapabilities();
-            }
-            return rcsContactUceCapability;
-        }
-        return null;
-    }
-
-    public void setPresencePublishResult(boolean isSuccess) {
-        if (isSuccess) {
-            mLastSuccessfulCapabilities = mPendingPublishCapabilities;
-        }
-        mPendingPublishCapabilities = null;
-    }
-
-    public void resetPresenceCapability() {
-        mLastSuccessfulCapabilities.clear();
-        mPendingPublishCapabilities = null;
-    }
-
-    @VisibleForTesting
-    public void addLastSuccessfulServiceDescription(ServiceDescription capability) {
-        mLastSuccessfulCapabilities.add(capability);
-    }
-
-    @VisibleForTesting
-    public boolean isPresenceCapabilityChanged(Set<ServiceDescription> capableFromReg) {
-        if (mLastSuccessfulCapabilities.isEmpty()) {
-            return true;
-        }
-
-        if (capableFromReg.equals(mLastSuccessfulCapabilities)) {
-            return false;
-        }
-        return true;
     }
 
     private boolean isVolteAvailable(int networkRegType, MmTelCapabilities capabilities) {
