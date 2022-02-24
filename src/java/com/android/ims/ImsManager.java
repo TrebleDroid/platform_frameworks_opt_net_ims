@@ -699,6 +699,28 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * @return true if we are either not on TTY or TTY over VoWiFi is enabled. If we
+     * are on TTY and TTY over VoWiFi is not allowed, this method will return false.
+     */
+    public boolean isNonTtyOrTtyOnVoWifiEnabled() {
+
+        if (isTtyOnVoWifiCapable()) {
+            return true;
+        }
+
+        TelecomManager tm = mContext.getSystemService(TelecomManager.class);
+        if (tm == null) {
+            logw("isNonTtyOrTtyOnVoWifiEnabled: telecom not available");
+            return true;
+        }
+        return tm.getCurrentTtyMode() == TelecomManager.TTY_MODE_OFF;
+    }
+
+    public boolean isTtyOnVoWifiCapable() {
+        return getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL);
+    }
+
+    /**
      * Returns a platform configuration for VoLTE which may override the user setting.
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isVolteEnabledByPlatform()} instead.
@@ -1149,8 +1171,9 @@ public class ImsManager implements FeatureUpdates {
 
         try {
             if (enabled) {
+                boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
                 CapabilityChangeRequest request = new CapabilityChangeRequest();
-                updateVoiceWifiFeatureAndProvisionedValues(request);
+                updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
                 changeMmTelCapability(request);
                 // Ensure IMS is on if this setting is updated.
                 turnOnIms();
@@ -1693,8 +1716,9 @@ public class ImsManager implements FeatureUpdates {
         logi("reevaluateCapabilities");
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
+        boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
         updateVoiceCellFeatureValue(request, isNonTty);
-        updateVoiceWifiFeatureAndProvisionedValues(request);
+        updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
         updateCrossSimFeatureAndProvisionedValues(request);
         updateVideoCallFeatureValue(request, isNonTty);
         updateCallComposerFeatureValue(request);
@@ -1832,7 +1856,8 @@ public class ImsManager implements FeatureUpdates {
     /**
      * Update WFC config
      */
-    private void updateVoiceWifiFeatureAndProvisionedValues(CapabilityChangeRequest request) {
+    private void updateVoiceWifiFeatureAndProvisionedValues(CapabilityChangeRequest request,
+     boolean isNonTty) {
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
         boolean isNetworkRoaming =  false;
         if (tm == null) {
@@ -1855,9 +1880,10 @@ public class ImsManager implements FeatureUpdates {
                 + ", mode = " + mode
                 + ", provisioned = " + isProvisioned
                 + ", roaming = " + roaming
-                + ", isFeatureOn = " + isFeatureOn);
+                + ", isFeatureOn = " + isFeatureOn
+                + ", isNonTtyWifi = " + isNonTty);
 
-        if (isFeatureOn) {
+        if (isFeatureOn && isNonTty) {
             request.addCapabilitiesToEnableForTech(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
                     ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
@@ -2642,10 +2668,14 @@ public class ImsManager implements FeatureUpdates {
     public void setTtyMode(int ttyMode) throws ImsException {
         boolean isNonTtyOrTtyOnVolteEnabled = isTtyOnVoLteCapable() ||
                 (ttyMode == TelecomManager.TTY_MODE_OFF);
-        logi("setTtyMode: isNonTtyOrTtyOnVolteEnabled=" + isNonTtyOrTtyOnVolteEnabled);
+
+        boolean isNonTtyOrTtyOnWifiEnabled = isTtyOnVoWifiCapable() ||
+                (ttyMode == TelecomManager.TTY_MODE_OFF);
+
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         updateVoiceCellFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
         updateVideoCallFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
+        updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyOrTtyOnWifiEnabled);
         // update MMTEL caps for the new configuration.
         changeMmTelCapability(request);
         if (isImsNeeded(request)) {
