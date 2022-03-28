@@ -352,6 +352,7 @@ public class PublishRequestResponse {
                 return RcsUceAdapter.PUBLISH_STATE_OK;
             case NetworkSipCode.SIP_CODE_FORBIDDEN:
             case NetworkSipCode.SIP_CODE_NOT_FOUND:
+            case NetworkSipCode.SIP_CODE_SERVER_TIMEOUT:
                 return RcsUceAdapter.PUBLISH_STATE_RCS_PROVISION_ERROR;
             case NetworkSipCode.SIP_CODE_REQUEST_TIMEOUT:
                 return RcsUceAdapter.PUBLISH_STATE_REQUEST_TIMEOUT;
