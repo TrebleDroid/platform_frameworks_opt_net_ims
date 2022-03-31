@@ -64,6 +64,7 @@ public class NetworkSipCode {
         int uceError;
         switch (sipCode) {
             case NetworkSipCode.SIP_CODE_FORBIDDEN:   // 403
+            case NetworkSipCode.SIP_CODE_SERVER_TIMEOUT:   // 504
                 if(requestType == UceController.REQUEST_TYPE_PUBLISH) {
                     // Not provisioned for PUBLISH request.
                     uceError = RcsUceAdapter.ERROR_NOT_AUTHORIZED;
