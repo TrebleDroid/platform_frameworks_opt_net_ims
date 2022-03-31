@@ -255,6 +255,7 @@ public class UceDeviceState {
         // Update the device state based on the given sip code.
         switch (sipCode) {
             case NetworkSipCode.SIP_CODE_FORBIDDEN:   // sip 403
+            case NetworkSipCode.SIP_CODE_SERVER_TIMEOUT: // sip 504
                 if (requestType == UceController.REQUEST_TYPE_PUBLISH) {
                     // Provisioning error for publish request.
                     setDeviceState(DEVICE_STATE_PROVISION_ERROR);
