@@ -16,6 +16,11 @@
 
 package com.android.ims;
 
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO;
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -274,47 +279,54 @@ public class ImsManagerTest extends ImsTestBase {
         ImsManager imsManager = getImsManagerAndInitProvisionedValues();
 
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
 
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         // If we call get again, times should still be one because the value should be fetched
         // from cache.
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
 
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
     }
 
     @Test
@@ -327,9 +339,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         verify(mITelephony, times(1)).
                 isProvisioningRequiredForCapability(anyInt(),
                         eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
@@ -342,9 +355,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 true);
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         verify(mITelephony, times(1)).
                 isProvisioningRequiredForCapability(anyInt(),
                         eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
@@ -357,9 +371,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, never()).getImsProvisioningInt(
+        verify(mITelephony, never()).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         verify(mITelephony, times(1)).
                 isProvisioningRequiredForCapability(anyInt(),
                         eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
@@ -377,9 +392,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -391,9 +407,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 true);
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -405,9 +422,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, never()).getImsProvisioningInt(
+        verify(mITelephony, never()).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -424,9 +442,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -438,9 +457,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 true);
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -452,9 +472,10 @@ public class ImsManagerTest extends ImsTestBase {
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
                 false);
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, never()).getImsProvisioningInt(
+        verify(mITelephony, never()).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
                 eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -470,9 +491,10 @@ public class ImsManagerTest extends ImsTestBase {
         mRcsProvisioningRequired = true;
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, false);
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
                 eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -483,9 +505,10 @@ public class ImsManagerTest extends ImsTestBase {
         mRcsProvisioningRequired = false;
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, true);
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
                 eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -496,9 +519,10 @@ public class ImsManagerTest extends ImsTestBase {
         mRcsProvisioningRequired = false;
         mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, false);
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
-        verify(mITelephony, never()).getImsProvisioningInt(
+        verify(mITelephony, never()).getRcsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
                 eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
                 eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
@@ -511,8 +535,10 @@ public class ImsManagerTest extends ImsTestBase {
 
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
+                anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
 
         imsManager.getConfigInterface().setProvisionedValue(
@@ -528,9 +554,10 @@ public class ImsManagerTest extends ImsTestBase {
                 eq(ImsConfig.ConfigConstants.VOICE_OVER_WIFI_SETTING_ENABLED),
                 eq(0));
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
     }
 
     @Test
@@ -539,9 +566,10 @@ public class ImsManagerTest extends ImsTestBase {
 
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
-
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
+                anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         imsManager.getConfigInterface().setProvisionedValue(
@@ -557,8 +585,10 @@ public class ImsManagerTest extends ImsTestBase {
                 eq(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED),
                 eq(0));
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
+                anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
     }
 
     /**
@@ -1126,6 +1156,18 @@ public class ImsManagerTest extends ImsTestBase {
                     .thenAnswer(invocation -> {
                         return mRcsProvisioningRequired;
                     });
+            when(mITelephony.getImsProvisioningStatusForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return getImsProvisioningStatusForCapability(
+                                (Integer) (invocation.getArguments()[1]),
+                                (Integer) (invocation.getArguments()[2]));
+                    });
+            when(mITelephony.getRcsProvisioningStatusForCapability(anyInt(),
+                    eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                    eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE)))
+                    .thenAnswer(invocation -> {
+                        return getEabProvisioningStatusForCapability();
+                    });
         } catch (RemoteException e) {}
 
         ImsManager mgr = new ImsManager(mContext, mPhoneId,
@@ -1159,5 +1201,31 @@ public class ImsManagerTest extends ImsTestBase {
         } else {
             return ImsConfig.FeatureValueConstants.ON;
         }
+    }
+
+    private boolean getImsProvisioningStatusForCapability(int capability, int tech) {
+        int key = getKeyFromCapability(capability, tech);
+        int provisioned = getProvisionedInt(key);
+
+        return (provisioned == ImsConfig.FeatureValueConstants.ON);
+    }
+
+    private boolean getEabProvisioningStatusForCapability() {
+        int provisioned = getProvisionedInt(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS);
+
+        return (provisioned == ImsConfig.FeatureValueConstants.ON);
+    }
+
+    private int getKeyFromCapability(int capability, int tech) {
+        int key = -1; // INVALID_VALUE
+        if (capability == CAPABILITY_TYPE_VOICE && tech == REGISTRATION_TECH_IWLAN) {
+            key = ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE;
+        } else if (capability == CAPABILITY_TYPE_VOICE && tech == REGISTRATION_TECH_LTE) {
+            key = ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS;
+        } else if (capability == CAPABILITY_TYPE_VIDEO && tech == REGISTRATION_TECH_LTE) {
+            key = ProvisioningManager.KEY_VT_PROVISIONING_STATUS;
+        }
+
+        return key;
     }
 }
