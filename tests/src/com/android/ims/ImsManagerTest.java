@@ -36,11 +36,13 @@ import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsMmTelManager;
+import android.telephony.ims.ImsRcsManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 
@@ -94,6 +96,9 @@ public class ImsManagerTest extends ImsTestBase {
 
     private final int[] mSubId = {0};
     private final int mPhoneId = 1;
+
+    private boolean mMmTelProvisioningRequired = false;
+    private boolean mRcsProvisioningRequired = false;
 
     @Before
     public void setUp() throws Exception {
@@ -310,6 +315,194 @@ public class ImsManagerTest extends ImsTestBase {
         verify(mITelephony, times(1)).getImsProvisioningInt(
                 anyInt(),
                 eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+    }
+
+    @Test
+    public void testGetProvisionedValuesForWfc() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        // defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = true;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isWfcProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
+        clearInvocations(mITelephony);
+
+        // defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                true);
+        assertEquals(true, imsManager.isWfcProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
+        clearInvocations(mITelephony);
+
+        // defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isWfcProvisionedOnDevice());
+        verify(mITelephony, never()).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
+        clearInvocations(mITelephony);
+    }
+
+    @Test
+    public void testGetProvisionedValuesForVt() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        // defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = true;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isVtProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                true);
+        assertEquals(true, imsManager.isVtProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isVtProvisionedOnDevice());
+        verify(mITelephony, never()).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+    }
+
+    @Test
+    public void testGetProvisionedValuesForVolte() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        // defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = true;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isVolteProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                true);
+        assertEquals(true, imsManager.isVolteProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        mMmTelProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL,
+                false);
+        assertEquals(true, imsManager.isVolteProvisionedOnDevice());
+        verify(mITelephony, never()).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+    }
+
+    @Test
+    public void testGetProvisionedValuesForEab() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        // defined : KEY_RCS_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL
+        mRcsProvisioningRequired = true;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, false);
+        assertEquals(true, imsManager.isEabProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_RCS_REQUIRES_PROVISIONING_BUNDLE
+        // defined : KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL
+        mRcsProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, true);
+        assertEquals(true, imsManager.isEabProvisionedOnDevice());
+        verify(mITelephony, times(1)).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        // not defined : KEY_RCS_REQUIRES_PROVISIONING_BUNDLE
+        // not defined : KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL
+        mRcsProvisioningRequired = false;
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, false);
+        assertEquals(true, imsManager.isEabProvisionedOnDevice());
+        verify(mITelephony, never()).getImsProvisioningInt(
+                anyInt(),
+                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
     }
 
     @Test
@@ -924,6 +1117,14 @@ public class ImsManagerTest extends ImsTestBase {
                         mProvisionedIntVals.put((Integer) (invocation.getArguments()[1]),
                                 (Integer) (invocation.getArguments()[2]));
                         return ImsConfig.OperationStatusConstants.SUCCESS;
+                    });
+            when(mITelephony.isProvisioningRequiredForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return mMmTelProvisioningRequired;
+                    });
+            when(mITelephony.isRcsProvisioningRequiredForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return mRcsProvisioningRequired;
                     });
         } catch (RemoteException e) {}
 
