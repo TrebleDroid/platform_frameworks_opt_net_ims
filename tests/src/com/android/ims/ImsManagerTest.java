@@ -235,6 +235,39 @@ public class ImsManagerTest extends ImsTestBase {
         args.recycle();
     }
 
+    @SmallTest
+    @Test
+    public void testTtyStats() {
+        setWfcEnabledByUser(true);
+        SomeArgs args = SomeArgs.obtain();
+        ImsManager.setImsStatsCallback(mPhoneId, new ImsManager.ImsStatsCallback() {
+            @Override
+            public void onEnabledMmTelCapabilitiesChanged(int capability, int regTech,
+                    boolean isEnabled) {
+                            if ((capability == MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE)
+                            && (regTech == ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN)) {
+                                    args.arg1 = isEnabled;
+                            }
+            }
+        });
+        //TTY over VoWIFI is not allowed
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL, false);
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Assert that the IMS stats callback is called properly when a tty setup changes.
+        try {
+                imsManager.setTtyMode(1);
+        } catch (ImsException e) {}
+        assertEquals(args.arg1, false);
+
+        //TTY over VoWIFI is allowed
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL, true);
+        try {
+                imsManager.setTtyMode(1);
+        } catch (ImsException e) {}
+        assertEquals(args.arg1, true);
+        args.recycle();
+}
+
     @Test @SmallTest
     public void testSetValues() {
         setWfcEnabledByUser(true);
