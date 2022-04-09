@@ -17,17 +17,19 @@
 package com.android.ims;
 
 import static android.telephony.ims.ProvisioningManager.KEY_VOIMS_OPT_IN_STATUS;
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT;
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO;
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE;
+import static android.telephony.ims.feature.RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
 
 import android.annotation.NonNull;
 import android.app.PendingIntent;
-import android.app.compat.CompatChanges;
-import android.compat.annotation.ChangeId;
-import android.compat.annotation.EnabledSince;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Message;
 import android.os.PersistableBundle;
@@ -697,6 +699,28 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
+     * @return true if we are either not on TTY or TTY over VoWiFi is enabled. If we
+     * are on TTY and TTY over VoWiFi is not allowed, this method will return false.
+     */
+    public boolean isNonTtyOrTtyOnVoWifiEnabled() {
+
+        if (isTtyOnVoWifiCapable()) {
+            return true;
+        }
+
+        TelecomManager tm = mContext.getSystemService(TelecomManager.class);
+        if (tm == null) {
+            logw("isNonTtyOrTtyOnVoWifiEnabled: telecom not available");
+            return true;
+        }
+        return tm.getCurrentTtyMode() == TelecomManager.TTY_MODE_OFF;
+    }
+
+    public boolean isTtyOnVoWifiCapable() {
+        return getBooleanCarrierConfig(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL);
+    }
+
+    /**
      * Returns a platform configuration for VoLTE which may override the user setting.
      * @deprecated Does not support MSIM devices. Please use
      * {@link #isVolteEnabledByPlatform()} instead.
@@ -825,8 +849,12 @@ public class ImsManager implements FeatureUpdates {
      * Indicates whether VoLTE is provisioned on this slot.
      */
     public boolean isVolteProvisionedOnDevice() {
-        if (getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
+        // check new carrier config first KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // if that returns false, check deprecated carrier config
+        // KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        if (isMmTelProvisioningRequired(CAPABILITY_TYPE_VOICE, REGISTRATION_TECH_LTE) ||
+                getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
             return isVolteProvisioned();
         }
 
@@ -837,8 +865,12 @@ public class ImsManager implements FeatureUpdates {
      * Indicates whether EAB is provisioned on this slot.
      */
     public boolean isEabProvisionedOnDevice() {
-        if (getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL)) {
+        // check new carrier config first KEY_RCS_REQUIRES_PROVISIONING_BUNDLE
+        // if that returns false, check deprecated carrier config
+        // KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL
+        if (isRcsProvisioningRequired(CAPABILITY_TYPE_PRESENCE_UCE, REGISTRATION_TECH_LTE) ||
+                getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL)) {
             return isEabProvisioned();
         }
 
@@ -878,8 +910,12 @@ public class ImsManager implements FeatureUpdates {
             }
         }
 
-        if (getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
+        // check new carrier config first KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // if that returns false, check deprecated carrier config
+        // KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        if (isMmTelProvisioningRequired(CAPABILITY_TYPE_VOICE, REGISTRATION_TECH_IWLAN)
+                || getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
             return isWfcProvisioned();
         }
 
@@ -906,8 +942,12 @@ public class ImsManager implements FeatureUpdates {
      * Indicates whether VT is provisioned on slot.
      */
     public boolean isVtProvisionedOnDevice() {
-        if (getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
+        // check new carrier config first KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // if that returns false, check deprecated carrier config
+        // KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL
+        if (isMmTelProvisioningRequired(CAPABILITY_TYPE_VIDEO, REGISTRATION_TECH_LTE) ||
+                getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONING_REQUIRED_BOOL)) {
             return isVtProvisioned();
         }
 
@@ -1131,8 +1171,9 @@ public class ImsManager implements FeatureUpdates {
 
         try {
             if (enabled) {
+                boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
                 CapabilityChangeRequest request = new CapabilityChangeRequest();
-                updateVoiceWifiFeatureAndProvisionedValues(request);
+                updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
                 changeMmTelCapability(request);
                 // Ensure IMS is on if this setting is updated.
                 turnOnIms();
@@ -1595,76 +1636,55 @@ public class ImsManager implements FeatureUpdates {
     }
 
     /**
-     * Will return with config value or throw an ImsException if we receive an error from
-     * ImsConfig for that value.
+     * Will return with MmTel config value or return false if we receive an error from the AOSP
+     * storage(ImsProvisioningController) implementation for that value.
      */
-    private boolean getProvisionedBool(ImsConfig config, int item) throws ImsException {
-        int value = 0;
-        ITelephony telephony = getITelephony();
-        try {
-            if (telephony != null) {
-                value = telephony.getImsProvisioningInt(getSubId(), item);
-            }
-        } catch (RemoteException e) {
-            throw new ImsException(
-                    "getProvisionedBool : couldn't reach telephony! item: " + item,
-                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
+    private boolean getImsProvisionedBoolNoException(int capability, int tech) {
+        int subId = getSubId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            logw("getImsProvisionedBoolNoException subId is invalid");
+            return false;
         }
-        return value == ProvisioningManager.PROVISIONING_VALUE_ENABLED;
-    }
 
-    /**
-     * Will set config value or throw an ImsException if we receive an error from ImsConfig for that
-     * value.
-     */
-    private void setProvisionedBool(ImsConfig config, int item, int value) throws ImsException {
-        int result = ImsConfigImplBase.CONFIG_RESULT_UNKNOWN;
-        ITelephony telephony = getITelephony();
-        try {
-            if (telephony != null) {
-                result = telephony.setImsProvisioningInt(getSubId(), item, value);
-            }
-        } catch (RemoteException e) {
-            throw new ImsException(
-                    "setProvisionedBool : couldn't reach telephony! item: " + item,
-                    ImsReasonInfo.CODE_LOCAL_SERVICE_UNAVAILABLE);
+        ITelephony iTelephony = getITelephony();
+        if (iTelephony == null) {
+            logw("getImsProvisionedBoolNoException ITelephony interface is invalid");
+            return false;
         }
-        if (result != ImsConfigImplBase.CONFIG_RESULT_SUCCESS) {
-            throw new ImsException("setProvisionedBool failed with error for item: " + item,
-                    ImsReasonInfo.CODE_LOCAL_INTERNAL_ERROR);
-        }
-        return;
-    }
 
-    /**
-     * Will return with config value or return false if we receive an error from
-     * ImsConfigImplBase implementation for that value.
-     */
-    private boolean getProvisionedBoolNoException(int item) {
         try {
-            ImsConfig config = getConfigInterface();
-            return getProvisionedBool(config, item);
-        } catch (ImsException ex) {
-            logw("getProvisionedBoolNoException: operation failed for item=" + item
-                    + ". Exception:" + ex.getMessage() + ". Returning false.");
+            return  iTelephony.getImsProvisioningStatusForCapability(subId, capability, tech);
+        } catch (RemoteException e) {
+            logw("getImsProvisionedBoolNoException: operation failed for capability=" + capability
+                    + ". Exception:" + e.getMessage() + ". Returning false.");
             return false;
         }
     }
 
     /**
-     * Will return with config value or return false if we receive an error from
-     * ImsConfigImplBase implementation for that value.
+     * Will return with Rcs config value or return false if we receive an error from the AOSP
+     * storage(ImsProvisioningController) implementation for that value.
      */
-    private boolean setProvisionedBoolNoException(int item, int value) {
-        try {
-            ImsConfig config = getConfigInterface();
-            setProvisionedBool(config, item, value);
-        } catch (ImsException ex) {
-            logw("setProvisionedBoolNoException: operation failed for item=" + item
-                    + ", value=" + value + ". Exception:" + ex.getMessage());
+    private boolean getRcsProvisionedBoolNoException(int capability, int tech) {
+        int subId = getSubId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            logw("getRcsProvisionedBoolNoException subId is invalid");
             return false;
         }
-        return true;
+
+        ITelephony iTelephony = getITelephony();
+        if (iTelephony == null) {
+            logw("getRcsProvisionedBoolNoException ITelephony interface is invalid");
+            return false;
+        }
+
+        try {
+            return  iTelephony.getRcsProvisioningStatusForCapability(subId, capability, tech);
+        } catch (RemoteException e) {
+            logw("getRcsProvisionedBoolNoException: operation failed for capability=" + capability
+                    + ". Exception:" + e.getMessage() + ". Returning false.");
+            return false;
+        }
     }
 
     /**
@@ -1696,8 +1716,9 @@ public class ImsManager implements FeatureUpdates {
         logi("reevaluateCapabilities");
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         boolean isNonTty = isNonTtyOrTtyOnVolteEnabled();
+        boolean isNonTtyWifi = isNonTtyOrTtyOnVoWifiEnabled();
         updateVoiceCellFeatureValue(request, isNonTty);
-        updateVoiceWifiFeatureAndProvisionedValues(request);
+        updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyWifi);
         updateCrossSimFeatureAndProvisionedValues(request);
         updateVideoCallFeatureValue(request, isNonTty);
         updateCallComposerFeatureValue(request);
@@ -1835,7 +1856,8 @@ public class ImsManager implements FeatureUpdates {
     /**
      * Update WFC config
      */
-    private void updateVoiceWifiFeatureAndProvisionedValues(CapabilityChangeRequest request) {
+    private void updateVoiceWifiFeatureAndProvisionedValues(CapabilityChangeRequest request,
+     boolean isNonTty) {
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
         boolean isNetworkRoaming =  false;
         if (tm == null) {
@@ -1858,9 +1880,10 @@ public class ImsManager implements FeatureUpdates {
                 + ", mode = " + mode
                 + ", provisioned = " + isProvisioned
                 + ", roaming = " + roaming
-                + ", isFeatureOn = " + isFeatureOn);
+                + ", isFeatureOn = " + isFeatureOn
+                + ", isNonTtyWifi = " + isNonTty);
 
-        if (isFeatureOn) {
+        if (isFeatureOn && isNonTty) {
             request.addCapabilitiesToEnableForTech(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
                     ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
@@ -1896,8 +1919,13 @@ public class ImsManager implements FeatureUpdates {
 
     private void updateUtFeatureValue(CapabilityChangeRequest request) {
         boolean isCarrierSupported = isSuppServicesOverUtEnabledByPlatform();
-        boolean requiresProvisioning = getBooleanCarrierConfig(
-                CarrierConfigManager.KEY_CARRIER_UT_PROVISIONING_REQUIRED_BOOL);
+
+        // check new carrier config first KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE
+        // if that returns false, check deprecated carrier config
+        // KEY_CARRIER_UT_PROVISIONING_REQUIRED_BOOL
+        boolean requiresProvisioning = isMmTelProvisioningRequired(CAPABILITY_TYPE_UT,
+                REGISTRATION_TECH_LTE) || getBooleanCarrierConfig(
+                        CarrierConfigManager.KEY_CARRIER_UT_PROVISIONING_REQUIRED_BOOL);
         // Count as "provisioned" if we do not require provisioning.
         boolean isProvisioned = true;
         if (requiresProvisioning) {
@@ -2640,10 +2668,14 @@ public class ImsManager implements FeatureUpdates {
     public void setTtyMode(int ttyMode) throws ImsException {
         boolean isNonTtyOrTtyOnVolteEnabled = isTtyOnVoLteCapable() ||
                 (ttyMode == TelecomManager.TTY_MODE_OFF);
-        logi("setTtyMode: isNonTtyOrTtyOnVolteEnabled=" + isNonTtyOrTtyOnVolteEnabled);
+
+        boolean isNonTtyOrTtyOnWifiEnabled = isTtyOnVoWifiCapable() ||
+                (ttyMode == TelecomManager.TTY_MODE_OFF);
+
         CapabilityChangeRequest request = new CapabilityChangeRequest();
         updateVoiceCellFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
         updateVideoCallFeatureValue(request, isNonTtyOrTtyOnVolteEnabled);
+        updateVoiceWifiFeatureAndProvisionedValues(request, isNonTtyOrTtyOnWifiEnabled);
         // update MMTEL caps for the new configuration.
         changeMmTelCapability(request);
         if (isImsNeeded(request)) {
@@ -3101,34 +3133,6 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
-    public void setVolteProvisioned(boolean isProvisioned) {
-        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
-                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        setProvisionedBoolNoException(ImsConfig.ConfigConstants.VLT_SETTING_ENABLED,
-                provisionStatus);
-    }
-
-    public void setWfcProvisioned(boolean isProvisioned) {
-        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
-                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        setProvisionedBoolNoException(
-                ImsConfig.ConfigConstants.VOICE_OVER_WIFI_SETTING_ENABLED, provisionStatus);
-    }
-
-    public void setVtProvisioned(boolean isProvisioned) {
-        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
-                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        setProvisionedBoolNoException(ImsConfig.ConfigConstants.LVC_SETTING_ENABLED,
-                provisionStatus);
-    }
-
-    public void setEabProvisioned(boolean isProvisioned) {
-        int provisionStatus = isProvisioned ? ProvisioningManager.PROVISIONING_VALUE_ENABLED :
-                ProvisioningManager.PROVISIONING_VALUE_DISABLED;
-        setProvisionedBoolNoException(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED,
-                provisionStatus);
-    }
-
     private boolean isDataEnabled() {
         TelephonyManager tm = mContext.getSystemService(TelephonyManager.class);
         if (tm == null) {
@@ -3140,23 +3144,70 @@ public class ImsManager implements FeatureUpdates {
     }
 
     private boolean isVolteProvisioned() {
-        return getProvisionedBoolNoException(
-                ImsConfig.ConfigConstants.VLT_SETTING_ENABLED);
+        return getImsProvisionedBoolNoException(CAPABILITY_TYPE_VOICE, REGISTRATION_TECH_LTE);
     }
 
     private boolean isEabProvisioned() {
-        return getProvisionedBoolNoException(
-                ImsConfig.ConfigConstants.EAB_SETTING_ENABLED);
+        return getRcsProvisionedBoolNoException(CAPABILITY_TYPE_PRESENCE_UCE,
+                REGISTRATION_TECH_LTE);
     }
 
     private boolean isWfcProvisioned() {
-        return getProvisionedBoolNoException(
-                ImsConfig.ConfigConstants.VOICE_OVER_WIFI_SETTING_ENABLED);
+        return getImsProvisionedBoolNoException(CAPABILITY_TYPE_VOICE, REGISTRATION_TECH_IWLAN);
     }
 
     private boolean isVtProvisioned() {
-        return getProvisionedBoolNoException(
-                ImsConfig.ConfigConstants.LVC_SETTING_ENABLED);
+        return getImsProvisionedBoolNoException(CAPABILITY_TYPE_VIDEO, REGISTRATION_TECH_LTE);
+    }
+
+    private boolean isMmTelProvisioningRequired(int capability, int tech) {
+        int subId = getSubId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            logw("isMmTelProvisioningRequired subId is invalid");
+            return false;
+        }
+
+        ITelephony iTelephony = getITelephony();
+        if (iTelephony == null) {
+            logw("isMmTelProvisioningRequired ITelephony interface is invalid");
+            return false;
+        }
+
+        boolean required = false;
+        try {
+                required |= iTelephony.isProvisioningRequiredForCapability(subId, capability,
+                        tech);
+        } catch (RemoteException e) {
+            logw("isMmTelProvisioningRequired couldn't reach telephony!");
+        }
+
+        log("MmTel Provisioning required " + required + " for capability " + capability);
+        return required;
+    }
+
+    private boolean isRcsProvisioningRequired(int capability, int tech) {
+        int subId = getSubId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            logw("isRcsProvisioningRequired subId is invalid");
+            return false;
+        }
+
+        ITelephony iTelephony = getITelephony();
+        if (iTelephony == null) {
+            logw("isRcsProvisioningRequired ITelephony interface is invalid");
+            return false;
+        }
+
+        boolean required = false;
+        try {
+            required |= iTelephony.isRcsProvisioningRequiredForCapability(subId, capability,
+                    tech);
+        } catch (RemoteException e) {
+            logw("isRcsProvisioningRequired couldn't reach telephony!");
+        }
+
+        log("Rcs Provisioning required " + required + " for capability " + capability);
+        return required;
     }
 
     private static String booleanToPropertyString(boolean bool) {
