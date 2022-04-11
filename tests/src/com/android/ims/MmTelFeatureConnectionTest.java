@@ -18,13 +18,13 @@ package com.android.ims;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.IInterface;
+import android.telephony.ims.feature.ImsFeature;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -33,6 +33,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,33 +53,56 @@ public class MmTelFeatureConnectionTest extends ImsTestBase {
             ImsCallbackAdapterManager<TestCallback> {
 
         List<TestCallback> mCallbacks = new ArrayList<>();
+        FeatureConnection mFeatureConnection;
 
-        CallbackManagerTest(Context context, Object lock) {
-            super(context, lock, 0 /*slotId*/, 1 /*subId*/);
+        CallbackManagerTest(Context context, Object lock, FeatureConnection featureConnection) {
+            super(context, lock, SLOT_ID, SUB_ID);
+            mFeatureConnection = featureConnection;
         }
 
         // A callback has been registered. Register that callback with the MmTelFeature.
         @Override
         public void registerCallback(TestCallback localCallback) {
+            if (!isBinderReady()) {
+                return;
+            }
             mCallbacks.add(localCallback);
         }
 
         // A callback has been removed, unregister that callback with the MmTelFeature.
         @Override
         public void unregisterCallback(TestCallback localCallback) {
+            if (!mFeatureConnection.isBinderAlive()) {
+                return;
+            }
             mCallbacks.remove(localCallback);
         }
 
         public boolean doesCallbackExist(TestCallback callback) {
             return mCallbacks.contains(callback);
         }
+
+        public boolean isBinderReady() {
+            return mFeatureConnection.isBinderAlive()
+                    && mFeatureConnection.getFeatureState() == ImsFeature.STATE_READY;
+        }
     }
+
     private CallbackManagerTest mCallbackManagerUT;
+
+    @Mock
+    FeatureConnection mFeatureConnection;
+
+    public static final int SUB_ID = 1;
+    public static final int SLOT_ID = 0;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        mCallbackManagerUT = new CallbackManagerTest(mContext, this);
+
+        when(mFeatureConnection.isBinderAlive()).thenReturn(true);
+        when(mFeatureConnection.getFeatureState()).thenReturn(ImsFeature.STATE_READY);
+        mCallbackManagerUT = new CallbackManagerTest(mContext, this, mFeatureConnection);
     }
 
     @After
@@ -153,5 +177,63 @@ public class MmTelFeatureConnectionTest extends ImsTestBase {
         mCallbackManagerUT.close();
         assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback1));
         assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback2));
+    }
+
+
+    /**
+     * UnregisterCallback is success After ImsFeatureState changed to STATE_UNAVAILABLE.
+     */
+    @Test
+    @SmallTest
+    public void testCallbackAdapter_removeCallbackSuccessAfterImsFeatureStateChangeToUnavailable()
+            throws Exception {
+        TestCallback testCallback1 = new TestCallback();
+        mCallbackManagerUT.addCallback(testCallback1);
+        assertTrue(mCallbackManagerUT.doesCallbackExist(testCallback1));
+        mCallbackManagerUT.removeCallback(testCallback1);
+        assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback1));
+
+        TestCallback testCallback2 = new TestCallback();
+        mCallbackManagerUT.addCallback(testCallback2);
+        assertTrue(mCallbackManagerUT.doesCallbackExist(testCallback2));
+        assertTrue(mCallbackManagerUT.isBinderReady());
+        when(mFeatureConnection.getFeatureState()).thenReturn(ImsFeature.STATE_UNAVAILABLE);
+        assertFalse(mCallbackManagerUT.isBinderReady());
+        mCallbackManagerUT.removeCallback(testCallback2);
+        assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback2));
+    }
+
+    /**
+     * UnregisterCallback is failed After binder isn't alive.
+     */
+    @Test
+    @SmallTest
+    public void testCallbackAdapter_removeCallbackFailedAfterBinderIsNotAlive() throws Exception {
+        TestCallback testCallback1 = new TestCallback();
+        mCallbackManagerUT.addCallback(testCallback1);
+        assertTrue(mCallbackManagerUT.doesCallbackExist(testCallback1));
+
+        when(mFeatureConnection.isBinderAlive()).thenReturn(false);
+        mCallbackManagerUT.removeCallback(testCallback1);
+        assertTrue(mCallbackManagerUT.doesCallbackExist(testCallback1));
+    }
+
+    /**
+     * RegisterCallback is failed After binder isn't ready.
+     */
+    @Test
+    @SmallTest
+    public void testCallbackAdapter_addCallbackFailedAfterBinderIsNotReady() throws Exception {
+        when(mFeatureConnection.isBinderAlive()).thenReturn(false);
+        assertFalse(mCallbackManagerUT.isBinderReady());
+        TestCallback testCallback1 = new TestCallback();
+        mCallbackManagerUT.addCallback(testCallback1);
+        assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback1));
+
+        when(mFeatureConnection.isBinderAlive()).thenReturn(true);
+        when(mFeatureConnection.getFeatureState()).thenReturn(ImsFeature.STATE_UNAVAILABLE);
+        assertFalse(mCallbackManagerUT.isBinderReady());
+        mCallbackManagerUT.addCallback(testCallback1);
+        assertFalse(mCallbackManagerUT.doesCallbackExist(testCallback1));
     }
 }
