@@ -135,15 +135,12 @@ public class MmTelFeatureConnection extends FeatureConnection {
         public void unregisterCallback(IImsCapabilityCallback localCallback) {
             IImsMmTelFeature binder;
             synchronized (mLock) {
-                try {
-                    checkServiceIsReady();
-                    binder = getServiceInterface(mBinder);
-                } catch (RemoteException e) {
-                    // binder is null
+                if (!isBinderAlive()) {
                     Log.w(TAG + " [" + mSlotId + "]", "CapabilityCallbackManager, unregister:"
-                            + " couldn't get binder.");
+                            + " binder is not alive");
                     return;
                 }
+                binder = getServiceInterface(mBinder);
             }
             if (binder != null) {
                 try {
