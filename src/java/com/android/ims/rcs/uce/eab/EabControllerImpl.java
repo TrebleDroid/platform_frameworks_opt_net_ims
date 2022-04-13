@@ -126,6 +126,7 @@ public class EabControllerImpl implements EabController {
         // Pick up changes to CarrierConfig and run any applicable cleanup tasks associated with
         // that configuration.
         mCapabilityCleanupRunnable.run();
+        cleanupOrphanedRows();
         if (!mIsSetDestroyedFlag) {
             mEabBulkCapabilityUpdater.onCarrierConfigChanged();
         }
@@ -268,7 +269,7 @@ public class EabControllerImpl implements EabController {
                 c.close();
             }
         }
-
+        cleanupOrphanedRows();
         mEabBulkCapabilityUpdater.updateExpiredTimeAlert();
 
         if (mHandler.hasCallbacks(mCapabilityCleanupRunnable)) {
@@ -276,6 +277,25 @@ public class EabControllerImpl implements EabController {
         }
         mHandler.postDelayed(mCapabilityCleanupRunnable,
                 CLEAN_UP_LEGACY_CAPABILITY_DELAY_MILLI_SEC);
+    }
+
+    /**
+     * Cleanup the entry of common table that can't map to presence or option table
+     */
+    @VisibleForTesting
+    public void cleanupOrphanedRows() {
+        String presenceSelection =
+                " (SELECT " + EabProvider.PresenceTupleColumns.EAB_COMMON_ID +
+                        " FROM " + EAB_PRESENCE_TUPLE_TABLE_NAME + ") ";
+        String optionSelection =
+                " (SELECT " + EabProvider.OptionsColumns.EAB_COMMON_ID +
+                        " FROM " + EAB_OPTIONS_TABLE_NAME + ") ";
+
+        mContext.getContentResolver().delete(
+                EabProvider.COMMON_URI,
+                EabProvider.EabCommonColumns._ID + " NOT IN " + presenceSelection +
+                        " AND " + EabProvider.EabCommonColumns._ID+ " NOT IN " + optionSelection,
+                null);
     }
 
     private List<EabCapabilityResult> generateDestroyedResult(List<Uri> contactUri) {
@@ -390,8 +410,12 @@ public class EabControllerImpl implements EabController {
                 RcsUceCapabilityBuilderWrapper builderWrapper) {
         if (builderWrapper.getMechanism() == CAPABILITY_MECHANISM_PRESENCE) {
             PresenceBuilder builder = builderWrapper.getPresenceBuilder();
-            if (builder != null) {
-                builder.addCapabilityTuple(createPresenceTuple(contactUri, cursor));
+            if (builder == null) {
+                return;
+            }
+            RcsContactPresenceTuple presenceTuple = createPresenceTuple(contactUri, cursor);
+            if (presenceTuple != null) {
+                builder.addCapabilityTuple(presenceTuple);
             }
         } else {
             OptionsBuilder builder = builderWrapper.getOptionsBuilder();
@@ -797,7 +821,6 @@ public class EabControllerImpl implements EabController {
 
         cleanupCapabilities(rcsCapabilitiesExpiredTime, getRcsCommonIdList());
         cleanupCapabilities(nonRcsCapabilitiesExpiredTime, getNonRcsCommonIdList());
-        cleanupOrphanedRows();
     }
 
     private void cleanupCapabilities(long rcsCapabilitiesExpiredTime, List<Integer> commonIdList) {
@@ -863,24 +886,6 @@ public class EabControllerImpl implements EabController {
         cursor.close();
 
         return list;
-    }
-
-    /**
-     * Cleanup the entry of common table that can't map to presence or option table
-     */
-    private void cleanupOrphanedRows() {
-        String presenceSelection =
-                " (SELECT " + EabProvider.PresenceTupleColumns.EAB_COMMON_ID +
-                        " FROM " + EAB_PRESENCE_TUPLE_TABLE_NAME + ") ";
-        String optionSelection =
-                " (SELECT " + EabProvider.OptionsColumns.EAB_COMMON_ID +
-                        " FROM " + EAB_OPTIONS_TABLE_NAME + ") ";
-
-        mContext.getContentResolver().delete(
-                EabProvider.COMMON_URI,
-                EabProvider.EabCommonColumns._ID + " NOT IN " + presenceSelection +
-                        " AND " + EabProvider.EabCommonColumns._ID+ " NOT IN " + optionSelection,
-                null);
     }
 
     private String getStringValue(Cursor cursor, String column) {
