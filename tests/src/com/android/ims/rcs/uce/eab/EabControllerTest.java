@@ -210,6 +210,34 @@ public class EabControllerTest extends ImsTestBase {
 
     @Test
     @SmallTest
+    public void testSaveCapabilityAndCleanupInvalidDataInCommonTable() throws InterruptedException {
+        // Insert invalid data in common table
+        ContentValues data = new ContentValues();
+        data.put(EabProvider.EabCommonColumns.EAB_CONTACT_ID, -1);
+        data.put(EabProvider.EabCommonColumns.MECHANISM, CAPABILITY_MECHANISM_PRESENCE);
+        data.put(EabProvider.EabCommonColumns.REQUEST_RESULT, REQUEST_RESULT_FOUND);
+        data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, -1);
+        mContext.getContentResolver().insert(COMMON_URI, data);
+
+        List<RcsContactUceCapability> contactList = new ArrayList<>();
+        contactList.add(createPresenceCapability());
+        mEabControllerSub1.saveCapabilities(contactList);
+
+        mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+
+        // Verify the entry that cannot map to presence/option table has been removed
+        Cursor cursor = mContext.getContentResolver().query(COMMON_URI, null, null, null, null);
+        while(cursor.moveToNext()) {
+            int contactId = cursor.getInt(
+                    cursor.getColumnIndex(EabProvider.EabCommonColumns.EAB_CONTACT_ID));
+            if (contactId == -1) {
+                fail("Invalid data didn't been cleared");
+            }
+        }
+    }
+
+    @Test
+    @SmallTest
     public void testCleanupInvalidDataInCommonTable() throws InterruptedException {
         // Insert invalid data in common table
         ContentValues data = new ContentValues();
@@ -219,6 +247,7 @@ public class EabControllerTest extends ImsTestBase {
         data.put(EabProvider.EabCommonColumns.SUBSCRIPTION_ID, -1);
         mContext.getContentResolver().insert(COMMON_URI, data);
 
+        mEabControllerSub1.cleanupOrphanedRows();
         mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
@@ -252,6 +281,7 @@ public class EabControllerTest extends ImsTestBase {
                 expiredDate.getTime().getTime() / 1000);
         mContext.getContentResolver().insert(PRESENCE_URI, data);
 
+        mEabControllerSub1.cleanupOrphanedRows();
         mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
@@ -285,6 +315,7 @@ public class EabControllerTest extends ImsTestBase {
                 expiredDate.getTime().getTime() / 1000);
         mContext.getContentResolver().insert(OPTIONS_URI, data);
 
+        mEabControllerSub1.cleanupOrphanedRows();
         mExecutor.execute(mEabControllerSub1.mCapabilityCleanupRunnable);
         mExecutor.awaitTermination(TIME_OUT_IN_SEC, TimeUnit.SECONDS);
 
