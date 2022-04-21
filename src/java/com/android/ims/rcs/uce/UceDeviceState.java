@@ -297,7 +297,12 @@ public class UceDeviceState {
                 break;
 
             case NetworkSipCode.SIP_CODE_REQUEST_ENTITY_TOO_LARGE:   // sip 413
+            case NetworkSipCode.SIP_CODE_TEMPORARILY_UNAVAILABLE:   // sip 480
+            case NetworkSipCode.SIP_CODE_BUSY:   // sip 486
+            case NetworkSipCode.SIP_CODE_SERVER_INTERNAL_ERROR:   // sip 500
+            case NetworkSipCode.SIP_CODE_SERVICE_UNAVAILABLE:   // sip 503
             case NetworkSipCode.SIP_CODE_BUSY_EVERYWHERE:   // sip 600
+            case NetworkSipCode.SIP_CODE_DECLINE:   // sip 603
                 if (requestType == UceController.REQUEST_TYPE_PUBLISH) {
                     setDeviceState(DEVICE_STATE_NO_RETRY);
                     // There is no request retry time for SIP code 413
