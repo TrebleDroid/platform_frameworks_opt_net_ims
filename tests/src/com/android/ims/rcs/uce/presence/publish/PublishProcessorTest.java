@@ -17,6 +17,7 @@
 package com.android.ims.rcs.uce.presence.publish;
 
 import static android.telephony.ims.RcsContactPresenceTuple.TUPLE_BASIC_STATUS_OPEN;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import android.content.Context;
 import android.net.Uri;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.telephony.ims.RcsContactUceCapability;
@@ -57,6 +59,20 @@ public class PublishProcessorTest extends ImsTestBase {
 
     private int mSub = 1;
     private long mTaskId = 1L;
+
+    public static class TestPublishProcessor extends PublishProcessor {
+        public TestPublishProcessor(Context context, int subId,
+                DeviceCapabilityInfo capabilityInfo,
+                PublishControllerCallback publishCtrlCallback,
+                UceStatsWriter instance) {
+            super(context, subId, capabilityInfo, publishCtrlCallback, instance);
+        }
+
+        @Override
+        protected boolean isEabProvisioned() {
+            return true;
+        }
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -254,7 +270,7 @@ public class PublishProcessorTest extends ImsTestBase {
     }
 
     private PublishProcessor getPublishProcessor() {
-        PublishProcessor publishProcessor = new PublishProcessor(mContext, mSub,
+        PublishProcessor publishProcessor = new TestPublishProcessor(mContext, mSub,
                 mDeviceCapabilities, mPublishCtrlCallback, mUceStatsWriter);
         publishProcessor.setProcessorState(mProcessorState);
         publishProcessor.onRcsConnected(mRcsFeatureManager);
