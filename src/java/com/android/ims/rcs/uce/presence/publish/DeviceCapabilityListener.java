@@ -554,6 +554,7 @@ public class DeviceCapabilityListener {
                         case ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS:
                         case ProvisioningManager.KEY_VT_PROVISIONING_STATUS:
                             handleProvisioningChanged();
+                            break;
                         case ProvisioningManager.KEY_RCS_PUBLISH_SOURCE_THROTTLE_MS:
                             handlePublishThrottleChanged(value);
                             break;
