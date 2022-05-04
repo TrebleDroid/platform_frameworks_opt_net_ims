@@ -30,10 +30,10 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.ims.RcsFeatureManager;
+import com.android.ims.rcs.uce.UceStatsWriter;
 import com.android.ims.rcs.uce.presence.pidfparser.PidfParser;
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishControllerCallback;
 import com.android.ims.rcs.uce.presence.publish.PublishController.PublishTriggerType;
-import com.android.ims.rcs.uce.UceStatsWriter;
 import com.android.ims.rcs.uce.util.UceUtils;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -199,7 +199,7 @@ public class PublishProcessor {
 
         // Check if it has provisioned. When the provisioning changes, a new publish request will
         // be triggered.
-        if (!UceUtils.isEabProvisioned(mContext, mSubId)) {
+        if (!isEabProvisioned()) {
             logd("isPublishAllowed: NOT provisioned");
             return false;
         }
@@ -507,6 +507,11 @@ public class PublishProcessor {
     @VisibleForTesting
     public void setProcessorState(PublishProcessorState processorState) {
         mProcessorState = processorState;
+    }
+
+    @VisibleForTesting
+    protected boolean isEabProvisioned() {
+        return UceUtils.isEabProvisioned(mContext, mSubId);
     }
 
     private void logd(String log) {
