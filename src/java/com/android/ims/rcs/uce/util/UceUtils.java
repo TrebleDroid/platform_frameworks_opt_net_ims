@@ -24,7 +24,9 @@ import android.preference.PreferenceManager;
 import android.provider.BlockedNumberContract;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.telephony.ims.ImsRcsManager;
 import android.telephony.ims.ProvisioningManager;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -100,9 +102,9 @@ public class UceUtils {
         }
         try {
             ProvisioningManager manager = ProvisioningManager.createForSubscriptionId(subId);
-            isProvisioned = manager.getProvisioningIntValue(
-                    ProvisioningManager.KEY_EAB_PROVISIONING_STATUS)
-                    == ProvisioningManager.PROVISIONING_VALUE_ENABLED;
+            isProvisioned = manager.getRcsProvisioningStatusForCapability(
+                    ImsRcsManager.CAPABILITY_TYPE_PRESENCE_UCE,
+                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
         } catch (Exception e) {
             Log.w(LOG_TAG, "isEabProvisioned: exception=" + e.getMessage());
         }
