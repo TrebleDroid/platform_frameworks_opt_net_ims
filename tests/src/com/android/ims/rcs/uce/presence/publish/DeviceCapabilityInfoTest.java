@@ -22,6 +22,12 @@ import static org.junit.Assert.assertTrue;
 import android.telephony.ims.RcsContactPresenceTuple;
 import android.util.ArraySet;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+import android.net.Uri;
+import android.telecom.PhoneAccount;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
@@ -40,7 +46,11 @@ import java.util.Set;
 public class DeviceCapabilityInfoTest extends ImsTestBase {
 
     int mSubId = 1;
+
     @Mock PublishServiceDescTracker mPublishServiceDescTracker;
+
+    String sipNumber = "123456789";
+    String telNumber = "987654321";
 
     @Before
     public void setUp() throws Exception {
@@ -70,6 +80,43 @@ public class DeviceCapabilityInfoTest extends ImsTestBase {
 
     @Test
     @SmallTest
+    public void testGetImsAssociatedUriWithoutPreferTelUri() throws Exception {
+        DeviceCapabilityInfo deviceCapInfo = createDeviceCapabilityInfo();
+
+        Uri[] uris = new Uri[2];
+        uris[0] = Uri.fromParts(PhoneAccount.SCHEME_SIP, sipNumber, null);
+        uris[1] = Uri.fromParts(PhoneAccount.SCHEME_TEL, telNumber, null);
+
+        // When stored in the order of SIP, TEL URI, check whether the SIP URI saved at
+        // the beginning is retrieved.
+        deviceCapInfo.updateRcsAssociatedUri(uris);
+        Uri outUri = deviceCapInfo.getImsAssociatedUri(false);
+
+        String numbers = outUri.getSchemeSpecificPart();
+        String[] numberParts = numbers.split("[@;:]");
+        String number = numberParts[0];
+
+        assertEquals(number, sipNumber);
+
+        // When stored in the order of TEL, SIP URI, check whether the TEL URI saved at
+        // the beginning is retrieved.
+        deviceCapInfo = createDeviceCapabilityInfo();
+
+        uris[0] = Uri.fromParts(PhoneAccount.SCHEME_TEL, telNumber, null);
+        uris[1] = Uri.fromParts(PhoneAccount.SCHEME_SIP, sipNumber, null);
+
+        deviceCapInfo.updateRcsAssociatedUri(uris);
+        outUri = deviceCapInfo.getImsAssociatedUri(false);
+
+        numbers = outUri.getSchemeSpecificPart();
+        numberParts = numbers.split("[@;:]");
+        number = numberParts[0];
+
+        assertEquals(number, telNumber);
+    }
+
+    @Test
+    @SmallTest
     public void testGetPresenceCapabilityForSameSizeOfDescription() throws Exception {
         DeviceCapabilityInfo deviceCapInfo = createDeviceCapabilityInfo();
 
@@ -84,6 +131,54 @@ public class DeviceCapabilityInfoTest extends ImsTestBase {
 
         assertTrue(deviceCapInfo.isPresenceCapabilityChanged(mTestCapability));
     }
+
+    @Test
+    @SmallTest
+    public void testGetImsAssociatedUriWithPreferTelUri() throws Exception {
+        DeviceCapabilityInfo deviceCapInfo = createDeviceCapabilityInfo();
+
+        Uri[] uris = new Uri[2];
+        uris[0] = Uri.fromParts(PhoneAccount.SCHEME_SIP, sipNumber, null);
+        uris[1] = Uri.fromParts(PhoneAccount.SCHEME_TEL, telNumber, null);
+
+        // Check whether TEL URI is returned when preferTelUri is true even if SIP and TEL URI
+        // are in the order.
+        deviceCapInfo.updateRcsAssociatedUri(uris);
+        Uri outUri = deviceCapInfo.getImsAssociatedUri(true);
+
+        String numbers = outUri.getSchemeSpecificPart();
+        String[] numberParts = numbers.split("[@;:]");
+        String number = numberParts[0];
+
+        assertEquals(number, telNumber);
+
+        // If preferTelUri is true, check if a TEL URI is returned.
+        deviceCapInfo = createDeviceCapabilityInfo();
+
+        uris[0] = Uri.fromParts(PhoneAccount.SCHEME_TEL, telNumber, null);
+        uris[1] = Uri.fromParts(PhoneAccount.SCHEME_SIP, sipNumber, null);
+
+        deviceCapInfo.updateRcsAssociatedUri(uris);
+        outUri = deviceCapInfo.getImsAssociatedUri(true);
+
+        numbers = outUri.getSchemeSpecificPart();
+        numberParts = numbers.split("[@;:]");
+        number = numberParts[0];
+
+        assertEquals(number, telNumber);
+
+        //If there is only SIP URI, check the return uri is null if preferTelUir is true.
+        deviceCapInfo = createDeviceCapabilityInfo();
+
+        uris[0] = Uri.fromParts(PhoneAccount.SCHEME_SIP, telNumber, null);
+        uris[1] = Uri.fromParts(PhoneAccount.SCHEME_SIP, sipNumber, null);
+
+        deviceCapInfo.updateRcsAssociatedUri(uris);
+        outUri = deviceCapInfo.getImsAssociatedUri(true);
+
+        assertNull(outUri);
+    }
+
     private DeviceCapabilityInfo createDeviceCapabilityInfo() {
         DeviceCapabilityInfo deviceCapInfo = new DeviceCapabilityInfo(mSubId, null);
         return deviceCapInfo;
