@@ -18,6 +18,7 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import android.content.Context;
 import android.net.Uri;
+import android.telecom.PhoneAccount;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
@@ -25,6 +26,9 @@ import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities.RcsImsCapabil
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.i18n.phonenumbers.NumberParseException;
+import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.i18n.phonenumbers.Phonenumber;
 import com.android.ims.rcs.uce.util.UceUtils;
 
 import java.util.Arrays;
@@ -40,9 +44,13 @@ public class PublishUtils {
     private static final String DOMAIN_SEPARATOR = "@";
 
     public static Uri getDeviceContactUri(Context context, int subId,
-            DeviceCapabilityInfo deviceCap) {
+            DeviceCapabilityInfo deviceCap, boolean isForPresence) {
+        boolean preferTelUri = false;
+        if (isForPresence) {
+            preferTelUri = UceUtils.isTelUriForPidfXmlEnabled(context, subId);
+        }
         // Get the uri from the IMS associated URI which is provided by the IMS service.
-        Uri contactUri = deviceCap.getImsAssociatedUri();
+        Uri contactUri = deviceCap.getImsAssociatedUri(preferTelUri);
         if (contactUri != null) {
             Log.d(LOG_TAG, "getDeviceContactUri: ims associated uri");
             return contactUri;
@@ -58,10 +66,18 @@ public class PublishUtils {
         contactUri = getContactUriFromIsim(telephonyManager);
         if (contactUri != null) {
             Log.d(LOG_TAG, "getDeviceContactUri: impu");
-            return contactUri;
+            if (preferTelUri) {
+                return getConvertedTelUri(context, contactUri);
+            } else {
+                return contactUri;
+            }
         } else {
             Log.d(LOG_TAG, "getDeviceContactUri: line number");
-            return getContactUriFromLine1Number(telephonyManager);
+            if (preferTelUri) {
+                return getConvertedTelUri(context, getContactUriFromLine1Number(telephonyManager));
+            } else {
+                return getContactUriFromLine1Number(telephonyManager);
+            }
         }
     }
 
@@ -134,6 +150,37 @@ public class PublishUtils {
         } else {
             return telephonyManager.createForSubscriptionId(subId);
         }
+    }
+
+    private static Uri getConvertedTelUri(Context context, Uri contactUri) {
+        if (contactUri == null) {
+            return null;
+        }
+        if (contactUri.getScheme().equalsIgnoreCase(SCHEME_SIP)) {
+            TelephonyManager manager = context.getSystemService(TelephonyManager.class);
+            if (manager.getIsimDomain() == null) {
+                return contactUri;
+            }
+
+            String numbers = contactUri.getSchemeSpecificPart();
+            String[] numberParts = numbers.split("[@;:]");
+            String number = numberParts[0];
+
+            String simCountryIso = manager.getSimCountryIso();
+            if (!TextUtils.isEmpty(simCountryIso)) {
+                simCountryIso = simCountryIso.toUpperCase();
+                PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+                try {
+                    Phonenumber.PhoneNumber phoneNumber = util.parse(number, simCountryIso);
+                    number = util.format(phoneNumber, PhoneNumberUtil.PhoneNumberFormat.E164);
+                    String telUri = SCHEME_TEL + ":" + number;
+                    contactUri = Uri.parse(telUri);
+                } catch (NumberParseException e) {
+                    Log.w(LOG_TAG, "formatNumber: could not format " + number + ", error: " + e);
+                }
+            }
+        }
+        return contactUri;
     }
 
     static @RcsImsCapabilityFlag int getCapabilityType(Context context, int subId) {
