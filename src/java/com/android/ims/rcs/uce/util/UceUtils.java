@@ -210,6 +210,22 @@ public class UceUtils {
     }
 
     /**
+     * Check whether tel uri should be used for pidf xml
+     */
+    public static boolean isTelUriForPidfXmlEnabled(Context context, int subId) {
+        CarrierConfigManager configManager = context.getSystemService(CarrierConfigManager.class);
+        if (configManager == null) {
+            return false;
+        }
+        PersistableBundle config = configManager.getConfigForSubId(subId);
+        if (config == null) {
+            return false;
+        }
+        return config.getBoolean(
+                CarrierConfigManager.Ims.KEY_USE_TEL_URI_FOR_PIDF_XML_BOOL);
+    }
+
+    /**
      * Get the minimum time that allow two PUBLISH requests can be executed continuously.
      *
      * @param subId The subscribe ID
