@@ -20,6 +20,7 @@ import static android.telephony.ims.RcsContactUceCapability.SOURCE_TYPE_CACHED;
 
 import android.content.Context;
 import android.net.Uri;
+import android.telecom.PhoneAccount;
 import android.telecom.TelecomManager;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.ims.ImsRegistrationAttributes;
@@ -289,12 +290,30 @@ public class DeviceCapabilityInfo {
      * Get the IMS associated URI. It will first get the uri of MMTEL if it is not empty, otherwise
      * it will try to get the uri of RCS. The null will be returned if both MMTEL and RCS are empty.
      */
-    public synchronized Uri getImsAssociatedUri() {
-        if (!mRcsAssociatedUris.isEmpty()) {
-            return mRcsAssociatedUris.get(0);
-        } else if (!mMmtelAssociatedUris.isEmpty()) {
-            return mMmtelAssociatedUris.get(0);
+    public synchronized Uri getImsAssociatedUri(boolean perferTelUri) {
+        if (perferTelUri == false) {
+            if (!mRcsAssociatedUris.isEmpty()) {
+                return mRcsAssociatedUris.get(0);
+            } else if (!mMmtelAssociatedUris.isEmpty()) {
+                return mMmtelAssociatedUris.get(0);
+            } else {
+                return null;
+            }
         } else {
+            if (!mRcsAssociatedUris.isEmpty()) {
+                for (Uri rcsAssociatedUri : mRcsAssociatedUris) {
+                    if (PhoneAccount.SCHEME_TEL.equalsIgnoreCase(rcsAssociatedUri.getScheme())) {
+                        return rcsAssociatedUri;
+                    }
+                }
+            }
+            if (!mMmtelAssociatedUris.isEmpty()) {
+                for (Uri mmtelAssociatedUri : mMmtelAssociatedUris) {
+                    if (PhoneAccount.SCHEME_TEL.equalsIgnoreCase(mmtelAssociatedUri.getScheme())) {
+                        return mmtelAssociatedUri;
+                    }
+                }
+            }
             return null;
         }
     }
@@ -540,7 +559,7 @@ public class DeviceCapabilityInfo {
 
     // Get the device's capabilities with the PRESENCE mechanism.
     private RcsContactUceCapability getPresenceCapabilities(Context context) {
-        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this);
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this, true);
         if (uri == null) {
             logw("getPresenceCapabilities: uri is empty");
             return null;
@@ -601,7 +620,7 @@ public class DeviceCapabilityInfo {
 
     // Get the device's capabilities with the OPTIONS mechanism.
     private RcsContactUceCapability getOptionsCapabilities(Context context) {
-        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this);
+        Uri uri = PublishUtils.getDeviceContactUri(context, mSubId, this, false);
         if (uri == null) {
             logw("getOptionsCapabilities: uri is empty");
             return null;
