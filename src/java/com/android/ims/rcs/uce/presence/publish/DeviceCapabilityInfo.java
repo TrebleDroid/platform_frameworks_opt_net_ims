@@ -287,19 +287,15 @@ public class DeviceCapabilityInfo {
     }
 
     /**
-     * Get the IMS associated URI. It will first get the uri of MMTEL if it is not empty, otherwise
-     * it will try to get the uri of RCS. The null will be returned if both MMTEL and RCS are empty.
+     * Get the first URI from the "p-associated-uri" header included in the IMS registration
+     * response.
+     * @param preferTelUri If {@code true}, prefer returning the first TEL URI. If no TEL
+     *                     URIs exist, this method will still return the preferred (first) SIP URI
+     *                     in the header. If {@code false}, we will return the first URI
+     *                     in the "p-associated-uri" header, independent of the URI scheme.
      */
-    public synchronized Uri getImsAssociatedUri(boolean perferTelUri) {
-        if (perferTelUri == false) {
-            if (!mRcsAssociatedUris.isEmpty()) {
-                return mRcsAssociatedUris.get(0);
-            } else if (!mMmtelAssociatedUris.isEmpty()) {
-                return mMmtelAssociatedUris.get(0);
-            } else {
-                return null;
-            }
-        } else {
+    public synchronized Uri getImsAssociatedUri(boolean preferTelUri) {
+        if (preferTelUri) {
             if (!mRcsAssociatedUris.isEmpty()) {
                 for (Uri rcsAssociatedUri : mRcsAssociatedUris) {
                     if (PhoneAccount.SCHEME_TEL.equalsIgnoreCase(rcsAssociatedUri.getScheme())) {
@@ -314,6 +310,15 @@ public class DeviceCapabilityInfo {
                     }
                 }
             }
+        }
+
+        // Either we have not found a TEL URI or we do not prefer TEL URIs. Get the first URI from
+        // p-associated-uri list.
+        if (!mRcsAssociatedUris.isEmpty()) {
+            return mRcsAssociatedUris.get(0);
+        } else if (!mMmtelAssociatedUris.isEmpty()) {
+            return mMmtelAssociatedUris.get(0);
+        } else {
             return null;
         }
     }

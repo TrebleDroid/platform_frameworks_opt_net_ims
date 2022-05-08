@@ -167,7 +167,8 @@ public class DeviceCapabilityInfoTest extends ImsTestBase {
 
         assertEquals(number, telNumber);
 
-        //If there is only SIP URI, check the return uri is null if preferTelUir is true.
+        // If there is only SIP URI, this method will still return a SIP URI, since there are no TEL
+        // URIs found in the list.
         deviceCapInfo = createDeviceCapabilityInfo();
 
         uris[0] = Uri.fromParts(PhoneAccount.SCHEME_SIP, telNumber, null);
@@ -176,7 +177,12 @@ public class DeviceCapabilityInfoTest extends ImsTestBase {
         deviceCapInfo.updateRcsAssociatedUri(uris);
         outUri = deviceCapInfo.getImsAssociatedUri(true);
 
-        assertNull(outUri);
+        numbers = outUri.getSchemeSpecificPart();
+        numberParts = numbers.split("[@;:]");
+        number = numberParts[0];
+
+        assertEquals(number, telNumber);
+
     }
 
     private DeviceCapabilityInfo createDeviceCapabilityInfo() {
