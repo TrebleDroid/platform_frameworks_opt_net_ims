@@ -22,6 +22,7 @@ import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TE
 import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyInt;
@@ -966,6 +967,21 @@ public class ImsManagerTest extends ImsTestBase {
                 anyInt(),
                 eq(SubscriptionManager.WFC_IMS_MODE),
                 anyInt());
+    }
+
+    @Test @SmallTest
+    public void testShouldProcessCall_ThrowsExceptionIfServiceIsStillInitializing() {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        doReturn(-1).when(mMmTelFeatureConnection).getSubId();
+        assertThrows(ImsException.class, () -> imsManager.shouldProcessCall(true, new String[1]));
+    }
+
+    @Test @SmallTest
+    public void testShouldProcessCall_DoesNotThrowExceptionWhenServiceInitialized()
+        throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        int ret = imsManager.shouldProcessCall(true, new String[1]);
+        assertEquals(MmTelFeature.PROCESS_CALL_IMS, ret);
     }
 
     /**
