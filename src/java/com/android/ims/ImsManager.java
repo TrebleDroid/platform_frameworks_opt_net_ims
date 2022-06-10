@@ -3035,7 +3035,8 @@ public class ImsManager implements FeatureUpdates {
     public @MmTelFeature.ProcessCallResult int shouldProcessCall(boolean isEmergency,
             String[] numbers) throws ImsException {
         try {
-            return mMmTelConnectionRef.get().shouldProcessCall(isEmergency, numbers);
+            MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+            return c.shouldProcessCall(isEmergency, numbers);
         } catch (RemoteException e) {
             throw new ImsException("shouldProcessCall()", e,
                     ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
