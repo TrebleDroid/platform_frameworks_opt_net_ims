@@ -16,7 +16,13 @@
 
 package com.android.ims;
 
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO;
+import static android.telephony.ims.feature.MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN;
+import static android.telephony.ims.stub.ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyInt;
@@ -36,11 +42,13 @@ import android.telephony.BinderCacheManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsMmTelManager;
+import android.telephony.ims.ImsRcsManager;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.aidl.IImsConfig;
 import android.telephony.ims.aidl.IImsRegistration;
 import android.telephony.ims.aidl.ISipTransport;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 
@@ -95,6 +103,9 @@ public class ImsManagerTest extends ImsTestBase {
     private final int[] mSubId = {0};
     private final int mPhoneId = 1;
 
+    private boolean mMmTelProvisioningRequired = false;
+    private boolean mRcsProvisioningRequired = false;
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -108,6 +119,7 @@ public class ImsManagerTest extends ImsTestBase {
 
         doReturn(true).when(mSubscriptionManagerProxy).isValidSubscriptionId(anyInt());
         doReturn(mSubId).when(mSubscriptionManagerProxy).getActiveSubscriptionIdList();
+        doReturn(mSubId).when(mSubscriptionManagerProxy).getSubscriptionIds(anyInt());
         doReturn(mPhoneId).when(mSubscriptionManagerProxy).getDefaultVoicePhoneId();
         doReturn(-1).when(mSubscriptionManagerProxy).getIntegerSubscriptionProperty(anyInt(),
                 anyString(), anyInt());
@@ -224,6 +236,39 @@ public class ImsManagerTest extends ImsTestBase {
         args.recycle();
     }
 
+    @SmallTest
+    @Test
+    public void testTtyStats() {
+        setWfcEnabledByUser(true);
+        SomeArgs args = SomeArgs.obtain();
+        ImsManager.setImsStatsCallback(mPhoneId, new ImsManager.ImsStatsCallback() {
+            @Override
+            public void onEnabledMmTelCapabilitiesChanged(int capability, int regTech,
+                    boolean isEnabled) {
+                            if ((capability == MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE)
+                            && (regTech == ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN)) {
+                                    args.arg1 = isEnabled;
+                            }
+            }
+        });
+        //TTY over VoWIFI is not allowed
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL, false);
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        // Assert that the IMS stats callback is called properly when a tty setup changes.
+        try {
+                imsManager.setTtyMode(1);
+        } catch (ImsException e) {}
+        assertEquals(args.arg1, false);
+
+        //TTY over VoWIFI is allowed
+        mBundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOWIFI_TTY_SUPPORTED_BOOL, true);
+        try {
+                imsManager.setTtyMode(1);
+        } catch (ImsException e) {}
+        assertEquals(args.arg1, true);
+        args.recycle();
+}
+
     @Test @SmallTest
     public void testSetValues() {
         setWfcEnabledByUser(true);
@@ -264,61 +309,113 @@ public class ImsManagerTest extends ImsTestBase {
     }
 
     @Test
-    public void testGetProvisionedValues() throws Exception {
+    public void testGetProvisionedValuesForWfc() throws Exception {
         ImsManager imsManager = getImsManagerAndInitProvisionedValues();
 
+        mMmTelProvisioningRequired = true;
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
 
-        assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
-        clearInvocations(mITelephony);
-
-        assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
-        clearInvocations(mITelephony);
-
-        // If we call get again, times should still be one because the value should be fetched
-        // from cache.
+        mMmTelProvisioningRequired = false;
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
+    }
 
+    @Test
+    public void testGetProvisionedValuesForVt() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        mMmTelProvisioningRequired = true;
         assertEquals(true, imsManager.isVtProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VT_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
+        mMmTelProvisioningRequired = false;
+        assertEquals(true, imsManager.isVtProvisionedOnDevice());
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+    }
+
+    @Test
+    public void testGetProvisionedValuesForVolte() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        mMmTelProvisioningRequired = true;
         assertEquals(true, imsManager.isVolteProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
+        mMmTelProvisioningRequired = false;
+        assertEquals(true, imsManager.isVolteProvisionedOnDevice());
+        verify(mITelephony, times(1)).isProvisioningRequiredForCapability(anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+    }
+
+    @Test
+    public void testGetProvisionedValuesForEab() throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+
+        mRcsProvisioningRequired = true;
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
+
+        mRcsProvisioningRequired = false;
+        assertEquals(true, imsManager.isEabProvisionedOnDevice());
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        clearInvocations(mITelephony);
     }
 
     @Test
     public void testSetProvisionedValues() throws Exception {
         ImsManager imsManager = getImsManagerAndInitProvisionedValues();
 
+        mMmTelProvisioningRequired = true;
         assertEquals(true, imsManager.isWfcProvisionedOnDevice());
-
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+        verify(mITelephony, times(1)).
+                isProvisioningRequiredForCapability(anyInt(),
+                        eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                        eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
+                anyInt(),
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
         clearInvocations(mITelephony);
 
         imsManager.getConfigInterface().setProvisionedValue(
@@ -334,20 +431,26 @@ public class ImsManagerTest extends ImsTestBase {
                 eq(ImsConfig.ConfigConstants.VOICE_OVER_WIFI_SETTING_ENABLED),
                 eq(0));
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
+        verify(mITelephony, times(1)).getImsProvisioningStatusForCapability(
                 anyInt(),
-                eq(ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE));
+                eq(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN));
     }
 
     @Test
     public void testEabSetProvisionedValues() throws Exception {
         ImsManager imsManager = getImsManagerAndInitProvisionedValues();
 
+        mRcsProvisioningRequired = true;
         assertEquals(true, imsManager.isEabProvisionedOnDevice());
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
-
+        verify(mITelephony, times(1)).isRcsProvisioningRequiredForCapability(anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
+                anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
         clearInvocations(mITelephony);
 
         imsManager.getConfigInterface().setProvisionedValue(
@@ -363,8 +466,10 @@ public class ImsManagerTest extends ImsTestBase {
                 eq(ImsConfig.ConfigConstants.EAB_SETTING_ENABLED),
                 eq(0));
 
-        verify(mITelephony, times(1)).getImsProvisioningInt(
-                anyInt(), eq(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS));
+        verify(mITelephony, times(1)).getRcsProvisioningStatusForCapability(
+                anyInt(),
+                eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
     }
 
     /**
@@ -864,6 +969,21 @@ public class ImsManagerTest extends ImsTestBase {
                 anyInt());
     }
 
+    @Test @SmallTest
+    public void testShouldProcessCall_ThrowsExceptionIfServiceIsStillInitializing() {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        doReturn(-1).when(mMmTelFeatureConnection).getSubId();
+        assertThrows(ImsException.class, () -> imsManager.shouldProcessCall(true, new String[1]));
+    }
+
+    @Test @SmallTest
+    public void testShouldProcessCall_DoesNotThrowExceptionWhenServiceInitialized()
+        throws Exception {
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        int ret = imsManager.shouldProcessCall(true, new String[1]);
+        assertEquals(MmTelFeature.PROCESS_CALL_IMS, ret);
+    }
+
     /**
      * Tests the operation of setWfcRoamingSetting and ensures that the user setting for WFC roaming
      * and the ImsConfig setting are both called properly.
@@ -924,6 +1044,26 @@ public class ImsManagerTest extends ImsTestBase {
                                 (Integer) (invocation.getArguments()[2]));
                         return ImsConfig.OperationStatusConstants.SUCCESS;
                     });
+            when(mITelephony.isProvisioningRequiredForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return mMmTelProvisioningRequired;
+                    });
+            when(mITelephony.isRcsProvisioningRequiredForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return mRcsProvisioningRequired;
+                    });
+            when(mITelephony.getImsProvisioningStatusForCapability(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(invocation -> {
+                        return getImsProvisioningStatusForCapability(
+                                (Integer) (invocation.getArguments()[1]),
+                                (Integer) (invocation.getArguments()[2]));
+                    });
+            when(mITelephony.getRcsProvisioningStatusForCapability(anyInt(),
+                    eq(RcsFeature.RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE),
+                    eq(ImsRegistrationImplBase.REGISTRATION_TECH_LTE)))
+                    .thenAnswer(invocation -> {
+                        return getEabProvisioningStatusForCapability();
+                    });
         } catch (RemoteException e) {}
 
         ImsManager mgr = new ImsManager(mContext, mPhoneId,
@@ -957,5 +1097,31 @@ public class ImsManagerTest extends ImsTestBase {
         } else {
             return ImsConfig.FeatureValueConstants.ON;
         }
+    }
+
+    private boolean getImsProvisioningStatusForCapability(int capability, int tech) {
+        int key = getKeyFromCapability(capability, tech);
+        int provisioned = getProvisionedInt(key);
+
+        return (provisioned == ImsConfig.FeatureValueConstants.ON);
+    }
+
+    private boolean getEabProvisioningStatusForCapability() {
+        int provisioned = getProvisionedInt(ProvisioningManager.KEY_EAB_PROVISIONING_STATUS);
+
+        return (provisioned == ImsConfig.FeatureValueConstants.ON);
+    }
+
+    private int getKeyFromCapability(int capability, int tech) {
+        int key = -1; // INVALID_VALUE
+        if (capability == CAPABILITY_TYPE_VOICE && tech == REGISTRATION_TECH_IWLAN) {
+            key = ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE;
+        } else if (capability == CAPABILITY_TYPE_VOICE && tech == REGISTRATION_TECH_LTE) {
+            key = ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS;
+        } else if (capability == CAPABILITY_TYPE_VIDEO && tech == REGISTRATION_TECH_LTE) {
+            key = ProvisioningManager.KEY_VT_PROVISIONING_STATUS;
+        }
+
+        return key;
     }
 }
