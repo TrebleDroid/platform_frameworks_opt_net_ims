@@ -1762,7 +1762,12 @@ public class ImsCall implements ICall {
     public void sendRttMessage(String rttMessage) {
         synchronized(mLockObj) {
             if (mSession == null) {
-                loge("sendRttMessage::no session");
+                loge("sendRttMessage::no session, ignoring");
+                return;
+            }
+            if (mCallProfile == null || mCallProfile.mMediaProfile == null)  {
+                loge("sendRttMessage:: no valid call profile, ignoring");
+                return;
             }
             if (!mCallProfile.mMediaProfile.isRttCall()) {
                 logi("sendRttMessage::Not an rtt call, ignoring");
@@ -1781,7 +1786,12 @@ public class ImsCall implements ICall {
 
         synchronized(mLockObj) {
             if (mSession == null) {
-                loge("sendRttModifyRequest::no session");
+                loge("sendRttModifyRequest::no session, ignoring");
+                return;
+            }
+            if (mCallProfile == null || mCallProfile.mMediaProfile == null)  {
+                loge("sendRttModifyRequest:: no valid call profile, ignoring");
+                return;
             }
             if (rttOn && mCallProfile.mMediaProfile.isRttCall()) {
                 logi("sendRttModifyRequest::Already RTT call, ignoring request to turn on.");
@@ -1815,6 +1825,11 @@ public class ImsCall implements ICall {
         synchronized(mLockObj) {
             if (mSession == null) {
                 loge("sendRttModifyResponse::no session");
+                return;
+            }
+            if (mCallProfile == null || mCallProfile.mMediaProfile == null)  {
+                loge("sendRttModifyResponse:: no valid call profile, ignoring");
+                return;
             }
             if (mCallProfile.mMediaProfile.isRttCall()) {
                 logi("sendRttModifyResponse::Already RTT call, ignoring.");
