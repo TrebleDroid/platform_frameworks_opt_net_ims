@@ -266,6 +266,37 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         verify(mCallback).updateImsUnregistered();
     }
 
+    @Test
+    @SmallTest
+    public void testRcsAndMmtelUnregistration() throws Exception {
+        DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
+        deviceCapListener.setImsCallbackRegistered(true);
+
+        Handler handler = deviceCapListener.getHandler();
+        ImsReasonInfo info = new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_NOT_REGISTERED, -1, "");
+        // RCS unregistered
+        RegistrationCallback rcsRegiCallback = deviceCapListener.mRcsRegistrationCallback;
+
+        doReturn(true).when(mDeviceCapability).updateImsRcsUnregistered();
+        // RCS is unregistered but MMTEL is registered.
+        doReturn(true).when(mDeviceCapability).isImsRegistered();
+        rcsRegiCallback.onUnregistered(info);
+
+        // MMTEL unregistered
+        RegistrationCallback mmtelRegiCallback = deviceCapListener.mMmtelRegistrationCallback;
+        // set the Ims is unregistered
+        doReturn(false).when(mDeviceCapability).isImsRegistered();
+        mmtelRegiCallback.onUnregistered(info);
+
+        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
+
+        // Do not send internal publish trigger
+        verify(mCallback, never()).requestPublishFromInternal(anyInt());
+        // IMS is unregistered. Verify send ImsUnregistered.
+        verify(mCallback).updateImsUnregistered();
+    }
+
+
     private DeviceCapabilityListener createDeviceCapabilityListener() {
         DeviceCapabilityListener deviceCapListener = new DeviceCapabilityListener(mContext,
                 mSubId, mDeviceCapability, mCallback, mUceStatsWriter);
