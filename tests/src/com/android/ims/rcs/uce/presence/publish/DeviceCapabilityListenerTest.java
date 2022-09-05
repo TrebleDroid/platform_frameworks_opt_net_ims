@@ -84,7 +84,6 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
                 getProvisioningManager(anyInt());
 
         doReturn(true).when(mDeviceCapability).updateTtyPreferredMode(anyInt());
-        doReturn(true).when(mDeviceCapability).updateAirplaneMode(anyBoolean());
         doReturn(true).when(mDeviceCapability).updateMobileData(anyBoolean());
         doReturn(true).when(mDeviceCapability).updateVtSetting(anyBoolean());
         doReturn(true).when(mDeviceCapability).updateVtSetting(anyBoolean());
@@ -140,23 +139,6 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         verify(mDeviceCapability).updateTtyPreferredMode(anyInt());
         verify(mCallback).requestPublishFromInternal(
                 PublishController.PUBLISH_TRIGGER_TTY_PREFERRED_CHANGE);
-    }
-
-    @Test
-    @SmallTest
-    public void testAirplaneModeChange() throws Exception {
-        DeviceCapabilityListener deviceCapListener = createDeviceCapabilityListener();
-        final BroadcastReceiver receiver = deviceCapListener.mReceiver;
-
-        Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
-        receiver.onReceive(mContext, intent);
-
-        Handler handler = deviceCapListener.getHandler();
-        waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
-
-        verify(mDeviceCapability).updateAirplaneMode(anyBoolean());
-        verify(mCallback).requestPublishFromInternal(
-                PublishController.PUBLISH_TRIGGER_AIRPLANE_MODE_CHANGE);
     }
 
     @Test
