@@ -242,7 +242,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testPublishingStateTargetingEnable() throws Exception {
         doReturn(1).when(mPublishStateCallbacks).getRegisteredCallbackCount();
-        Boolean boolObj = new Boolean(true);
+        Boolean boolObj = Boolean.TRUE;
         Object uid1 = (Object)boolObj;
         doReturn(uid1).when(mPublishStateCallbacks).getRegisteredCallbackCookie(anyInt());
 
@@ -282,7 +282,7 @@ public class PublishControllerImplTest extends ImsTestBase {
     @SmallTest
     public void testPublishingStateTargetingDisable() throws Exception {
         doReturn(1).when(mPublishStateCallbacks).getRegisteredCallbackCount();
-        Boolean boolObj = new Boolean(false);
+        Boolean boolObj = Boolean.FALSE;
         Object uid1 = (Object)boolObj;
         doReturn(uid1).when(mPublishStateCallbacks).getRegisteredCallbackCookie(anyInt());
 
