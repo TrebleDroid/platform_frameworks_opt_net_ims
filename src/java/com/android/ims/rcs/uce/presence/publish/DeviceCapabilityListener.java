@@ -162,6 +162,8 @@ public class DeviceCapabilityListener {
 
         public void sendImsUnregisteredMessage() {
             logd("sendImsUnregisteredMessage");
+            // The IMS has been unregistered. Remove the existing message not processed.
+            removeMessages(EVENT_REQUEST_PUBLISH);
             // Remove the existing message and resend a new message.
             removeMessages(EVENT_IMS_UNREGISTERED);
             Message msg = obtainMessage(EVENT_IMS_UNREGISTERED);
@@ -492,7 +494,7 @@ public class DeviceCapabilityListener {
                 public void onSubscriberAssociatedUriChanged(Uri[] uris) {
                     synchronized (mLock) {
                         logi("onRcsSubscriberAssociatedUriChanged");
-                        handleRcsSubscriberAssociatedUriChanged(uris, true);
+                        handleRcsSubscriberAssociatedUriChanged(uris);
                     }
                 }
     };
@@ -523,7 +525,7 @@ public class DeviceCapabilityListener {
                 public void onSubscriberAssociatedUriChanged(Uri[] uris) {
                     synchronized (mLock) {
                         logi("onMmTelSubscriberAssociatedUriChanged");
-                        handleMmTelSubscriberAssociatedUriChanged(uris, true);
+                        handleMmTelSubscriberAssociatedUriChanged(uris);
                     }
                 }
             };
@@ -613,7 +615,7 @@ public class DeviceCapabilityListener {
     private void handleImsMmtelUnregistered() {
         mCapabilityInfo.updateImsMmtelUnregistered();
         // When the MMTEL is unregistered, the mmtel associated uri should be cleared.
-        handleMmTelSubscriberAssociatedUriChanged(null, false);
+        handleMmTelSubscriberAssociatedUriChanged(null);
 
         // If the RCS is already unregistered, it informs that the IMS is unregistered.
         if (mCapabilityInfo.isImsRegistered() == false) {
@@ -624,16 +626,16 @@ public class DeviceCapabilityListener {
     /*
      * This method is called when the MMTEL associated uri has changed.
      */
-    private void handleMmTelSubscriberAssociatedUriChanged(Uri[] uris, boolean triggerPublish) {
+    private void handleMmTelSubscriberAssociatedUriChanged(Uri[] uris) {
         Uri originalUri = mCapabilityInfo.getMmtelAssociatedUri();
         mCapabilityInfo.updateMmTelAssociatedUri(uris);
         Uri currentUri = mCapabilityInfo.getMmtelAssociatedUri();
 
         boolean hasChanged = !(Objects.equals(originalUri, currentUri));
-        logi("handleMmTelSubscriberAssociatedUriChanged: triggerPublish=" + triggerPublish +
-                ", hasChanged=" + hasChanged);
+        logi("handleMmTelSubscriberAssociatedUriChanged: hasChanged=" + hasChanged);
 
-        if (triggerPublish && hasChanged) {
+        // Send internal request to send a modification PUBLISH if the MMTEL or RCS is registered.
+        if (mCapabilityInfo.isImsRegistered() && hasChanged) {
             mHandler.sendTriggeringPublishMessage(
                     PublishController.PUBLISH_TRIGGER_MMTEL_URI_CHANGE);
         }
@@ -663,7 +665,7 @@ public class DeviceCapabilityListener {
     private void handleImsRcsUnregistered() {
         boolean hasChanged = mCapabilityInfo.updateImsRcsUnregistered();
         // When the RCS is unregistered, the rcs associated uri should be cleared.
-        handleRcsSubscriberAssociatedUriChanged(null, false);
+        handleRcsSubscriberAssociatedUriChanged(null);
         // If the MMTEL is already unregistered, it informs that the IMS is unregistered.
         if (mCapabilityInfo.isImsRegistered() == false) {
             mHandler.sendImsUnregisteredMessage();
@@ -673,16 +675,16 @@ public class DeviceCapabilityListener {
     /*
      * This method is called when the RCS associated uri has changed.
      */
-    private void handleRcsSubscriberAssociatedUriChanged(Uri[] uris, boolean triggerPublish) {
+    private void handleRcsSubscriberAssociatedUriChanged(Uri[] uris) {
         Uri originalUri = mCapabilityInfo.getRcsAssociatedUri();
         mCapabilityInfo.updateRcsAssociatedUri(uris);
         Uri currentUri = mCapabilityInfo.getRcsAssociatedUri();
 
         boolean hasChanged = !(Objects.equals(originalUri, currentUri));
-        logi("handleRcsSubscriberAssociatedUriChanged: triggerPublish=" + triggerPublish +
-                ", hasChanged=" + hasChanged);
+        logi("handleRcsSubscriberAssociatedUriChanged: hasChanged=" + hasChanged);
 
-        if (triggerPublish && hasChanged) {
+        // Send internal request to send a modification PUBLISH if the MMTEL or RCS is registered.
+        if (mCapabilityInfo.isImsRegistered() && hasChanged) {
             mHandler.sendTriggeringPublishMessage(PublishController.PUBLISH_TRIGGER_RCS_URI_CHANGE);
         }
     }
