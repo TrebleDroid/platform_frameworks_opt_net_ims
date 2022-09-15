@@ -303,7 +303,7 @@ public class PublishControllerImpl implements PublishController {
             boolean supportPublishingState) {
         synchronized (mPublishStateLock) {
             if (mIsDestroyedFlag) return;
-            mPublishStateCallbacks.register(c, new Boolean(supportPublishingState));
+            mPublishStateCallbacks.register(c, Boolean.valueOf(supportPublishingState));
             logd("registerPublishStateCallback: size="
                     + mPublishStateCallbacks.getRegisteredCallbackCount());
         }
