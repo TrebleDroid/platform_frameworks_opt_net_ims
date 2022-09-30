@@ -505,6 +505,13 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
+    public void onMemoryAvailable(int token) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).onMemoryAvailable(token);
+        }
+    }
+
     public void acknowledgeSms(int token, int messageRef,
             @ImsSmsImplBase.SendStatusResult int result) throws RemoteException {
         synchronized (mLock) {
