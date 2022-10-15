@@ -297,7 +297,9 @@ public class SubscribeRequestCoordinator extends UceRequestCoordinator {
             // Trigger capabilities updated callback if there is any.
             List<RcsContactUceCapability> updatedCapList = response.getUpdatedContactCapability();
             if (!updatedCapList.isEmpty()) {
-                mRequestManagerCallback.saveCapabilities(updatedCapList);
+                if (response.isNotFound()) {
+                    mRequestManagerCallback.saveCapabilities(updatedCapList);
+                }
                 triggerCapabilitiesReceivedCallback(updatedCapList);
                 response.removeUpdatedCapabilities(updatedCapList);
             }

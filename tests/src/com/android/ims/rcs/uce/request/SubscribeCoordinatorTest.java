@@ -49,6 +49,7 @@ import androidx.test.filters.SmallTest;
 import com.android.ims.ImsTestBase;
 import com.android.ims.rcs.uce.UceDeviceState.DeviceStateResult;
 import com.android.ims.rcs.uce.UceStatsWriter;
+import com.android.ims.rcs.uce.eab.EabCapabilityResult;
 import com.android.ims.rcs.uce.request.UceRequestCoordinator.RequestResult;
 import com.android.ims.rcs.uce.request.UceRequestManager.RequestManagerCallback;
 
@@ -150,10 +151,20 @@ public class SubscribeCoordinatorTest extends ImsTestBase {
 
         SubscribeRequestCoordinator coordinator = getSubscribeCoordinator();
 
+        List<EabCapabilityResult> eabResultList = new ArrayList<>();
+
+        Uri contactUri = Uri.fromParts("tel", "123456789", null);
+        EabCapabilityResult result = new EabCapabilityResult(contactUri,
+                EabCapabilityResult.EAB_CONTACT_NOT_FOUND_FAILURE, null);
+        eabResultList.add(result);
+
+        doReturn(eabResultList).when(mRequestMgrCallback).
+                getCapabilitiesFromCacheIncludingExpired(any());
+
         coordinator.onRequestUpdated(mTaskId, REQUEST_UPDATE_NETWORK_RESPONSE);
 
         verify(mUceStatsWriter).setSubscribeResponse(eq(mSubId), eq(mTaskId), eq(400));
-
+        verify(mRequestMgrCallback, never()).saveCapabilities(any());
         verify(mRequest).onFinish();
     }
 
