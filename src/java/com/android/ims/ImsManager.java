@@ -3022,6 +3022,15 @@ public class ImsManager implements FeatureUpdates {
         }
     }
 
+    public void acknowledgeSms(int token, int messageRef, int result, byte[] pdu) throws ImsException {
+        try {
+            mMmTelConnectionRef.get().acknowledgeSms(token, messageRef, result, pdu);
+        } catch (RemoteException e) {
+            throw new ImsException("acknowledgeSms()", e,
+                    ImsReasonInfo.CODE_LOCAL_IMS_SERVICE_DOWN);
+        }
+    }
+
     public void acknowledgeSmsReport(int token, int messageRef, int result) throws  ImsException{
         try {
             mMmTelConnectionRef.get().acknowledgeSmsReport(token, messageRef, result);
