@@ -101,7 +101,6 @@ public class DeviceCapabilityInfo {
 
     // Whether the settings are changed or not
     private int mTtyPreferredMode;
-    private boolean mAirplaneMode;
     private boolean mMobileData;
     private boolean mVtSetting;
 
@@ -121,7 +120,6 @@ public class DeviceCapabilityInfo {
         mRcsRegistered = false;
         mRcsNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         mTtyPreferredMode = TelecomManager.TTY_MODE_OFF;
-        mAirplaneMode = false;
         mMobileData = true;
         mVtSetting = true;
         mMmTelCapabilities = new MmTelCapabilities();
@@ -367,19 +365,6 @@ public class DeviceCapabilityInfo {
         if (mTtyPreferredMode != ttyMode) {
             logd("TTY preferred mode changes from " + mTtyPreferredMode + " to " + ttyMode);
             mTtyPreferredMode = ttyMode;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Update airplane mode state.
-     * @return {@code true} if the airplane mode is changed, {@code false} otherwise.
-     */
-    public synchronized boolean updateAirplaneMode(boolean state) {
-        if (mAirplaneMode != state) {
-            logd("Airplane mode changes from " + mAirplaneMode + " to " + state);
-            mAirplaneMode = state;
             return true;
         }
         return false;
