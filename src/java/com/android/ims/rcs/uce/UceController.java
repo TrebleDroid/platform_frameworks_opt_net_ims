@@ -635,14 +635,14 @@ public class UceController {
         if (uriList == null || uriList.isEmpty() || c == null) {
             logw("requestCapabilities: parameter is empty");
             if (c != null) {
-                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L, null);
             }
             return;
         }
 
         if (isUnavailable()) {
             logw("requestCapabilities: controller is unavailable");
-            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
+            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L, null);
             return;
         }
 
@@ -655,7 +655,7 @@ public class UceController {
             long retryAfterMillis = deviceStateResult.getRequestRetryAfterMillis();
             logw("requestCapabilities: The device is disallowed, deviceState= " + deviceState +
                     ", errorCode=" + errorCode + ", retryAfterMillis=" + retryAfterMillis);
-            c.onError(errorCode, retryAfterMillis);
+            c.onError(errorCode, retryAfterMillis, null);
             return;
         }
 
@@ -674,14 +674,14 @@ public class UceController {
         if (uri == null || c == null) {
             logw("requestAvailability: parameter is empty");
             if (c != null) {
-                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
+                c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L, null);
             }
             return;
         }
 
         if (isUnavailable()) {
             logw("requestAvailability: controller is unavailable");
-            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L);
+            c.onError(RcsUceAdapter.ERROR_GENERIC_FAILURE, 0L, null);
             return;
         }
 
@@ -694,7 +694,7 @@ public class UceController {
             long retryAfterMillis = deviceStateResult.getRequestRetryAfterMillis();
             logw("requestAvailability: The device is disallowed, deviceState= " + deviceState +
                     ", errorCode=" + errorCode + ", retryAfterMillis=" + retryAfterMillis);
-            c.onError(errorCode, retryAfterMillis);
+            c.onError(errorCode, retryAfterMillis, null);
             return;
         }
 
