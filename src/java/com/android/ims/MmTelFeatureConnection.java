@@ -22,8 +22,11 @@ import android.os.IBinder;
 import android.os.IInterface;
 import android.os.Message;
 import android.os.RemoteException;
+import android.telephony.SubscriptionManager;
 import android.telephony.ims.ImsCallProfile;
 import android.telephony.ims.ImsService;
+import android.telephony.ims.MediaQualityStatus;
+import android.telephony.ims.MediaThreshold;
 import android.telephony.ims.RtpHeaderExtensionType;
 import android.telephony.ims.aidl.IImsCapabilityCallback;
 import android.telephony.ims.aidl.IImsConfig;
@@ -39,6 +42,7 @@ import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.stub.ImsEcbmImplBase;
 import android.telephony.ims.stub.ImsSmsImplBase;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsEcbm;
@@ -46,7 +50,7 @@ import com.android.ims.internal.IImsMultiEndpoint;
 import com.android.ims.internal.IImsUt;
 
 import java.util.ArrayList;
-import java.util.Optional;
+import java.util.HashMap;
 import java.util.Set;
 
 /**
@@ -101,7 +105,6 @@ public class MmTelFeatureConnection extends FeatureConnection {
     }
 
     private class CapabilityCallbackManager extends ImsCallbackAdapterManager<IImsCapabilityCallback> {
-
         public CapabilityCallbackManager(Context context, Object lock) {
             super(context, lock, mSlotId, mSubId);
         }
@@ -375,6 +378,22 @@ public class MmTelFeatureConnection extends FeatureConnection {
     public void removeProvisioningCallbackForSubscription(IImsConfigCallback callback,
             int subId) {
         mProvisioningCallbackManager.removeCallback(callback);
+    }
+
+    public void setMediaThreshold(@MediaQualityStatus.MediaSessionType int sessionType,
+            MediaThreshold threshold) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).setMediaQualityThreshold(sessionType, threshold);
+        }
+    }
+
+    public MediaQualityStatus queryMediaQualityStatus(
+            @MediaQualityStatus.MediaSessionType int sessionType) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            return getServiceInterface(mBinder).queryMediaQualityStatus(sessionType);
+        }
     }
 
     public void changeEnabledCapabilities(CapabilityChangeRequest request,
