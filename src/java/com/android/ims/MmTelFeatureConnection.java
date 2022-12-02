@@ -513,6 +513,14 @@ public class MmTelFeatureConnection extends FeatureConnection {
         }
     }
 
+    public void acknowledgeSms(int token, int messageRef,
+            @ImsSmsImplBase.SendStatusResult int result, byte[] pdu) throws RemoteException {
+        synchronized (mLock) {
+            checkServiceIsReady();
+            getServiceInterface(mBinder).acknowledgeSmsWithPdu(token, messageRef, result, pdu);
+        }
+    }
+
     public void acknowledgeSmsReport(int token, int messageRef,
             @ImsSmsImplBase.StatusReportResult int result) throws RemoteException {
         synchronized (mLock) {
