@@ -1012,6 +1012,14 @@ public class ImsManagerTest extends ImsTestBase {
 
     }
 
+    @Test @SmallTest
+    public void onMemoryAvailableTest() throws Exception{
+        ImsManager imsManager = getImsManagerAndInitProvisionedValues();
+        int token = 1;
+        imsManager.onMemoryAvailable(token);
+        verify(mMmTelFeatureConnection).onMemoryAvailable(eq(token));
+    }
+
     private ImsManager getImsManagerAndInitProvisionedValues() {
         when(mImsConfigImplBaseMock.getConfigInt(anyInt()))
                 .thenAnswer(invocation ->  {
