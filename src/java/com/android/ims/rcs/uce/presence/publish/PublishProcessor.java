@@ -22,6 +22,7 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.os.RemoteException;
 import android.telephony.ims.RcsContactUceCapability;
+import android.telephony.ims.SipDetails;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.text.TextUtils;
@@ -394,7 +395,9 @@ public class PublishProcessor {
         // Update the publish state after the request has finished.
         int publishState = response.getPublishState();
         String pidfXml = response.getPidfXml();
-        mPublishCtrlCallback.updatePublishRequestResult(publishState, responseTime, pidfXml);
+        SipDetails details = response.getSipDetails().orElse(null);
+        mPublishCtrlCallback.updatePublishRequestResult(publishState, responseTime, pidfXml,
+                details);
 
         // Refresh the device state with the publish request result.
         response.getResponseSipCode().ifPresent(sipCode -> {
