@@ -49,6 +49,8 @@ import android.telephony.ims.ImsCallSession;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ImsService;
+import android.telephony.ims.MediaQualityStatus;
+import android.telephony.ims.MediaThreshold;
 import android.telephony.ims.ProvisioningManager;
 import android.telephony.ims.RegistrationManager;
 import android.telephony.ims.RtpHeaderExtensionType;
@@ -2801,6 +2803,27 @@ public class ImsManager implements FeatureUpdates {
     public int getImsServiceState() throws ImsException {
         MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
         return c.getFeatureState();
+    }
+
+    public void setMediaThreshold(@MediaQualityStatus.MediaSessionType int sessionType,
+            MediaThreshold threshold) throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            c.setMediaThreshold(sessionType, threshold);
+        } catch (RemoteException e) {
+            loge("setMediaThreshold Failed.");
+        }
+    }
+
+    public MediaQualityStatus queryMediaQualityStatus (
+            @MediaQualityStatus.MediaSessionType int sessionType) throws ImsException {
+        MmTelFeatureConnection c = getOrThrowExceptionIfServiceUnavailable();
+        try {
+            return c.queryMediaQualityStatus(sessionType);
+        } catch (RemoteException e) {
+            loge("queryMediaQualityStatus Failed.");
+            return null;
+        }
     }
 
     @Override
