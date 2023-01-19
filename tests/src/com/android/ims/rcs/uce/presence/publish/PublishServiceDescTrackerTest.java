@@ -107,7 +107,6 @@ public class PublishServiceDescTrackerTest {
         t1.updateImsRegistration(imsReg);
         assertEquals(expectedSet, t1.copyRegistrationCapabilities());
 
-
         expectedSet = Collections.singleton(
                 ServiceDescription.SERVICE_DESCRIPTION_CHATBOT_SESSION);
         imsReg = createImsRegistration(
@@ -137,6 +136,25 @@ public class PublishServiceDescTrackerTest {
         imsReg = createImsRegistration(
                 FeatureTags.FEATURE_TAG_MMTEL,
                 FeatureTags.FEATURE_TAG_VIDEO);
+        t1.updateImsRegistration(imsReg);
+        assertEquals(expectedSet, t1.copyRegistrationCapabilities());
+
+        expectedSet = Collections.singleton(
+                ServiceDescription.SERVICE_DESCRIPTION_SLM);
+        imsReg = createImsRegistration(
+                FeatureTags.FEATURE_TAG_PAGER_MODE,
+                FeatureTags.FEATURE_TAG_LARGE_MODE,
+                FeatureTags.FEATURE_TAG_DEFERRED_MESSAGING,
+                FeatureTags.FEATURE_TAG_LARGE_PAGER_MODE);
+        t1.updateImsRegistration(imsReg);
+        assertEquals(expectedSet, t1.copyRegistrationCapabilities());
+
+
+        expectedSet = Collections.singleton(
+                ServiceDescription.SERVICE_DESCRIPTION_SLM_PAGER_LARGE);
+        imsReg = createImsRegistration(
+                FeatureTags.FEATURE_TAG_PAGER_MODE,
+                FeatureTags.FEATURE_TAG_LARGE_MODE);
         t1.updateImsRegistration(imsReg);
         assertEquals(expectedSet, t1.copyRegistrationCapabilities());
     }
