@@ -276,7 +276,7 @@ public class DeviceCapabilityListener {
         IntentFilter filter = new IntentFilter();
         filter.addAction(TelecomManager.ACTION_TTY_PREFERRED_MODE_CHANGED);
         mContext.registerReceiver(mReceiver, filter, android.Manifest.permission.MODIFY_PHONE_STATE,
-                null);
+                null, Context.RECEIVER_EXPORTED);
 
         ContentResolver resolver = mContext.getContentResolver();
         if (resolver != null) {

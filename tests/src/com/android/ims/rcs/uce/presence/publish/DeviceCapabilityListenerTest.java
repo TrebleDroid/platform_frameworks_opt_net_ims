@@ -107,7 +107,7 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         deviceCapListener.initialize();
 
         verify(mContext).registerReceiver(any(), any(),
-            eq(android.Manifest.permission.MODIFY_PHONE_STATE), any());
+            eq(android.Manifest.permission.MODIFY_PHONE_STATE), any(), anyInt());
         verify(mProvisioningManager).registerProvisioningChangedCallback(any(), any());
     }
 
