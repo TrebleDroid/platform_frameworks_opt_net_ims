@@ -261,7 +261,7 @@ public class ImsManager implements FeatureUpdates {
     @VisibleForTesting
     public interface SubscriptionManagerProxy {
         boolean isValidSubscriptionId(int subId);
-        int[] getSubscriptionIds(int slotIndex);
+        int getSubscriptionId(int slotIndex);
         int getDefaultVoicePhoneId();
         int getIntegerSubscriptionProperty(int subId, String propKey, int defValue);
         void setSubscriptionProperty(int subId, String propKey, String propValue);
@@ -296,8 +296,8 @@ public class ImsManager implements FeatureUpdates {
         }
 
         @Override
-        public int[] getSubscriptionIds(int slotIndex) {
-            return getSubscriptionManager().getSubscriptionIds(slotIndex);
+        public int getSubscriptionId(int slotIndex) {
+            return SubscriptionManager.getSubscriptionId(slotIndex);
         }
 
         @Override
@@ -1437,12 +1437,7 @@ public class ImsManager implements FeatureUpdates {
     }
 
     private int getSubId() {
-        int[] subIds = mSubscriptionManagerProxy.getSubscriptionIds(mPhoneId);
-        int subId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
-        if (subIds != null && subIds.length >= 1) {
-            subId = subIds[0];
-        }
-        return subId;
+        return mSubscriptionManagerProxy.getSubscriptionId(mPhoneId);
     }
 
     private void setWfcModeInternal(int wfcMode) {
