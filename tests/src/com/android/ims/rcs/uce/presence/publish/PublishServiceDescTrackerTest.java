@@ -157,6 +157,11 @@ public class PublishServiceDescTrackerTest {
                 FeatureTags.FEATURE_TAG_LARGE_MODE);
         t1.updateImsRegistration(imsReg);
         assertEquals(expectedSet, t1.copyRegistrationCapabilities());
+
+        // delete the feature tags for Unregistered
+        expectedSet = new ArraySet<>();
+        t1.updateImsRegistration(Collections.emptySet());
+        assertEquals(expectedSet, t1.copyRegistrationCapabilities());
     }
 
     @SmallTest
