@@ -244,6 +244,9 @@ public class DeviceCapabilityInfo {
             mRcsRegistered = false;
             changed = true;
         }
+
+        mLastRegistrationFeatureTags = Collections.emptySet();
+        updateRegistration(mLastRegistrationFeatureTags);
         mRcsNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         return changed;
     }
