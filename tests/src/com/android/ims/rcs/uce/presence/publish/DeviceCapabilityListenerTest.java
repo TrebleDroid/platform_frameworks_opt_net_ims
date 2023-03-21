@@ -154,7 +154,8 @@ public class DeviceCapabilityListenerTest extends ImsTestBase {
         waitForHandlerActionDelayed(handler, HANDLER_WAIT_TIMEOUT_MS, HANDLER_SENT_DELAY_MS);
 
         verify(mDeviceCapability).updateImsMmtelRegistered(1);
-        verify(mCallback).requestPublishFromInternal(
+        // update capability, but not trigger PUBLISH message when MmTel registered.
+        verify(mCallback, never()).requestPublishFromInternal(
                 PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED);
     }
 
