@@ -590,9 +590,9 @@ public class DeviceCapabilityListener {
      * This method is called when the MMTEL is registered.
      */
     private void handleImsMmtelRegistered(int imsTransportType) {
+        // update capability, but not trigger PUBLISH message.
+        // PUBLISH message will be sent when the Capability status changed callback is called.
         mCapabilityInfo.updateImsMmtelRegistered(imsTransportType);
-        mHandler.sendTriggeringPublishMessage(
-                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED);
     }
 
     /*
