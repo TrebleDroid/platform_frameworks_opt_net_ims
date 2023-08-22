@@ -18,9 +18,11 @@ package com.android.ims.rcs.uce.presence.publish;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.telephony.ims.RcsContactUceCapability;
 import android.telephony.ims.RcsContactUceCapability.CapabilityMechanism;
 import android.telephony.ims.RcsUceAdapter.PublishState;
+import android.telephony.ims.SipDetails;
 import android.telephony.ims.aidl.IRcsUcePublishStateCallback;
 
 import com.android.ims.rcs.uce.ControllerBase;
@@ -138,7 +140,8 @@ public interface PublishController extends ControllerBase {
         /**
          * Update the publish request result.
          */
-        void updatePublishRequestResult(int publishState, Instant updatedTimestamp, String pidfXml);
+        void updatePublishRequestResult(int publishState, Instant updatedTimestamp, String pidfXml,
+                SipDetails details);
 
         /**
          * Update the value of the publish throttle.
@@ -208,9 +211,7 @@ public interface PublishController extends ControllerBase {
     /**
      * Notify that the device's publish status have been changed.
      */
-    void onPublishUpdated(int reasonCode, String reasonPhrase,
-            int reasonHeaderCause, String reasonHeaderText);
-
+    void onPublishUpdated(@NonNull SipDetails details);
     /**
      * Retrieve the device's capabilities.
      */

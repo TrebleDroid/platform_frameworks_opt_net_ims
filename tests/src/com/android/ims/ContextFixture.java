@@ -138,6 +138,12 @@ public class ContextFixture {
         }
 
         @Override
+        public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
+                String broadcastPermission, Handler scheduler, int flags) {
+            return null;
+        }
+
+        @Override
         public void unregisterReceiver(BroadcastReceiver receiver) {
         }
 
