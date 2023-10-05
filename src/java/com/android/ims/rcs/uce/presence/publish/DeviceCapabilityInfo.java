@@ -39,10 +39,13 @@ import android.util.Log;
 
 import com.android.ims.rcs.uce.util.FeatureTags;
 import com.android.ims.rcs.uce.util.UceUtils;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -104,6 +107,11 @@ public class DeviceCapabilityInfo {
     private boolean mMobileData;
     private boolean mVtSetting;
 
+    // The service description associated with the last publication update.
+    private final Set<ServiceDescription> mLastSuccessfulCapabilities = new ArraySet<>();
+    // The service description to temporarily store the presence capability being sent.
+    private Set<ServiceDescription> mPendingPublishCapabilities;
+
     public DeviceCapabilityInfo(int subId, String[] capToRegistrationMap) {
         mSubId = subId;
         mServiceCapRegTracker = PublishServiceDescTracker.fromCarrierConfig(capToRegistrationMap);
@@ -125,6 +133,8 @@ public class DeviceCapabilityInfo {
         mMmTelCapabilities = new MmTelCapabilities();
         mMmtelAssociatedUris = Collections.EMPTY_LIST;
         mRcsAssociatedUris = Collections.EMPTY_LIST;
+        mLastSuccessfulCapabilities.clear();
+        mPendingPublishCapabilities = null;
     }
 
     /**
@@ -166,7 +176,6 @@ public class DeviceCapabilityInfo {
 
     /**
      * Update the status that IMS MMTEL is unregistered.
-     * @return Mmtel registered status before change
      */
     public synchronized boolean updateImsMmtelUnregistered() {
         logi("IMS MMTEL unregistered: original state=" + mMmtelRegistered);
@@ -176,6 +185,8 @@ public class DeviceCapabilityInfo {
             changed = true;
         }
         mMmtelNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
+        mLastSuccessfulCapabilities.clear();
+        mPendingPublishCapabilities = null;
         return changed;
     }
 
@@ -248,6 +259,8 @@ public class DeviceCapabilityInfo {
         mLastRegistrationFeatureTags = Collections.emptySet();
         updateRegistration(mLastRegistrationFeatureTags);
         mRcsNetworkRegType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
+        mLastSuccessfulCapabilities.clear();
+        mPendingPublishCapabilities = null;
         return changed;
     }
 
@@ -446,6 +459,67 @@ public class DeviceCapabilityInfo {
         return mPresenceCapable;
     }
 
+    // Get the device's capabilities with the PRESENCE mechanism.
+    public RcsContactUceCapability getChangedPresenceCapability(Context context) {
+        if (context == null) {
+            return null;
+        }
+        Set<ServiceDescription> capableFromReg =
+                mServiceCapRegTracker.copyRegistrationCapabilities();
+        if (isPresenceCapabilityChanged(capableFromReg)) {
+            RcsContactUceCapability rcsContactUceCapability = getPresenceCapabilities(context);
+            if (rcsContactUceCapability != null) {
+                mPendingPublishCapabilities = mServiceCapRegTracker.copyRegistrationCapabilities();
+            }
+            return rcsContactUceCapability;
+        }
+        return null;
+    }
+
+    public void setPresencePublishResult(boolean isSuccess) {
+        if (isSuccess) {
+            mLastSuccessfulCapabilities.clear();
+            if (mPendingPublishCapabilities != null) {
+                mLastSuccessfulCapabilities.addAll(mPendingPublishCapabilities);
+            }
+        }
+        mPendingPublishCapabilities = null;
+    }
+
+    public void resetPresenceCapability() {
+        mLastSuccessfulCapabilities.clear();
+        mPendingPublishCapabilities = null;
+    }
+
+    public List<RcsContactPresenceTuple> getLastSuccessfulPresenceTuplesWithoutContactUri() {
+        List<RcsContactPresenceTuple> presenceTuples = new ArrayList<>();
+        if (mLastSuccessfulCapabilities.isEmpty()) {
+            return presenceTuples;
+        }
+
+        for (ServiceDescription capability : mLastSuccessfulCapabilities) {
+            presenceTuples.add(capability.getTupleBuilder().build());
+        }
+        return presenceTuples;
+    }
+
+    @VisibleForTesting
+    public void addLastSuccessfulServiceDescription(ServiceDescription capability) {
+        mLastSuccessfulCapabilities.add(capability);
+    }
+
+    @VisibleForTesting
+    public boolean isPresenceCapabilityChanged(Set<ServiceDescription> capableFromReg) {
+        if (mLastSuccessfulCapabilities.isEmpty()) {
+            return true;
+        }
+
+        if (capableFromReg.equals(mLastSuccessfulCapabilities)) {
+            return false;
+        }
+        return true;
+    }
+
     private boolean isVolteAvailable(int networkRegType, MmTelCapabilities capabilities) {
         return (networkRegType == AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
                 && capabilities.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE);
@@ -478,7 +552,12 @@ public class DeviceCapabilityInfo {
             @CapabilityMechanism int mechanism, Context context) {
         switch (mechanism) {
             case RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE:
-                return getPresenceCapabilities(context);
+                RcsContactUceCapability rcsContactUceCapability = getPresenceCapabilities(context);
+                if (rcsContactUceCapability != null) {
+                    mPendingPublishCapabilities =
+                            mServiceCapRegTracker.copyRegistrationCapabilities();
+                }
+                return rcsContactUceCapability;
             case RcsContactUceCapability.CAPABILITY_MECHANISM_OPTIONS:
                 return getOptionsCapabilities(context);
             default:

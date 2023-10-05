@@ -276,7 +276,7 @@ public class DeviceCapabilityListener {
         IntentFilter filter = new IntentFilter();
         filter.addAction(TelecomManager.ACTION_TTY_PREFERRED_MODE_CHANGED);
         mContext.registerReceiver(mReceiver, filter, android.Manifest.permission.MODIFY_PHONE_STATE,
-                null);
+                null, Context.RECEIVER_EXPORTED);
 
         ContentResolver resolver = mContext.getContentResolver();
         if (resolver != null) {
@@ -587,9 +587,9 @@ public class DeviceCapabilityListener {
      * This method is called when the MMTEL is registered.
      */
     private void handleImsMmtelRegistered(int imsTransportType) {
+        // update capability, but not trigger PUBLISH message.
+        // PUBLISH message will be sent when the Capability status changed callback is called.
         mCapabilityInfo.updateImsMmtelRegistered(imsTransportType);
-        mHandler.sendTriggeringPublishMessage(
-                PublishController.PUBLISH_TRIGGER_MMTEL_REGISTERED);
     }
 
     /*
