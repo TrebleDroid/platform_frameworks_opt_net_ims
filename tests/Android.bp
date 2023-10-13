@@ -37,6 +37,8 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "mockito-target-minus-junit4",
+        "telephony_flags_core_java_lib",
+        "flag-junit",
     ],
 
     test_suites: [
