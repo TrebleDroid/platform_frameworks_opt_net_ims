@@ -75,6 +75,7 @@ import android.util.SparseArray;
 import com.android.ims.internal.IImsCallSession;
 import com.android.ims.internal.IImsServiceFeatureCallback;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.telephony.flags.Flags;
 import com.android.internal.telephony.ITelephony;
 import com.android.telephony.Rlog;
 
@@ -2450,6 +2451,15 @@ public class ImsManager implements FeatureUpdates {
             call.attachSession(new ImsCallSession(session));
             call.setListener(listener);
 
+            if (Flags.ignoreAlreadyTerminatedIncomingCallBeforeRegisteringListener()){
+                // If the call session already terminated before registering callback then the
+                // framework should ignore incoming call.
+                if (!ImsCall.isSessionAlive(call.getSession())) {
+                    loge("takeCall : ImsCallSession is not alive");
+                    throw new ImsException("takeCall() : ImsCallSession is not alive",
+                            ImsReasonInfo.CODE_UNSPECIFIED);
+                }
+            }
             return call;
         } catch (Throwable t) {
             loge("takeCall caught: ", t);
