@@ -29,9 +29,9 @@ android_test {
 
     libs: [
         "ims-common",
-        "android.test.runner",
-        "android.test.mock",
-        "android.test.base",
+        "android.test.runner.stubs.system",
+        "android.test.mock.stubs.system",
+        "android.test.base.stubs.system",
     ],
 
     static_libs: [
