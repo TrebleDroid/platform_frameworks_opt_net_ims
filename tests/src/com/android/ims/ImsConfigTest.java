@@ -16,7 +16,7 @@
 
 package com.android.ims;
 
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 import android.telephony.ims.aidl.IImsConfig;
