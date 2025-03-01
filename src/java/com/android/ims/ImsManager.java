@@ -524,9 +524,7 @@ public class ImsManager implements FeatureUpdates {
         // Check SDK version of the vendor partition.
         final int vendorApiLevel = SystemProperties.getInt(
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);
-        if (vendorApiLevel < Build.VERSION_CODES.VANILLA_ICE_CREAM) return false;
-
-        return Flags.minimalTelephonyCdmCheck();
+        return vendorApiLevel >= Build.VERSION_CODES.VANILLA_ICE_CREAM;
     }
 
     /**
@@ -3746,10 +3744,6 @@ public class ImsManager implements FeatureUpdates {
      * {@code false} otherwise.
      */
     private boolean overrideWfcRoamingModeWhileUsingNTN() {
-        if (!Flags.carrierEnabledSatelliteFlag()) {
-            return false;
-        }
-
         if (mTelephonyManager == null) {
             return false;
         }

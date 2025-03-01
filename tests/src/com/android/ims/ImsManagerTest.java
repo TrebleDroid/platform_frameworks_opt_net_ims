@@ -935,8 +935,6 @@ public class ImsManagerTest extends ImsTestBase {
 
     @Test @SmallTest
     public void getWfcMode_overrideWfcRoamingModeWhileUsingNTN() {
-        mSetFlagsRule.enableFlags(Flags.FLAG_CARRIER_ENABLED_SATELLITE_FLAG);
-
         // Phone connected to non-terrestrial network
         NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
                 .setIsNonTerrestrialNetwork(true)
