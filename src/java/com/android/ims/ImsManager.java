@@ -531,8 +531,9 @@ public class ImsManager implements FeatureUpdates {
      * @return true if this device supports telephony calling, false if it does not.
      */
     private static boolean isTelephonyCallingSupportedOnDevice(Context context) {
-        return minimalTelephonyCdmCheck() && context.getPackageManager().hasSystemFeature(
-                        PackageManager.FEATURE_TELEPHONY_CALLING);
+        if (!minimalTelephonyCdmCheck()) return true;
+        return context.getPackageManager().hasSystemFeature(
+                 PackageManager.FEATURE_TELEPHONY_CALLING);
     }
 
     /**
