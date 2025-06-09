@@ -70,7 +70,6 @@ public class SubscribeRequestTest extends ImsTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        doReturn(false).when(mFeatureFlags).enableSipSubscribeRetry();
     }
 
     @After
@@ -184,33 +183,7 @@ public class SubscribeRequestTest extends ImsTestBase {
 
     @Test
     @SmallTest
-    public void testSipSubscribeRetryWithDisabledFeatureFlag() throws Exception {
-        doReturn(false).when(mFeatureFlags).enableSipSubscribeRetry();
-
-        SubscribeRequest subscribeRequest = getSubscribeRequest();
-        List<Uri> uriList = new ArrayList<>();
-        uriList.add(CONTACT1);
-        uriList.add(CONTACT2);
-        subscribeRequest.setContactUri(uriList);
-        subscribeRequest.setRetryEnabled(true);
-        subscribeRequest.setRetryCount(0);
-        ISubscribeResponseCallback callback = subscribeRequest.getResponseCallback();
-        int errorCommand = RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT;
-        callback.onCommandError(errorCommand);
-
-        verify(mRequestResponse).setCommandError(eq(errorCommand));
-        verify(mRequestResponse, never()).setSipDetails(any(SipDetails.class));
-        verify(mRequestManagerCallback).notifyCommandError(eq(mCoordId), anyLong());
-
-        // Verify that subscribe request is not retried
-        verify(mRequestManagerCallback, never()).sendSubscribeRetryRequest(any());
-    }
-
-    @Test
-    @SmallTest
     public void testSipSubscribeRetry() throws Exception {
-        doReturn(true).when(mFeatureFlags).enableSipSubscribeRetry();
-
         SubscribeRequest subscribeRequest = getSubscribeRequest();
         List<Uri> uriList = new ArrayList<>();
         uriList.add(CONTACT1);
@@ -240,8 +213,6 @@ public class SubscribeRequestTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testSipSubscribeReachMaxRetry() throws Exception {
-        doReturn(true).when(mFeatureFlags).enableSipSubscribeRetry();
-
         // Reach max retry request and received onCommandError with COMMAND_CODE_REQUEST_TIMEOUT.
         SubscribeRequest subscribeRetryRequest = getSubscribeRequest();
         List<Uri> uriList = new ArrayList<>();

@@ -364,8 +364,6 @@ public class UceRequestManagerTest extends ImsTestBase {
     @Test
     @SmallTest
     public void testSendSubscribeRetryRequest() throws Exception {
-        doReturn(true).when(mFeatureFlags).enableSipSubscribeRetry();
-
         UceRequestManager requestManager = getUceRequestManager();
         requestManager.setsUceUtilsProxy(getUceUtilsProxy(
                 true, true, false, false, true, 10, true, 30000));

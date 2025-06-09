@@ -134,8 +134,7 @@ public class SubscribeRequest extends CapabilityRequest {
             return;
         }
 
-        if (mFeatureFlags.enableSipSubscribeRetry()
-                && cmdError == RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT
+        if (cmdError == RcsCapabilityExchangeImplBase.COMMAND_CODE_REQUEST_TIMEOUT
                 && isRetryEnabled()) {
             int retryCount = getRetryCount();
             if (retryCount < MAX_RETRY_COUNT) {
