@@ -545,11 +545,6 @@ public class UceRequestManager {
     }
 
     private void sendSubscribeRetryRequest(UceRequest request) {
-        if (!mFeatureFlags.enableSipSubscribeRetry()) {
-            logw("Retry subscribe is not allowed");
-            return;
-        }
-
         if (request == null || !SubscribeRequest.class.isInstance(request)) {
             logw("parameter is not available for retry");
             return;
