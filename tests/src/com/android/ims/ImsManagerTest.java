@@ -78,9 +78,6 @@ import java.util.Hashtable;
 
 @RunWith(AndroidJUnit4.class)
 public class ImsManagerTest extends ImsTestBase {
-    @Rule
-    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
-
     private static final boolean ENHANCED_4G_MODE_DEFAULT_VAL = true;
     private static final boolean ENHANCED_4G_MODE_EDITABLE = true;
     private static final boolean WFC_IMS_ENABLE_DEFAULT_VAL = false;
@@ -1067,9 +1064,6 @@ public class ImsManagerTest extends ImsTestBase {
     @Test @SmallTest
     public void testTakeCall_incomingSessionTerminatedBeforeRegisterListener()
             throws RemoteException {
-        mSetFlagsRule.enableFlags(
-                Flags.FLAG_IGNORE_ALREADY_TERMINATED_INCOMING_CALL_BEFORE_REGISTERING_LISTENER);
-
         IImsCallSession mockSession = mock(IImsCallSession.class);
         doThrow(RemoteException.class).when(mockSession).setListener(any());
         ImsCall.Listener mockListener = mock(ImsCall.Listener.class);
