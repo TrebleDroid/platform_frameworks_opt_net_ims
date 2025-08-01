@@ -627,6 +627,9 @@ public class ImsCall implements ICall {
     // successfully added.
     private boolean mCallSessionMergePending = false;
 
+    // If true, this flag means that this ImsCall became multiparty, false otherwise.
+    private boolean mIsCachedMultiparty = false;
+
     /**
      * If {@code true}, this flag indicates that a request to terminate the call was made by
      * Telephony (could be from the user or some internal telephony logic)
@@ -1018,8 +1021,23 @@ public class ImsCall implements ICall {
                 return false;
             }
 
+            if (VDBG) {
+                Log.i(TAG, " isMultiparty: " + mSession.isMultiparty());
+            }
             return mSession.isMultiparty();
         }
+    }
+
+    /**
+     * Determines if the call is a multiparty call for log. We could not make sure the
+     * local variable mIsCachedMultiparty updated from callSessionMultipartyStateChanged() is
+     * always correct because it may have timing issue that merge() works within mLockObj but
+     * callSessionMultipartyStateChanged() uses lock on ImsCall.this.
+     *
+     * @return {@code True} if the call is a multiparty call.
+     */
+    public boolean isCachedMultiparty() {
+        return mIsCachedMultiparty;
     }
 
     /**
@@ -1395,6 +1413,7 @@ public class ImsCall implements ICall {
             mHold = false;
             mInCall = false;
             mTerminationRequestPending = true;
+            mIsCachedMultiparty = false;
 
             if (mSession != null) {
                 // TODO: Fix the fact that user invoked call terminations during
@@ -1902,6 +1921,7 @@ public class ImsCall implements ICall {
         mHold = false;
         mUpdateRequest = UPDATE_NONE;
         mLastReasonInfo = lastReasonInfo;
+        mIsCachedMultiparty = false;
     }
 
     /**
@@ -3276,6 +3296,7 @@ public class ImsCall implements ICall {
 
             synchronized(ImsCall.this) {
                 listener = mListener;
+                mIsCachedMultiparty = isMultiParty;
             }
 
             if (listener != null) {
@@ -3813,8 +3834,8 @@ public class ImsCall implements ICall {
         sb.append(isCallSessionMergePending() ? "Y" : "N");
         sb.append(" merged:");
         sb.append(isMerged() ? "Y" : "N");
-        sb.append(" multiParty:");
-        sb.append(isMultiparty() ? "Y" : "N");
+        sb.append(" cachedMultiParty:");
+        sb.append(isCachedMultiparty() ? "Y" : "N");
         sb.append(" confHost:");
         sb.append(isConferenceHost() ? "Y" : "N");
         sb.append(" buried term:");
